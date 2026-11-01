@@ -196,18 +196,25 @@ class Engine:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
                 executable = self._host.compile(context.module)
             else:
-                if len(context.inputs) != 1 or len(context.output_specs) != 1 or context.external_count != 1:
-                    raise NotImplementedError('ASK CUDA JIT currently requires one tensor input, one output '
-                                              'and one external operation; pure ASK CUDA lowering is not implemented')
-                if context.output_specs[0] != context.input_specs[0]:
-                    raise NotImplementedError('ASK CUDA JIT requires equal input/output shape and storage dtype')
+                if context.external_count:
+                    if len(context.inputs) != 1 or len(context.output_specs) != 1 or context.external_count != 1:
+                        raise NotImplementedError('ASK external CUDA fusion currently requires one tensor input, '
+                                                  'one output and one external operation')
+                    if context.output_specs[0] != context.input_specs[0]:
+                        raise NotImplementedError('ASK external CUDA fusion requires equal input/output '
+                                                  'shape and storage dtype')
                 if self.llc is None or self.ptxas is None:
                     raise ValueError('CUDA compilation requires explicit llc and ptxas paths')
                 artifacts = self.cache_dir / 'artifacts'
                 artifacts.mkdir(exist_ok=True)
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
+                options = {}
+                if not context.external_count:
+                    major, minor = self.session.capability
+                    options['target'] = {'backend': 'cuda', 'arch': major * 10 + minor}
                 kernel = self.compiler.compile_cuda(context.module, compilers=self.compilers,
-                    llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory)
+                    llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
+                    **options)
                 executable = _CUDAExecutable(kernel, self.session, directory, context.module.to_mlir())
             self._stats['compilations'] += 1
             return executable
@@ -269,11 +276,12 @@ class _CUDAExecutable:
         self.source, self.report, self.artifact_dir = source, kernel.report, directory
 
     def run(self, inputs):
-        if len(inputs) != 1:
-            raise ValueError('CUDA executable expects exactly one input tensor')
-        output = self.session.tensor(self.prepared.shape, self.prepared.dtype)
-        self.prepared.submit(inputs[0], output)
-        return [output]
+        if len(inputs) != len(self.prepared.inputs):
+            raise ValueError('CUDA input count differs from the compiled graph')
+        outputs = [self.session.tensor(port['shape'], port['element_type'])
+                   for port in self.prepared.outputs]
+        self.prepared.submit_many(inputs, outputs)
+        return outputs
 
 
 def tensor(values, *, dtype='f32', shape=None, engine=None, device=None):

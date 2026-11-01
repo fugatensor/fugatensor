@@ -25,28 +25,28 @@ def _details(function):
     }
 
 
-def cpu_demo():
+def arithmetic_demo(device):
     @ft.jit
     def arithmetic(x, y):
         return (x + y) * 2
 
-    x = ft.tensor([[1, 2], [3, 4]])
-    y = ft.tensor([[10, 20], [30, 40]])
+    x = ft.tensor([[1, 2], [3, 4]], device=device)
+    y = ft.tensor([[10, 20], [30, 40]], device=device)
     first = arithmetic(x, y).tolist()
     expected = [[22.0, 44.0], [66.0, 88.0]]
     if first != expected:
         raise AssertionError((first, expected))
-    changed = ft.tensor([[5, 6], [7, 8]])
+    changed = ft.tensor([[5, 6], [7, 8]], device=device)
     second = arithmetic(changed, y).tolist()
     expected_second = [[30.0, 52.0], [74.0, 96.0]]
     if second != expected_second:
         raise AssertionError((second, expected_second))
-    return {"device": "cpu", "expression": "(x + y) * 2", "first": first,
+    return {"device": device, "expression": "(x + y) * 2", "first": first,
             "new_input": second, "shape": x.shape, "dtype": x.dtype,
             "verified": True, **_details(arithmetic)}
 
 
-def cuda_demo():
+def triton_demo():
     source = Path(__file__).with_name("kernels.py")
     scale = ft.triton.kernel(
         source, entry="scale_kernel", input="inp", output="out",
@@ -79,18 +79,20 @@ def configure_tools(args):
     if args.device in ("cpu", "both"):
         ft.configure(device="cpu", ask_opt=args.ask_opt, cache_dir=args.cache_dir / "cpu")
     if args.device in ("cuda", "both"):
-        missing = [name for name in ("triton_python", "triton_worker", "llc", "ptxas")
-                   if not getattr(args, name)]
+        required = ("llc", "ptxas", "triton_python", "triton_worker") if args.triton else ("llc", "ptxas")
+        missing = [name for name in required if not getattr(args, name)]
         if missing:
             raise ValueError("CUDA demo needs " + ", ".join("--" + name.replace("_", "-") for name in missing))
         ft.configure(device="cuda", ask_opt=args.ask_opt,
-                     compilers={"triton": CompilerEnvironment(python=args.triton_python, worker=args.triton_worker)},
+                     compilers=({"triton": CompilerEnvironment(python=args.triton_python, worker=args.triton_worker)}
+                                if args.triton else {}),
                      llc=args.llc, ptxas=args.ptxas, cache_dir=args.cache_dir / "cuda")
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", choices=("cpu", "cuda", "both"), default="cpu")
+    parser.add_argument("--triton", action="store_true", help="also run the hand-written Triton kernel example")
     parser.add_argument("--ask-opt", default=os.environ.get("ASK_OPT"))
     parser.add_argument("--triton-python", default=os.environ.get("FUGATENSOR_TRITON_PYTHON"))
     parser.add_argument("--triton-worker", default=os.environ.get("FUGATENSOR_TRITON_WORKER"))
@@ -99,13 +101,17 @@ def main(argv=None):
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/fugatensor-demo"))
     parser.add_argument("--json", type=Path, help="also save the validation summary")
     args = parser.parse_args(argv)
+    if args.triton and args.device == "cpu":
+        parser.error("--triton requires --device cuda or both")
     records = []
     try:
         configure_tools(args)
         if args.device in ("cpu", "both"):
-            records.append(cpu_demo())
+            records.append(arithmetic_demo("cpu"))
         if args.device in ("cuda", "both"):
-            records.append(cuda_demo())
+            records.append(arithmetic_demo("cuda"))
+            if args.triton:
+                records.append(triton_demo())
     finally:
         ft.shutdown()
     summary = {"verified": True, "runs": records}

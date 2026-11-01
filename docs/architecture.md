@@ -41,7 +41,26 @@ ASK Module
 
 `HostExecutable` 持有动态库句柄，保证函数指针使用期间库仍然存活。热调用只校验张量并调用该指针，不再启动编译器、链接器或执行 Python 算子循环。每个编译结果写入新的目录，目前 CPU 没有跨进程持久代码缓存。
 
-## 4. 用户源码成为一个 external
+## 4. ASK 自己生成 CUDA kernel
+
+没有 external 的图直接交给 ASK 的自有 CUDA lowering。FugaTensor 从当前 Session 查询实际 GPU 架构，并把它与 ASK Module 一起传给 `Compiler.compile_cuda`。`compilers` 可以为空；`none` 构建包含这条路径。
+
+```text
+ASK Module
+  -> ASK 验证、形状推导与优化
+  -> 自有 CUDA lowering：索引、掩码、加载、标量表达式、存储
+  -> 原生 GPU LLVM IR
+  -> llc -> PTX -> ptxas -> cubin
+  -> ASK Session 提交设备张量
+```
+
+LLVM IR 中的线程按元素编号工作，每次访问都有对应输出元素数量的边界检查。加乘和 cast 计算中间值直接留在 kernel 内，不需要 FugaTensor 创建中间设备张量。不同输出可以使用不同形状和存储类型；每个算子的输入约束仍由 ASK 检查。
+
+ASK 返回的 `port_map` 描述全部逻辑输入输出。FugaTensor 按输出端口逐一分配设备张量，再调用 `PreparedCUDAKernel.submit_many(inputs, outputs)`。张量数量、shape、dtype、字节数、设备归属和不允许的存储重叠由 ASK 执行层验证。所有参数都绑定到实际缓冲区，不按“只有一个输入输出”的旧假设启动 kernel。
+
+首次编译后，热调用只分配输出并异步提交。下载结果时等待；连续计算使用同一个 Session 的 stream 顺序。这里没有 Triton DSL、第三方 worker 或 CPU 回退。
+
+## 5. 用户源码成为一个 external
 
 用户自己写 Triton kernel，然后用 `ft.triton.kernel(path, entry=..., input=..., output=..., constants=..., grid=..., options=...)` 注册。文件入口读取完整 UTF-8 文本；`ft.triton.from_source(text, ...)` 则接收现成字符串。注册不 import 该模块、不执行 DSL、不创建 GPU，也不接受框架进程中的 `@triton.jit` 对象。
 
@@ -63,14 +82,14 @@ def mixed(x):
 
 ASK 返回规范化产物和自己的 cubin。FugaTensor 将其准备到常驻 Session，提交设备张量执行。提交遵守同一 stream 的顺序，结果下载时等待。相同图、dtype 和形状可以复用已准备的 executable。
 
-能注册源码不代表任意 Triton 程序都能融合。当前 ASK 路径要求单输入、单输出、单 external，以及适配器能够证明的逐元素边界。共享内存、复杂布局、无法识别的数据流等情况由 ASK 报错；FugaTensor 不忽略失败或悄悄直接启动原 Triton 二进制。纯 ASK CUDA 图仍需后续的自有 GPU lowering。
+能注册源码不代表任意 Triton 程序都能融合。当前 ASK 路径要求单输入、单输出、单 external，以及适配器能够证明的逐元素边界。共享内存、复杂布局、无法识别的数据流等情况由 ASK 报错；FugaTensor 不忽略失败或悄悄直接启动原 Triton 二进制。这些限制仅属于 external 融合，不限制前一节的自有 CUDA 图。
 
-## 5. 哪一层缓存什么
+## 6. 哪一层缓存什么
 
 | 缓存 | 归属 | 命中后跳过什么 |
 |---|---|---|
 | 函数特化与已准备的 executable | FugaTensor 内存 | Python 追踪及完整编译流程 |
-| 融合 LLVM IR | ASK 持久缓存 | 第三方导出与本次 LLVM 融合 |
+| GPU LLVM IR | ASK 持久缓存 | 自有 CUDA 降级，或第三方导出与 LLVM 融合 |
 | PTX / cubin | ASK 持久缓存 | LLVM 到 PTX 和 ptxas |
 | 已加载 CUDA module | ASK Session | 同一 Session 内的重复加载 |
 
@@ -78,7 +97,7 @@ Python 静态参数值变化时会生成新特化。Tensor 内容变化时仍命
 
 `function.cache_info()` 查看 FugaTensor 特化次数和命中；`last_report` 保留 ASK 的报告，其中 GPU 路径另有 IR 与可执行缓存记录。不要把内存 JIT 命中等同于某一次磁盘缓存命中：内存命中时根本没有再次请求磁盘缓存。
 
-## 6. 这版的边界
+## 7. 这版的边界
 
 没有自动微分、张量广播、视图、别名输出或跨设备复制。CPU 输出使用新缓冲区，CUDA 输出同样由当前 Engine 分配。退出 `with Engine(...)`、调用 `engine.close()`，或者用 `ft.shutdown()` 关闭默认运行时后，使用已经关闭的 Engine 或混用两个 Engine 的张量会报错。
 

@@ -1,7 +1,8 @@
 """Readable public API examples backed by real ASK compilation.
 
 Tool paths belong in setup. The test bodies show the tensor API used by a
-program. Enable the GPU cases with FUGATENSOR_TEST_CUDA=1.
+program. Enable ASK GPU cases with FUGATENSOR_TEST_CUDA=1 and user Triton
+kernel cases separately with FUGATENSOR_TEST_TRITON=1.
 """
 from __future__ import annotations
 
@@ -47,8 +48,48 @@ class CPUQuickstartTests(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("FUGATENSOR_TEST_CUDA") == "1",
-                     "set FUGATENSOR_TEST_CUDA=1 to run the real GPU quickstart")
+                     "set FUGATENSOR_TEST_CUDA=1 to run the ASK GPU quickstart")
 class CUDAQuickstartTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        names = ("FUGATENSOR_LLC", "FUGATENSOR_PTXAS")
+        missing = [name for name in names if not os.environ.get(name)]
+        if missing:
+            raise RuntimeError("requested CUDA quickstart is missing: " + ", ".join(missing))
+        cls.directory = tempfile.TemporaryDirectory(prefix="fugatensor-owned-quickstart-")
+        cls.addClassCleanup(cls.directory.cleanup)
+        ft.configure(device="cuda", ask_opt=os.environ.get("ASK_OPT"), cache_dir=cls.directory.name,
+                     compilers={}, llc=os.environ["FUGATENSOR_LLC"], ptxas=os.environ["FUGATENSOR_PTXAS"])
+        cls.addClassCleanup(ft.shutdown)
+
+    def test_create_cuda_tensors_and_compute(self):
+        x = ft.tensor([1, 2, 3], device="cuda")
+        y = ft.tensor([10, 20, 30], device="cuda")
+        result = (x + y) * 2
+
+        self.assertEqual(result.device, "cuda")
+        self.assertEqual(result.tolist(), [22, 44, 66])
+
+    def test_jit_cuda_uses_ask_without_an_external_operator(self):
+        @ft.jit
+        def calculate(x, y):
+            return (x + y) * 2
+
+        x = ft.tensor([1, 2, 3], device="cuda")
+        y = ft.tensor([10, 20, 30], device="cuda")
+        self.assertEqual(calculate(x, y).tolist(), [22, 44, 66])
+
+        new_x = ft.tensor([4, 5, 6], device="cuda")
+        self.assertEqual(calculate(new_x, y).tolist(), [28, 50, 72])
+        self.assertEqual(calculate.cache_info()["compilations"], 1)
+        self.assertEqual(calculate.cache_info()["cache_hits"], 1)
+        self.assertNotIn('"ask.external"', calculate.last_ir)
+        self.assertTrue(list(Path(calculate.last_artifact_dir).rglob("*.cubin")))
+
+
+@unittest.skipUnless(os.environ.get("FUGATENSOR_TEST_TRITON") == "1",
+                     "set FUGATENSOR_TEST_TRITON=1 to run the user Triton quickstart")
+class TritonQuickstartTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         names = ("FUGATENSOR_TRITON_PYTHON", "FUGATENSOR_TRITON_WORKER", "FUGATENSOR_LLC", "FUGATENSOR_PTXAS")
