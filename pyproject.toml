@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fugatensor"
+version = "0.1.0"
+description = "A small tensor and tracing JIT frontend for ASK"
+requires-python = ">=3.10"
+dependencies = ["ask-compiler==0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
