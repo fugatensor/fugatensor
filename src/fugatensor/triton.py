@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -14,8 +15,8 @@ from types import MappingProxyType
 from ask import CompilerEnvironment
 
 from ._jit import jit
-from .ir import ExternalSpec
-from .tensor import Tensor
+from .ir import ExternalSpec, TensorType
+from .tensor import Tensor, normalize_dtype, normalize_shape
 from .tracing import TraceTensor
 
 _SIGNATURE = {'bool': '*i1', 'i32': '*i32', 'i64': '*i64', 'f32': '*fp32', 'f16': '*fp16', 'bf16': '*bf16'}
@@ -70,14 +71,23 @@ class TritonKernel:
     adapter validates and compiles it later. Re-register after changing source,
     then call the new registration to record new expressions.
     """
-    def __init__(self, source, *, entry, input, output, grid, constants=None,
-                 options=None, source_path=None):
+    def __init__(self, source, *, entry, input=None, inputs=None, output, grid, constants=None,
+                 options=None, source_path=None, output_shape=None, output_dtype=None):
         if not isinstance(source, str) or not source.strip():
             raise TypeError('Triton source must be a nonempty string')
         self._entry = _identifier(entry, 'entry')
-        self._input = _identifier(input, 'input parameter')
+        if (input is None) == (inputs is None):
+            raise ValueError('provide exactly one of input or inputs')
+        self._single_input = input is not None
+        if inputs is None:
+            inputs = (input,)
+        if isinstance(inputs, str):
+            raise TypeError('inputs must be a sequence of source parameter names')
+        self._inputs = tuple(_identifier(name, 'input parameter') for name in inputs)
+        if not self._inputs or len(set(self._inputs)) != len(self._inputs):
+            raise ValueError('inputs must contain distinct source parameter names')
         self._output = _identifier(output, 'output parameter')
-        if input == output:
+        if output in self._inputs:
             raise ValueError('input and output must bind different source parameters')
         tree = ast.parse(source, filename=str(source_path or '<triton-source>'))
         matches = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == entry]
@@ -88,9 +98,11 @@ class TritonKernel:
         if args.vararg is not None or args.kwarg is not None:
             raise ValueError('Triton entry requires explicit parameter names')
         parameters = {arg.arg for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)}
-        if input not in parameters or output not in parameters:
+        if not set((*self._inputs, output)) <= parameters:
             raise ValueError('input/output binding names must exist in the source entry parameters')
-        self._constant_names = frozenset(parameters - {input, output})
+        self._constant_names = frozenset(parameters - {*self._inputs, output})
+        self._output_shape = output_shape if callable(output_shape) or output_shape is None else normalize_shape(output_shape)
+        self._output_dtype = output_dtype if callable(output_dtype) or output_dtype is None else normalize_dtype(output_dtype)
         self._source = source
         self._source_path = Path(source_path) if source_path is not None else None
         if callable(constants):
@@ -116,8 +128,11 @@ class TritonKernel:
         # expression is built. Do not cache a graph by shape/dtype here: a
         # constants/grid callback may intentionally capture updated Python
         # configuration between calls. ASK still caches compiled artifacts.
-        def invoke(value):
-            return self._trace(value)
+        def invoke(*values):
+            return self._trace(*values)
+        invoke.__signature__ = inspect.Signature([
+            inspect.Parameter(f'value{index}', inspect.Parameter.POSITIONAL_ONLY)
+            for index in range(len(self._inputs))])
         self._record = jit(invoke, cache=False)
 
     @property
@@ -138,18 +153,29 @@ class TritonKernel:
             extra = sorted(set(constants) - self._constant_names)
             raise ValueError(f'constexpr bindings must cover the other source parameters; missing={missing}, extra={extra}')
 
-    def __call__(self, value):
-        if isinstance(value, Tensor):
-            return self._record(value)
-        return self._trace(value)
+    def __call__(self, *values):
+        if len(values) != len(self._inputs):
+            raise TypeError(f'a registered Triton kernel expects {len(self._inputs)} tensors')
+        if all(isinstance(value, Tensor) for value in values):
+            return self._record(*values)
+        return self._trace(*values)
 
-    def _trace(self, value):
-        if not isinstance(value, TraceTensor):
-            raise TypeError('a registered Triton kernel expects one FugaTensor tensor')
-        context = value.context
-        spec = TensorSpec(tuple(value.shape), value.dtype, value.device)
-        if spec.numel < 1:
-            raise ValueError('ASK Triton fusion requires nonempty tensors')
+    def _trace(self, *values):
+        if any(not isinstance(value, TraceTensor) for value in values):
+            raise TypeError('a registered Triton kernel expects FugaTensor tensors from the current trace')
+        context = values[0].context
+        if any(value.context is not context for value in values):
+            raise ValueError('kernel operands must belong to the same trace')
+        specs = tuple(TensorSpec(tuple(value.shape), value.dtype, value.device) for value in values)
+        spec = specs[0] if self._single_input else specs
+        if any(value.numel < 1 for value in specs):
+            raise ValueError('ASK Triton kernels require nonempty tensors')
+        shape = self._output_shape(spec) if callable(self._output_shape) else self._output_shape
+        dtype = self._output_dtype(spec) if callable(self._output_dtype) else self._output_dtype
+        result_type = TensorType(specs[0].shape if shape is None else normalize_shape(shape),
+                                 specs[0].dtype if dtype is None else normalize_dtype(dtype))
+        if math.prod(result_type.shape) < 1:
+            raise ValueError('ASK Triton kernels require nonempty outputs')
         constants = _integer_constants(self._constants(spec) if callable(self._constants) else self._constants)
         self._check_constant_names(constants)
         grid = _launch_grid(self._grid(spec) if callable(self._grid) else self._grid)
@@ -157,26 +183,33 @@ class TritonKernel:
         symbol = f'fuga_triton_external_{count}'
         implementation = ExternalSpec(compiler='triton',
             source=self._source, entry=self._entry,
-            signature={self._input: _SIGNATURE[value.dtype], self._output: _SIGNATURE[value.dtype]},
-            source_bindings={self._input: 'input:0', self._output: 'output:0'}, constants=constants,
+            signature={**{name: _SIGNATURE[value.dtype] for name, value in zip(self._inputs, values)},
+                       self._output: _SIGNATURE[result_type.dtype]},
+            source_bindings={**{name: f'input:{index}' for index, name in enumerate(self._inputs)},
+                             self._output: 'output:0'}, constants=constants,
             options=dict(self._options), target={'backend': 'cuda', 'warp_size': 32},
-            grid=grid, shape_rule='same_as', shape_operand=0, effects=())
-        result = context.graph.external(value.value, spec=implementation, id=symbol)
+            grid=grid, shape_rule='same_as' if shape is None else 'explicit', shape_operand=0, effects=())
+        result = context.graph.external(*(value.value for value in values), spec=implementation,
+                                        result_types=(result_type,), id=symbol)
         context.external_count = count + 1
         return context.wrap(result)
 
-def kernel(source_path, *, entry, input, output, grid, constants=None, options=None):
+def kernel(source_path, *, entry, input=None, inputs=None, output, grid, constants=None, options=None,
+           output_shape=None, output_dtype=None):
     """Snapshot a UTF-8 Python source file without importing its Triton module."""
     path = Path(source_path).expanduser().resolve()
     source = path.read_bytes().decode('utf-8')
-    return TritonKernel(source, entry=entry, input=input, output=output, grid=grid,
-                        constants=constants, options=options, source_path=path)
+    return TritonKernel(source, entry=entry, input=input, inputs=inputs, output=output, grid=grid,
+                        constants=constants, options=options, source_path=path,
+                        output_shape=output_shape, output_dtype=output_dtype)
 
 
-def from_source(source, *, entry, input, output, grid, constants=None, options=None):
+def from_source(source, *, entry, input=None, inputs=None, output, grid, constants=None, options=None,
+                output_shape=None, output_dtype=None):
     """Register an explicit user-written source string using the same bindings."""
-    return TritonKernel(source, entry=entry, input=input, output=output, grid=grid,
-                        constants=constants, options=options)
+    return TritonKernel(source, entry=entry, input=input, inputs=inputs, output=output, grid=grid,
+                        constants=constants, options=options,
+                        output_shape=output_shape, output_dtype=output_dtype)
 
 
 def environment_from_env():

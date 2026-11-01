@@ -20,6 +20,9 @@
   - 跨算子与普通函数调用保留图连接和融合机会；执行缓存属于 `Engine`，按图结构和自定义函数定义身份复用，不能跳过用户 Python 逻辑。
   - `ft.fun` 的普通 `forward` 与可选 `backward` 自动进行隔离追踪，保留 `CallSpec`、保存值与定义变更校验；方法内部不支持数据依赖控制流。Triton 源码中的 `@triton.jit` 保留。
   - 梯度历史在组图时记录，`no_grad` 与 `detach` 的边界不随实际执行时间改变；Python 条件每次读取真实标量值，反向沿实际路径传播。
+- **多 Kernel 执行**：
+  - FugaTensor 向 ASK 提交完整静态图，由 ASK MLIR 切分器和版本化执行计划选择融合或多 kernel 调度；前端不再限制整图只有一个外部节点。
+  - Triton 多输入通过 `inputs=` 注册，输出形状/类型和启动参数只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
 - **自动微分与原语闭合**：
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。

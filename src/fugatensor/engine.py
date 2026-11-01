@@ -279,21 +279,12 @@ class Engine:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
                 executable = self._host.compile(module)
             else:
-                if external_count:
-                    if len(input_indices) != 1 or len(context.output_specs) != 1 or external_count != 1:
-                        raise NotImplementedError('ASK external CUDA fusion currently requires one tensor input, '
-                                                  'one output and one external operation')
-                    if context.output_specs[0] != context.input_specs[input_indices[0]]:
-                        raise NotImplementedError('ASK external CUDA fusion requires equal input/output '
-                                                  'shape and storage dtype')
                 if self.llc is None or self.ptxas is None:
                     raise ValueError('CUDA compilation requires explicit llc and ptxas paths')
                 artifacts = self.cache_dir / 'artifacts'
                 artifacts.mkdir(exist_ok=True)
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
-                options = {}
-                if not external_count:
-                    options['target'] = target
+                options = {'target': target}
                 kernel = self.compiler.compile_cuda(module, compilers=self.compilers,
                     llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
                     **options)
@@ -365,8 +356,17 @@ class _CUDAExecutable:
     def run(self, inputs):
         if len(inputs) != len(self.prepared.inputs):
             raise ValueError('CUDA input count differs from the compiled graph')
-        outputs = [self.session.tensor(port['shape'], port['element_type'])
-                   for port in self.prepared.outputs]
+        plan = getattr(self.prepared, 'plan', None)
+        if plan is None:
+            outputs = [self.session.tensor(port['shape'], port['element_type'])
+                       for port in self.prepared.outputs]
+        else:
+            buffers = dict(zip(plan['inputs'], inputs))
+            outputs = []
+            for identifier, port in zip(plan['outputs'], self.prepared.outputs):
+                if identifier not in buffers:
+                    buffers[identifier] = self.session.tensor(port['shape'], port['element_type'])
+                outputs.append(buffers[identifier])
         self.prepared.submit_many(inputs, outputs)
         return outputs
 

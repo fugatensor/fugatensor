@@ -294,8 +294,8 @@ class HostJITTests(SharedJITExecutionMixin, EngineTestCase):
         gc.collect()
         self.assertIsNone(ref())
 
-    def test_cuda_alias_and_external_storage_guard_before_codegen(self):
-        # cuda:0 alias normalization & pre-compile Triton storage mismatch guard.
+    def test_cuda_alias_and_external_shape_delegation(self):
+        # cuda:0 normalization; ASK chooses a legal multi-kernel boundary.
         class _MetadataSession:
             capability = (8, 6)
             stats = {}
@@ -323,10 +323,12 @@ class HostJITTests(SharedJITExecutionMixin, EngineTestCase):
                 def bad_ext(v):
                     return id_kernel(v).astype("f16")
 
-                with mock.patch.object(ceng.compiler, "compile_cuda") as cc:
-                    with self.assertRaisesRegex(NotImplementedError, "equal input/output shape and storage dtype"):
+                with mock.patch.object(ceng.compiler, "compile_cuda",
+                                       side_effect=CompilerError("planner reached")) as cc:
+                    with self.assertRaisesRegex(CompilerError, "planner reached"):
                         bad_ext(cx).tolist()
-                    cc.assert_not_called()
+                    cc.assert_called_once()
+                    self.assertEqual(cc.call_args.kwargs['target'], {'backend': 'cuda', 'arch': 86})
 
 
 @requires_cuda

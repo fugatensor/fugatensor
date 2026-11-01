@@ -148,6 +148,36 @@ class TritonRegistrationTests(unittest.TestCase):
                     self.assertEqual([request["grid"] for request in requests], [[3, 1, 1], [2, 1, 1]])
                     self.assertEqual(engine.stats["executions"], 0)
 
+    def test_multiple_inputs_and_explicit_output_metadata(self):
+        source = ('import triton\nimport triton.language as tl\n'
+                  '@triton.jit\ndef product(Q, K, O, M: tl.constexpr):\n pass\n')
+        observed = []
+
+        def constants(specs):
+            observed.append(tuple(spec.shape for spec in specs))
+            return {'M': specs[0].shape[0]}
+
+        operation = ft.triton.from_source(source, entry='product', inputs=('Q', 'K'), output='O',
+            constants=constants, grid=(1,), output_shape=lambda s: (s[0].shape[0], s[1].shape[1]),
+            output_dtype='f32')
+        context = TraceContext([((2, 3), 'f16'), ((3, 4), 'bf16')],
+                               engine=SimpleNamespace(device='cuda'))
+        result = operation(*context.inputs)
+        self.assertEqual((result.shape, result.dtype), ((2, 4), 'f32'))
+        prepared = self.compiler.prepare(lower_to_ask(context.finish(result),
+                                                      target={'backend': 'cuda', 'arch': 86}))
+        request = prepared.report['external_requests'][0]
+        self.assertEqual(request['source_bindings'], {'Q': 'input:0', 'K': 'input:1', 'O': 'output:0'})
+        self.assertEqual(request['signature'], {'Q': '*fp16', 'K': '*bf16', 'O': '*fp32'})
+        self.assertEqual(observed, [((2, 3), (3, 4))])
+        with self.assertRaisesRegex(TypeError, 'expects 2'):
+            operation(context.inputs[0])
+        for changes in ({'inputs': ('Q', 'Q')}, {'input': 'Q'}, {'inputs': 'Q'}):
+            parameters = dict(inputs=('Q', 'K'), output='O', grid=(1,), constants={'M': 2})
+            parameters.update(changes)
+            with self.assertRaises((ValueError, TypeError)):
+                ft.triton.from_source(source, entry='product', **parameters)
+
     def test_deferred_arch_binding_and_invalid_registration_guards(self):
         class NoProbeEngine:
             device = "cuda"
@@ -263,6 +293,32 @@ class TritonGPUExecutionTests(EngineTestCase):
         self.assertEqual(dout.tolist(), [7.0, 9.0, 11.0])
         dout.backward(ft.tensor([1.0, 2.0, -1.0]))
         self.assertEqual(dx.grad.tolist(), [2.0, 4.0, -2.0])
+
+    def test_multiple_external_nodes_and_different_storage_outputs(self):
+        x = ft.tensor([1, 2, 3], dtype='f32')
+        left = self.scale(x + 1)
+        right = self.scale(left + 3)
+        outputs = ft.evaluate(right, right.astype('f16'), x)
+        self.assertEqual(outputs[0].tolist(), [14, 18, 22])
+        self.assertEqual(outputs[1].tolist(), [14, 18, 22])
+        self.assertIs(outputs[2], x)
+        plan = self.engine.last_report['execution_plan']
+        self.assertGreaterEqual(len(plan['steps']), 2)
+        self.assertEqual(sum(step['kind'] in ('external', 'fused') for step in plan['steps']), 2)
+
+    def test_flash_attention_forward_and_owned_surroundings(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('fuga_attention_example', EXAMPLES_DIR / 'flash_attention2.py')
+        example = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(example)
+        for dtype in ('f16', 'bf16'):
+            if dtype == 'bf16' and not self.supports_bf16:
+                continue
+            for causal in (False, True):
+                with self.subTest(dtype=dtype, causal=causal):
+                    receipt = example.validate(dtype=dtype, causal=causal)
+                    self.assertEqual(receipt['steps'], ['owned', 'external', 'owned'])
+                    self.assertTrue(receipt['verified'])
 
 
 if __name__ == "__main__":

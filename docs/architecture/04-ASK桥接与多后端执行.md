@@ -12,7 +12,7 @@
 
 - **延迟初始化与上下文隔离**：默认按设备惰性创建全局引擎（首次使用 `device="cpu"` 或 `device="cuda"` / `"cuda:0"` 时建立，调用 `ft.shutdown()` 时关闭）；也可通过 `with ft.Engine(device=..., cache_dir=...) as eng:` 创建独立引擎。`Tensor` 绑定创建它的 `Engine`，使用已关闭引擎读取张量数据、继续运算，或跨 `Engine` 混用张量均会报错。
 - **无用物理输入端口裁剪**：
-  反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine._compile` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_InputProjection` 在调用时按索引筛选实参。这样单输入手写 Triton 反向不会因多余的未用参数而违反单输入融合限制。
+  反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine._compile` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_InputProjection` 在调用时按索引筛选实参。这样手写 Triton 反向不会因签名中的未用参数而被前端拒绝；外部算子是否融合仍由 ASK 的逐元素边界证明决定。
 - **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/03-降级到ASK.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。
 
 <a id="host-backend"></a>
@@ -38,12 +38,14 @@ GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine
 1. **纯自有计算图 → ASK 自有 CUDA 降级**：
    不依赖 Triton。`Engine` 将 `ask.Module` 与 `arch` 传给 `Compiler.compile_cuda`，由 [ASK 自有 CUDA 后端](../../../ask/docs/03-图优化与自有代码生成.md#owned-cuda) 生成 `cubin`，加载到会话后通过 `PreparedCUDAKernel.submit_many(inputs, outputs)` 异步提交到同一 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 标量与空张量。
 2. **含 `ft.triton.kernel` 的混合图 → `ASK → Triton → ASK` 融合**：
-   - 通过 `ft.triton.kernel("kernels.py", entry=..., input=..., output=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
+   - 通过 `ft.triton.kernel("kernels.py", entry=..., input=... 或 inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - **源码快照**：注册时按 UTF-8 读取源码文本并复制配置字典，不在宿主进程导入用户模块或 Triton；后续修改原文件不影响已注册的算子对象。
    - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
-   - 由 [ASK Triton 适配器与通用边界内联器](../../../ask/docs/04-外部编译器适配与边界内联.md#triton-fusion) 将前后逐元素计算合并进同一 `cubin` 并提交给 `ExecutionSession` 执行。
+   - 边界证明成立时，由 [ASK Triton 适配器与通用边界内联器](../../../ask/docs/04-外部编译器适配与边界内联.md#triton-fusion) 将前后逐元素计算合并进同一 `cubin`；多输入、复杂算子或证明失败时，由[执行计划调度](../../../ask/docs/08-图切分与多Kernel执行计划.md#program-runtime)为多个 `cubin` 与设备中间缓冲区。
 
-一次 Triton 混合图求值仍限于一个外部算子、一个张量输入和一个同形状同存储类型的输出。自动组图不会自动拆分多个外部 kernel；需要分别执行时，用 `ft.evaluate(intermediate)` 明确中间结果的执行边界。包含外部算子的联合多输出求值也受此限制，所有被提交的计算仍通过 ASK JIT。
+ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)保留可融合区域。多个外部节点、异构端口或融合证明失败时，自动使用多个 kernel 和设备中间缓冲区，在同一会话 stream 上顺序提交。用户仍直接写普通函数；`ft.evaluate(...)` 触发求值，所有计算均经 ASK JIT。非法图、坏导出及代码生成失败仍报错。
+
+多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。当前外部算子只有一个输出，完整图可以联合求值多个结果。
 
 <a id="cache-hierarchy"></a>
 
@@ -77,3 +79,5 @@ CPU 引擎直接使用 ASK 包内的原生扩展和伴生 `ask-opt`，并通过 
 `cc` 仅通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 指定，没有 `FUGATENSOR_CC` 环境变量入口。当通过代码或环境变量显式指定另一套 `ask_opt` 路径时，不会混读默认 `engine.json` 中保存的 SDK 与 worker 路径。
 
 只使用两个 wheel 的安装无需执行 `tools/bootstrap.py`。该脚本以 `--ask-wheel` 或目标虚拟环境中已安装的 ASK 为输入，只构建、可编辑安装 FugaTensor。默认保留有效的已有工具配置，新环境写入 CPU 空工具配置；显式工具参数或 `--reset-config` 控制重写，详见[可选开发引导](../安装.md#source-bootstrap)。文档中的跨仓相对链接仅供浏览源码，不参与配置解析。
+
+复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)；它通过分块在线 softmax 实现前向 attention，并用 ASK 自有前后计算验证多 kernel 路径，不提供反向或性能保证。
