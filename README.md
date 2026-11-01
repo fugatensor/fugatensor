@@ -1,6 +1,6 @@
 # FugaTensor
 
-FugaTensor 是基于 [ASK](../ask/README.md) 编译与运行时引擎的张量计算框架。张量运算自动记录独立的 Fuga IR；读取结果、判断标量条件、反向传播或显式调用 `ft.evaluate` 时，才合并所需计算并 JIT 编译，交由 CPU 或 CUDA 执行。普通 Python 函数无需装饰器，每次调用正常运行。
+FugaTensor 是基于 [ASK](../ask/README.md) 编译与运行时引擎的张量计算框架。张量运算自动记录独立的 Fuga IR；读取结果、判断标量条件、反向传播或显式调用 `ft.evaluate` 时，才合并所需计算并 JIT 编译，交由 CPU 或 CUDA 执行。
 
 ```python
 import fugatensor as ft
