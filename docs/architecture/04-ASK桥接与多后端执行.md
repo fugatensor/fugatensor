@@ -80,4 +80,4 @@ CPU 引擎直接使用 ASK 包内的原生扩展和伴生 `ask-opt`，并通过 
 
 只使用两个 wheel 的安装无需执行 `tools/bootstrap.py`。该脚本以 `--ask-wheel` 或目标虚拟环境中已安装的 ASK 为输入，只构建、可编辑安装 FugaTensor。默认保留有效的已有工具配置，新环境写入 CPU 空工具配置；显式工具参数或 `--reset-config` 控制重写，详见[可选开发引导](../安装.md#source-bootstrap)。文档中的跨仓相对链接仅供浏览源码，不参与配置解析。
 
-复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)；它通过分块在线 softmax 实现前向 attention，并用 ASK 自有前后计算验证多 kernel 路径，不提供反向或性能保证。
+复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)：前向由分块在线 softmax 计算，反向通过 `ft.fun` 的显式规则拆成统计量、dQ、dK、dV 四个独立 Triton kernel，并由 ASK 执行计划在同一 stream 上调度。它不是 FlashAttention-2 的完整训练接口：不含 dropout、bias、变长序列、任意 stride 或性能承诺，含外部算子的路径仍只支持一阶手写反向。

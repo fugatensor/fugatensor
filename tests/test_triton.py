@@ -306,6 +306,31 @@ class TritonGPUExecutionTests(EngineTestCase):
         self.assertGreaterEqual(len(plan['steps']), 2)
         self.assertEqual(sum(step['kind'] in ('external', 'fused') for step in plan['steps']), 2)
 
+    def test_flash_attention_backward_uses_multiple_external_kernels(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('fuga_attention_example_bwd', EXAMPLES_DIR / 'flash_attention2.py')
+        example = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(example)
+        for dtype in ('f16', 'bf16'):
+            if dtype == 'bf16' and not self.supports_bf16:
+                continue
+            for causal in (False, True):
+                with self.subTest(dtype=dtype, causal=causal):
+                    receipt = example.validate(dtype=dtype, causal=causal, backward=True,
+                                               m=9, n=11, d=32, dv=32)
+                    self.assertEqual(receipt['steps'], ['owned', 'external', 'owned'])
+                    self.assertGreaterEqual(
+                        sum(step == 'external' for step in receipt['backward_plan_steps']), 4)
+                    self.assertTrue(receipt['verified'])
+                    self.assertLess(receipt['dq_error'], 0.02)
+                    self.assertLess(receipt['dk_error'], 0.02)
+                    self.assertLess(receipt['dv_error'], 0.02)
+        # Backward also covers a different head/value width, not just D == DV.
+        receipt = example.validate(dtype='f16', causal=False, backward=True,
+                                   m=7, n=8, d=64, dv=32)
+        self.assertTrue(receipt['verified'])
+        self.assertEqual(receipt['backward_plan_steps'].count('external'), 5)
+
     def test_flash_attention_forward_and_owned_surroundings(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location('fuga_attention_example', EXAMPLES_DIR / 'flash_attention2.py')

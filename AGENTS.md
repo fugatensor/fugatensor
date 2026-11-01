@@ -23,6 +23,7 @@
 - **多 Kernel 执行**：
   - FugaTensor 向 ASK 提交完整静态图，由 ASK MLIR 切分器和版本化执行计划选择融合或多 kernel 调度；前端不再限制整图只有一个外部节点。
   - Triton 多输入通过 `inputs=` 注册，输出形状/类型和启动参数只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
+  - 复杂算子（如 FlashAttention）的反向由 `ft.fun` 的显式 `backward` 组合多个单输出外部 kernel；每个外部调用仍返回一个结果，反向可因此形成多 kernel 执行计划。
 - **自动微分与原语闭合**：
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。

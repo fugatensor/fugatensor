@@ -30,5 +30,6 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 - [ASK 安装](../../ask/docs/安装.md)
 - [ASK 文档目录](../../ask/docs/README.md) · [ASK 核心思想](../../ask/docs/核心思想.md)
 - [图切分与多 Kernel 执行计划](../../ask/docs/08-图切分与多Kernel执行计划.md) · [多 kernel 计划 JSON 契约](../../ask/schemas/execution-plan-v1.schema.json)
+- [外部编译器适配接入规范](../../ask/docs/09-外部编译器适配接入规范.md) · [worker 请求与 artifact 契约](../../ask/schemas/)
 - [ASK IR 与数值语义](../../ask/docs/01-ASK-IR与数值语义.md) · [外部编译器适配与边界内联](../../ask/docs/04-外部编译器适配与边界内联.md)
 - [常驻运行时与多级缓存](../../ask/docs/05-常驻运行时与多级缓存.md) · [FugaTensor 协同与演进路线](../../ask/docs/07-FugaTensor协同与演进路线.md)
