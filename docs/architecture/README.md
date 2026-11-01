@@ -75,3 +75,11 @@ Python `if` / `while` 通过条件 Tensor 的实际真值选择路径，后续�
 - **安装与缓存**：ASK 是必需的运行依赖，两个项目各自构建 wheel 后安装到同一环境；FugaTensor 自身的构建不读取 ASK 源码。CPU 包安装无需配置文件，CUDA 工具可通过引擎参数或环境变量指定，见[独立安装](../安装.md)。执行时结合 FugaTensor 引擎图缓存与 ASK 磁盘级 LLVM IR / `cubin` 缓存复用编译结果。
 
 工程细节：[04. ASK 桥接与多后端执行](04-ASK桥接与多后端执行.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [多 kernel 执行计划](../../../ask/docs/08-图切分与多Kernel执行计划.md)
+
+<a id="arch-weights"></a>
+
+## 6. 权重格式与导出
+
+权重是调用方定义的 PyTree：嵌套 `dict`、`list`、`tuple` 和 `Tensor` 叶子，不绑定模型类、参数名或算子。导出目录只包含版本化 `manifest.json` 与内容寻址的 little-endian 数组文件；加载器校验树结构、dtype/shape/字节数、摘要和路径边界后，再按调用方选择的 Engine 创建 Tensor。增加网络层、改变命名或加入基础原子算子只改变树的键，不改变 v1 容器。
+
+工程细节：[05. 权重格式与导出](05-权重格式与导出.md#weight-goals)

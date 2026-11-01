@@ -13,6 +13,7 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 | [02. 原生图分析与 C++ 边界](architecture/02-原生图分析与C++边界.md) | Python 与 C++ `_native` 扩展的分工、可达性与反向边界分析、`ir/transforms.py` 剪枝投影与无状态并发 | `cpp/graph.h`、`cpp/graph.cpp`、`cpp/bindings.cpp`、`ir/transforms.py` |
 | [03. 自动微分与自定义算子](architecture/03-自动微分与自定义算子.md) | 运行时 `GradHistory` 反向图调度、`ft.fun` 自定义前向/反向、JVP/VJP 高阶求导与反向预检 | `autograd.py`、`function.py`、`ir/differentiate.py`、`ir/jvp.py` |
 | [04. ASK 桥接与多后端执行](architecture/04-ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、自有 CUDA 与 Triton 融合执行、图编译及 ASK 缓存与 `bootstrap.py` 配置 | `engine.py`、`backends/`、`triton.py`、`_config.py`、`tools/bootstrap.py` |
+| [05. 权重格式与导出](architecture/05-权重格式与导出.md) | 版本化 PyTree 权重目录、manifest/数组身份、原子导出、完整性校验与架构扩展边界 | `weights.py`、`schemas/weights-manifest-v1.schema.json` |
 
 ## Fuga IR 设计与变换（`docs/ir/`）
 

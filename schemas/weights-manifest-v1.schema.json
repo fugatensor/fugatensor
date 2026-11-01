@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FugaTensor weight manifest v1",
+  "type": "object",
+  "required": [
+    "format",
+    "schema_version",
+    "tree",
+    "arrays"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "format": {
+      "const": "fuga.weights"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "tree": {
+      "$ref": "#/$defs/tree"
+    },
+    "arrays": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/array"
+      }
+    }
+  },
+  "$defs": {
+    "tree": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/arrayNode"
+        },
+        {
+          "$ref": "#/$defs/dictNode"
+        },
+        {
+          "$ref": "#/$defs/listNode"
+        },
+        {
+          "$ref": "#/$defs/tupleNode"
+        }
+      ]
+    },
+    "arrayNode": {
+      "type": "object",
+      "required": [
+        "kind",
+        "array"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "const": "array"
+        },
+        "array": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "dictItem": {
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "$ref": "#/$defs/tree"
+        }
+      }
+    },
+    "dictNode": {
+      "type": "object",
+      "required": [
+        "kind",
+        "items"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "const": "dict"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dictItem"
+          }
+        }
+      }
+    },
+    "listNode": {
+      "type": "object",
+      "required": [
+        "kind",
+        "items"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "const": "list"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tree"
+          }
+        }
+      }
+    },
+    "tupleNode": {
+      "type": "object",
+      "required": [
+        "kind",
+        "items"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "const": "tuple"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tree"
+          }
+        }
+      }
+    },
+    "array": {
+      "type": "object",
+      "required": [
+        "file",
+        "dtype",
+        "shape",
+        "nbytes",
+        "sha256",
+        "layout"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dtype": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "nbytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "layout": {
+          "const": "little-endian-contiguous-row-major"
+        }
+      }
+    }
+  },
+  "$comment": "The loader additionally rejects duplicate dict keys, unknown dtypes/layouts, digest or byte-count mismatches, path escapes and non-finite JSON values. New architecture keys and primitive operators do not change this v1 container."
+}

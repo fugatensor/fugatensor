@@ -28,6 +28,9 @@
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
   - 对缺少可组合原语规则的不透明外部算子（如裸 `fuga.external` 或请求高阶导数的手写 Triton 算子），在执行反向编译或写入 `.grad` 之前的预检阶段报错拒绝。
+- **权重格式**：
+  - `weights.py` 只序列化由嵌套 dict/list/tuple 与 Tensor 组成的 PyTree，不记录模型类、算子或设备；数组使用 dtype/shape/布局加数据的内容寻址身份。
+  - 新增网络结构、参数命名或基础原子算子不改变 v1 容器；只有存储语义变化才提升 manifest `schema_version`。
 - **外部编译器与 C++ 扩展**：
   - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 接收并保存用户编写的源码，不在宿主进程导入 Triton，也不用库内预置模板替代外部源码接入。
   - C++ 扩展 `fugatensor._native`（`cpp/`）负责无全局状态、释放 GIL 的 SSA 可达性与反向边界分析；`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs` 供全仓复用。
@@ -42,7 +45,7 @@
   - 已安装兼容 ASK 时，仅修改 FugaTensor 可运行 `python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`。安装详情及可选开发引导见 [`docs/安装.md`](docs/安装.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试运行**：
-  - 测试收敛在 `tests/` 下 10 个模块（共用 `tests/_helpers.py` 中的 `EngineTestCase`）：
+  - 测试收敛在 `tests/` 下 11 个模块（共用 `tests/_helpers.py` 中的 `EngineTestCase`）：
     - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`
     - 启用自有 CUDA 硬件测试：`FUGATENSOR_TEST_CUDA=1 .venv/bin/python -m unittest -v`
     - 启用自有 CUDA + 用户 Triton 融合测试：`FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v`

@@ -1,0 +1,163 @@
+"""Portable PyTree weight export: roundtrip, dedup, integrity and rejection paths."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+import fugatensor as ft
+from fugatensor.weights import WeightsError
+from tests._helpers import EngineTestCase, requires_cuda
+
+
+class WeightExportTests(EngineTestCase):
+    device = "cpu"
+
+    def make_tree(self):
+        return {
+            "bool": ft.tensor([True, False, True], dtype="bool"),
+            "i32": ft.tensor([-2, 0, 7], dtype="i32"),
+            "i64": ft.tensor([-(2 ** 40), 2 ** 40], dtype="i64"),
+            "f32": ft.tensor([1.5, -2.25], dtype="f32"),
+            "f16": ft.tensor([[1.5, -2.0], [3.25, 4.0]], dtype="f16"),
+            "bf16": ft.tensor([1.5, -2.0], dtype="bf16"),
+            "nested": [{"weight": ft.tensor([[1.0, 2.0]], dtype="f32")},
+                       (ft.tensor(3.0, dtype="f32"),)],
+            "empty": ft.tensor([], shape=(2, 0, 3), dtype="f32"),
+        }
+
+    def test_published_manifest_schema_describes_the_format(self):
+        schema = json.loads((Path(__file__).resolve().parents[1] /
+                             "schemas/weights-manifest-v1.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(schema["properties"]["format"]["const"], "fuga.weights")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], 1)
+        self.assertIn("tree", schema["properties"])
+        self.assertIn("array", schema["$defs"])
+
+    def test_roundtrip_all_dtypes_nested_tree_and_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            tree = self.make_tree()
+            ft.weights.save(target, tree, metadata={"step": 12, "arch": "demo"})
+            manifest = ft.weights.read_manifest(target)
+            self.assertEqual((manifest["format"], manifest["schema_version"]),
+                             (ft.weights.FORMAT, 1))
+            self.assertEqual(ft.weights.read_metadata(target), {"arch": "demo", "step": 12})
+            loaded = ft.weights.load(target, engine=self.engine)
+            self.assertIsInstance(loaded["nested"], list)
+            self.assertIsInstance(loaded["nested"][1], tuple)
+            for name in ("bool", "i32", "i64", "f32", "f16", "bf16"):
+                self.assertEqual(loaded[name].dtype, tree[name].dtype)
+                self.assertEqual(loaded[name].shape, tree[name].shape)
+                self.assertEqual(loaded[name].tolist(), tree[name].tolist())
+            self.assertEqual(loaded["nested"][0]["weight"].tolist(), [[1.0, 2.0]])
+            self.assertEqual(loaded["nested"][1][0].tolist(), 3.0)
+            self.assertEqual(loaded["empty"].shape, (2, 0, 3))
+            self.assertEqual(loaded["empty"].tolist(), [[], []])
+
+    def test_content_addressed_dedup_and_overwrite_guard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            first = ft.tensor([1.0, 2.0], dtype="f32")
+            tree = {"a": first, "b": first, "copy": ft.tensor([1.0, 2.0], dtype="f32")}
+            ft.weights.save(target, tree)
+            manifest = ft.weights.read_manifest(target)
+            self.assertEqual(len(manifest["arrays"]), 1)
+            self.assertEqual(len(manifest["tree"]["items"]), 3)
+            with self.assertRaises(FileExistsError):
+                ft.weights.save(target, tree)
+            self.assertEqual(ft.weights.load(target, engine=self.engine)["a"].tolist(), [1.0, 2.0])
+            ft.weights.save(target, {"x": ft.tensor([3], dtype="i32")}, overwrite=True)
+            self.assertEqual(ft.weights.load(target, engine=self.engine)["x"].tolist(), [3])
+
+    def test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            for tree in ({"x": 1}, {1: ft.tensor([1])}, [ft.tensor([1]), object()]):
+                with self.subTest(tree=tree), self.assertRaises(TypeError):
+                    ft.weights.save(target, tree)
+            cycle = {}
+            cycle["self"] = cycle
+            with self.assertRaisesRegex(WeightsError, "cycle"):
+                ft.weights.save(target, cycle)
+            with self.assertRaisesRegex(TypeError, "JSON"):
+                ft.weights.save(target, {"x": ft.tensor([1])}, metadata={"bad": object()})
+
+    def test_rejects_integrity_escape_and_version_tampering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            ft.weights.save(target, {"x": ft.tensor([1.0, 2.0], dtype="f32")})
+            manifest_path = target / "manifest.json"
+            original = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+            def write(value):
+                manifest_path.write_text(json.dumps(value), encoding="utf-8")
+
+            for field, value, message in (
+                    ("schema_version", 2, "schema version"),
+                    ("format", "other.weights", "format")):
+                tampered = json.loads(json.dumps(original))
+                tampered[field] = value
+                write(tampered)
+                with self.assertRaisesRegex(WeightsError, message):
+                    ft.weights.load(target, engine=self.engine)
+
+            tampered = json.loads(json.dumps(original))
+            identifier = next(iter(tampered["arrays"]))
+            tampered["arrays"][identifier]["file"] = "../escape.bin"
+            write(tampered)
+            with self.assertRaisesRegex(WeightsError, "escapes"):
+                ft.weights.load(target, engine=self.engine)
+
+            write(original)
+            blob = target / original["arrays"][identifier]["file"]
+            blob.write_bytes(b"tampered")
+            with self.assertRaisesRegex(WeightsError, "mismatch"):
+                ft.weights.load(target, engine=self.engine)
+
+    def test_optional_extensions_and_minimal_manifest_are_forward_compatible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            ft.weights.save(target, {"x": ft.tensor([1.0, 2.0], dtype="f32")})
+            manifest_path = target / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest.pop("producer", None)
+            manifest.pop("metadata", None)
+            manifest["future_extension"] = {"ignored": True}
+            manifest["tree"]["items"][0]["value"]["metadata"] = {"scale": [1.0, 1.0]}
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            loaded = ft.weights.load(target, engine=self.engine)
+            self.assertEqual(loaded["x"].tolist(), [1.0, 2.0])
+            self.assertEqual(ft.weights.read_metadata(target), {})
+
+    def test_load_requires_grad_and_explicit_engine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            ft.weights.save(target, {"w": ft.tensor([1.0, 2.0], dtype="f32")})
+            with ft.Engine("cpu") as other:
+                loaded = ft.weights.load(target, engine=other, requires_grad=True)
+                self.assertTrue(loaded["w"].requires_grad)
+                self.assertEqual(loaded["w"].engine, other)
+            ft.weights.save(Path(directory) / "ints", {"w": ft.tensor([1], dtype="i32")})
+            with self.assertRaisesRegex(TypeError, "requires_grad"):
+                ft.weights.load(Path(directory) / "ints", engine=self.engine, requires_grad=True)
+
+
+@requires_cuda
+class CUDAWeightExportTests(EngineTestCase):
+    device = "cuda"
+
+    def test_gpu_tensors_roundtrip_through_host_blobs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weights"
+            tree = {"w": ft.tensor([1.5, -2.0, 3.25], dtype="f16"),
+                    "b": ft.tensor([0.25, -0.5], dtype="f32")}
+            ft.weights.save(target, tree)
+            loaded = ft.weights.load(target, engine=self.engine)
+            self.assertEqual(loaded["w"].tolist(), tree["w"].tolist())
+            self.assertEqual(loaded["b"].tolist(), tree["b"].tolist())
+
+
+if __name__ == "__main__":
+    unittest.main()
