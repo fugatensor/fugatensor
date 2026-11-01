@@ -34,6 +34,7 @@ class JITFunction:
         self._lock = threading.RLock()
         self._compilations = self._hits = 0
         self.last_ir = self.last_report = self.last_artifact_dir = None
+        self.last_fuga_ir = self.last_ask_ir = None
         update_wrapper(self, function)
 
     def __call__(self, *args, **kwargs):
@@ -55,7 +56,6 @@ class JITFunction:
             record = self._cache.get(engine, {}).get(spec)
             if record is None:
                 context = TraceContext([(value.shape, value.dtype) for value in inputs], engine=engine)
-                context.external_count = 0
                 replacements = iter(context.inputs)
                 traced = self._signature.bind(*args, **kwargs)
                 traced.apply_defaults()
@@ -69,14 +69,15 @@ class JITFunction:
                 finally:
                     active_trace.reset(token)
                 executable = engine._compile(context)
-                record = (executable, context.output_is_tuple, context.module.to_mlir())
+                record = (executable, context.output_is_tuple, executable.source, context.module.to_text())
                 engine._register_jit(self)
                 self._cache.setdefault(engine, {})[spec] = record
                 self._compilations += 1
             else:
                 self._hits += 1
-            executable, is_tuple, source = record
+            executable, is_tuple, source, fuga_source = record
             self.last_ir, self.last_report = source, executable.report
+            self.last_ask_ir, self.last_fuga_ir = source, fuga_source
             self.last_artifact_dir = executable.artifact_dir
             outputs = engine._execute(executable, inputs)
             return outputs if is_tuple else outputs[0]
@@ -96,6 +97,7 @@ class JITFunction:
             self._cache.clear()
             self._compilations = self._hits = 0
             self.last_ir = self.last_report = self.last_artifact_dir = None
+            self.last_fuga_ir = self.last_ask_ir = None
 
 
 def jit(function=None):

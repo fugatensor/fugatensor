@@ -1,20 +1,20 @@
-"""Trace Python tensor expressions directly into high-level ASK IR."""
+"""Trace tensor expressions into device-independent Fuga SSA."""
 from __future__ import annotations
 
-from ask import Module, TensorType, Value
+from .ir import Module, TensorType, Value
 
 from .tensor import normalize_dtype, normalize_shape
 
 
 class TraceTensor:
-    """An ASK SSA value used only while a JIT specialization is being traced."""
+    """A Fuga SSA value used only while a JIT specialization is being traced."""
     __slots__ = ("context", "value")
 
     def __init__(self, context: TraceContext, value: Value):
-        if not isinstance(value, Value) or value._graph is not context.graph:
+        if not isinstance(value, Value) or value.owner is not context.graph.block:
             raise ValueError("traced value must belong to its TraceContext graph")
         if not isinstance(value.type, TensorType):
-            raise TypeError("TraceTensor requires an ASK tensor value")
+            raise TypeError("TraceTensor requires a Fuga tensor value")
         self.context = context
         self.value = value
 
@@ -83,7 +83,7 @@ class TraceTensor:
 
 
 class TraceContext:
-    """Own one static ASK graph and infer its result types from the Python return."""
+    """Own one Fuga graph and infer its result types from the Python return."""
     def __init__(self, input_specs, *, engine=None, name="fuga_main"):
         self.engine = engine
         self.module = Module()
@@ -93,12 +93,12 @@ class TraceContext:
             name,
             inputs={f"arg{index}": TensorType(shape, dtype)
                     for index, (shape, dtype) in enumerate(self.input_specs)},
-            results=[],
         )
         self.inputs = tuple(TraceTensor(self, value) for value in self.graph.inputs.values())
         self.output_specs = None
         self.output_is_tuple = None
         self._finished = False
+        self.external_count = 0
 
     def wrap(self, value: Value) -> TraceTensor:
         if self._finished:
@@ -114,11 +114,8 @@ class TraceContext:
             raise TypeError("a jit function must return a traced Tensor or a nonempty tuple of traced Tensors")
         if any(value.context is not self for value in outputs):
             raise ValueError("jit outputs must belong to the current trace")
-        # ASK declares results up front; the traced function determines them only
-        # on return, so finalize that public graph declaration before emitting it.
-        self.graph.result_types = tuple(value.value.type for value in outputs)
         self.graph.return_(*(value.value for value in outputs))
         self.output_specs = tuple((value.shape, value.dtype) for value in outputs)
         self.output_is_tuple = is_tuple
         self._finished = True
-        return self.module
+        return self.module.verify()

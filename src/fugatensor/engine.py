@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextvars
+import json
 from pathlib import Path
 import os
 import tempfile
@@ -11,8 +12,10 @@ import weakref
 from ask import Compiler, ExecutionSession
 
 from ._state import require_not_tracing
+from ._config import runtime_defaults
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
+from .lowering import lower_to_ask
 
 _current = contextvars.ContextVar('fugatensor_engine', default=None)
 _defaults = {}
@@ -28,8 +31,10 @@ def _device_name(device):
     raise ValueError("device must be 'cpu', 'cuda', or 'cuda:<ordinal>'")
 
 
-def _environment_options(device, *, include_compilers=True):
-    options = {}
+def _environment_options(device, *, include_compilers=True, use_config=True):
+    options = runtime_defaults(device) if use_config and not os.environ.get('ASK_OPT') else {}
+    if not include_compilers:
+        options.pop('compilers', None)
     for name, variable in (('ask_opt', 'ASK_OPT'), ('cache_dir', 'FUGATENSOR_CACHE_DIR'),
                            ('llc', 'FUGATENSOR_LLC'), ('ptxas', 'FUGATENSOR_PTXAS')):
         if os.environ.get(variable):
@@ -38,7 +43,7 @@ def _environment_options(device, *, include_compilers=True):
         from .triton import environment_from_env
         environment = environment_from_env()
         if environment is not None:
-            options['compilers'] = {'triton': environment}
+            options.setdefault('compilers', {})['triton'] = environment
     return options
 
 
@@ -64,7 +69,8 @@ def configure(device='cpu', **options):
     """
     require_not_tracing()
     device = _device_name(device)
-    settings = _environment_options(device, include_compilers='compilers' not in options)
+    settings = _environment_options(device, include_compilers='compilers' not in options,
+                                    use_config=options.get('ask_opt') is None)
     settings.update(options)
     engine = Engine(device=device, **settings)
     with _default_lock:
@@ -95,6 +101,15 @@ class Engine:
     def __init__(self, device='cpu', *, ask_opt=None, cache_dir=None,
                  compilers=None, llc=None, ptxas=None, cc='cc'):
         device = _device_name(device)
+        # An explicit compiler path selects a separate installation. Do not
+        # attach this environment's saved workers or SDK to that installation.
+        if ask_opt is None:
+            defaults = _environment_options(device, include_compilers=compilers is None)
+            ask_opt = defaults.get('ask_opt')
+            llc = llc if llc is not None else defaults.get('llc')
+            ptxas = ptxas if ptxas is not None else defaults.get('ptxas')
+            cache_dir = cache_dir if cache_dir is not None else defaults.get('cache_dir')
+            compilers = compilers if compilers is not None else defaults.get('compilers')
         ordinal = None if device == 'cpu' else (0 if device == 'cuda' else int(device[5:]))
         self.device = device
         self._ordinal = ordinal
@@ -191,10 +206,17 @@ class Engine:
     def _compile(self, context):
         with self._lock:
             self._check_open()
+            target = {'backend': 'host'}
+            if self._ordinal is not None:
+                major, minor = self.session.capability
+                target = {'backend': 'cuda', 'arch': major * 10 + minor}
+            source_map = {}
+            module = lower_to_ask(context.module, target=target, source_map=source_map)
+            source = module.to_mlir()
             if self._ordinal is None:
                 if context.external_count:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
-                executable = self._host.compile(context.module)
+                executable = self._host.compile(module)
             else:
                 if context.external_count:
                     if len(context.inputs) != 1 or len(context.output_specs) != 1 or context.external_count != 1:
@@ -210,12 +232,15 @@ class Engine:
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
                 options = {}
                 if not context.external_count:
-                    major, minor = self.session.capability
-                    options['target'] = {'backend': 'cuda', 'arch': major * 10 + minor}
-                kernel = self.compiler.compile_cuda(context.module, compilers=self.compilers,
+                    options['target'] = target
+                kernel = self.compiler.compile_cuda(module, compilers=self.compilers,
                     llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
                     **options)
-                executable = _CUDAExecutable(kernel, self.session, directory, context.module.to_mlir())
+                executable = _CUDAExecutable(kernel, self.session, directory, source)
+            (executable.artifact_dir / 'fuga.ir').write_text(context.module.to_text(), encoding='utf-8')
+            (executable.artifact_dir / 'frontend.mlir').write_text(source, encoding='utf-8')
+            (executable.artifact_dir / 'fuga-to-ask.json').write_text(
+                json.dumps(source_map, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
             self._stats['compilations'] += 1
             return executable
 

@@ -17,6 +17,7 @@ def _details(function):
     return {
         "cache": function.cache_info(),
         "ir_file": str(ir_path),
+        "fuga_ir_file": str(directory / "fuga.ir"),
         "artifact_dir": str(directory),
         "phase": function.last_report.get("phase"),
         "external_compiler": function.last_report.get("fusion", {}).get("compiler"),
@@ -79,14 +80,16 @@ def configure_tools(args):
     if args.device in ("cpu", "both"):
         ft.configure(device="cpu", ask_opt=args.ask_opt, cache_dir=args.cache_dir / "cpu")
     if args.device in ("cuda", "both"):
-        required = ("llc", "ptxas", "triton_python", "triton_worker") if args.triton else ("llc", "ptxas")
-        missing = [name for name in required if not getattr(args, name)]
-        if missing:
-            raise ValueError("CUDA demo needs " + ", ".join("--" + name.replace("_", "-") for name in missing))
-        ft.configure(device="cuda", ask_opt=args.ask_opt,
-                     compilers=({"triton": CompilerEnvironment(python=args.triton_python, worker=args.triton_worker)}
-                                if args.triton else {}),
-                     llc=args.llc, ptxas=args.ptxas, cache_dir=args.cache_dir / "cuda")
+        options = {name: getattr(args, name) for name in ('ask_opt', 'llc', 'ptxas')
+                   if getattr(args, name) is not None}
+        if not args.triton:
+            options['compilers'] = {}
+        elif args.triton_python or args.triton_worker:
+            if not (args.triton_python and args.triton_worker):
+                raise ValueError('provide both --triton-python and --triton-worker')
+            options['compilers'] = {'triton': CompilerEnvironment(
+                python=args.triton_python, worker=args.triton_worker)}
+        ft.configure(device='cuda', cache_dir=args.cache_dir / 'cuda', **options)
 
 
 def main(argv=None):

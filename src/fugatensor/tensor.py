@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import math
-from ask import ScalarType, TensorType
+from .ir import ScalarType, TensorType
 
 from ._state import require_not_tracing
 
 
 def normalize_dtype(dtype: str) -> str:
-    """Use the same six element types and aliases as ASK."""
+    """Normalize the public Fuga element type."""
     return ScalarType(dtype).dtype
 
 

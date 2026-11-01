@@ -1,4 +1,4 @@
-"""Register user-written Triton source as an ASK external operation."""
+"""Record user-written Triton implementations in device-independent Fuga IR."""
 from __future__ import annotations
 
 import ast
@@ -14,6 +14,7 @@ from types import MappingProxyType
 from ask import CompilerEnvironment
 
 from .jit import jit
+from .ir import ExternalSpec
 from .tensor import Tensor
 from .tracing import TraceTensor
 
@@ -144,28 +145,21 @@ class TritonKernel:
         if not isinstance(value, TraceTensor):
             raise TypeError('a registered Triton kernel expects one FugaTensor tensor')
         context = value.context
-        engine = context.engine
-        if engine is None or engine.device == 'cpu':
-            raise NotImplementedError('Triton operations require a CUDA Engine')
-        spec = TensorSpec(tuple(value.shape), value.dtype, engine.device)
+        spec = TensorSpec(tuple(value.shape), value.dtype, value.device)
         if spec.numel < 1:
             raise ValueError('ASK Triton fusion requires nonempty tensors')
         constants = _integer_constants(self._constants(spec) if callable(self._constants) else self._constants)
         self._check_constant_names(constants)
         grid = _launch_grid(self._grid(spec) if callable(self._grid) else self._grid)
-        major, minor = engine.capability
         count = getattr(context, 'external_count', 0)
         symbol = f'fuga_triton_external_{count}'
-        semantic = context.module.semantics(symbol + '_semantics', inputs=[value.value.type],
-            results=[value.value.type], shape_rule='same_as', shape_operand=0, effects='none')
-        implementation = context.module.implementation(symbol + '_implementation', compiler='triton',
+        implementation = ExternalSpec(compiler='triton',
             source=self._source, entry=self._entry,
             signature={self._input: _SIGNATURE[value.dtype], self._output: _SIGNATURE[value.dtype]},
             source_bindings={self._input: 'input:0', self._output: 'output:0'}, constants=constants,
-            options=dict(self._options), target={'backend': 'cuda', 'arch': major * 10 + minor, 'warp_size': 32},
-            grid=grid)
-        result = context.graph.external(value.value, semantics=semantic, implementation=implementation,
-                                        id=symbol)
+            options=dict(self._options), target={'backend': 'cuda', 'warp_size': 32},
+            grid=grid, shape_rule='same_as', shape_operand=0, effects=())
+        result = context.graph.external(value.value, spec=implementation, id=symbol)
         context.external_count = count + 1
         return context.wrap(result)
 

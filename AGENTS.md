@@ -1,6 +1,6 @@
 # 仓库约定
 
-FugaTensor 是 ASK 的上层框架：生成高层 ASK IR，计算交给 ASK；不要在 Python 中实现另一份张量计算来冒充 JIT。
+FugaTensor 是 ASK 的上层框架：Python 追踪先生成独立的 Fuga IR，框架层的控制流和自动微分变换作用于 Fuga IR，再把可执行的静态图降成高层 ASK IR。实际计算交给 ASK；不要在 Python 中实现另一份张量计算来冒充 JIT。Fuga IR 不依赖 ASK 的 Value、Type 或字符串节点。
 
 第三方编译器通过 ASK 的适配器接入，保留其 DSL 和固定编译配置。基础 ASK 算子不依赖 Triton。Triton 接入入口接受用户提供的源码，不用库内生成某个固定算子的 DSL 代替接入能力。
 

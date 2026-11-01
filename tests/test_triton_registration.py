@@ -1,4 +1,4 @@
-"""User source is registered verbatim; only its ASK bindings are constructed."""
+"""User source survives the Fuga external node and subsequent ASK lowering."""
 from __future__ import annotations
 
 import builtins
@@ -13,6 +13,7 @@ from unittest import mock
 from ask import Compiler
 import fugatensor as ft
 from fugatensor.tracing import TraceContext
+from fugatensor.lowering import lower_to_ask
 
 
 AFFINE = '''import triton
@@ -58,7 +59,9 @@ class RegistrationTests(unittest.TestCase):
     def prepare(self, op, context=None):
         context = self.context() if context is None else context
         module = context.finish(op(context.inputs[0]))
-        return self.compiler.prepare(module).report['external_requests'][0]
+        self.assertIn('fuga.external', module.to_text())
+        target = ({'backend': 'cuda', 'arch': 86} if context.engine.device != 'cpu' else None)
+        return self.compiler.prepare(lower_to_ask(module, target=target)).report['external_requests'][0]
 
     def test_source_file_is_not_imported_and_remains_a_verbatim_snapshot(self):
         source = AFFINE.replace('\n', '\r\n')
@@ -115,7 +118,7 @@ class RegistrationTests(unittest.TestCase):
                                        constants=lambda spec: {'N': spec.numel, 'BLOCK': 128}, grid=(1, 1))
         context = self.context()
         module = context.finish(second(first(context.inputs[0])))
-        requests = self.compiler.prepare(module).report['external_requests']
+        requests = self.compiler.prepare(lower_to_ask(module, target={'backend': 'cuda', 'arch': 86})).report['external_requests']
         self.assertEqual([request['entry'] for request in requests], ['affine', 'negate'])
         self.assertEqual([request['source'] for request in requests], [AFFINE, NEGATE])
         self.assertEqual(requests[1]['source_bindings'], {'source': 'input:0', 'destination': 'output:0'})
@@ -129,6 +132,36 @@ class RegistrationTests(unittest.TestCase):
                 request = self.prepare(self.registration(), self.context(dtype=dtype))
                 self.assertEqual(request['source'], AFFINE)
                 self.assertEqual(request['signature'], {'in_data': signature, 'out_data': signature})
+
+    def test_gpu_architecture_is_bound_after_tracing_without_changing_fuga_ir(self):
+        class MetadataEngine:
+            device = 'cuda'
+
+            @property
+            def capability(self):
+                raise AssertionError('Fuga tracing queried the physical GPU')
+
+        context = TraceContext([((2, 5), 'f32')], engine=MetadataEngine())
+        module = context.finish(self.registration()(context.inputs[0]))
+        external = next(op for op in module.functions[0].operations if op.opcode == 'external')
+        self.assertEqual(external.attrs['spec'].source, AFFINE)
+        self.assertEqual(dict(external.attrs['spec'].target), {'backend': 'cuda', 'warp_size': 32})
+        before = module.to_text()
+        for arch in (80, 86):
+            with self.subTest(arch=arch):
+                translated = lower_to_ask(module, target={'backend': 'cuda', 'arch': arch})
+                request = self.compiler.prepare(translated).report['external_requests'][0]
+                self.assertEqual(request['target']['arch'], arch)
+                self.assertEqual(request['source'], AFFINE)
+                self.assertEqual(module.to_text(), before)
+
+        # The logical call can still be represented on a CPU tracing context;
+        # selecting a concrete CPU implementation is a separate lowering step.
+        cpu = self.context(device='cpu')
+        cpu_module = cpu.finish(self.registration()(cpu.inputs[0]))
+        self.assertEqual(cpu_module.to_text(), before)
+        with self.assertRaisesRegex(ValueError, 'no implementation'):
+            lower_to_ask(cpu_module, target={'backend': 'host'})
 
     def test_missing_or_conflicting_source_bindings_fail_before_compilation(self):
         for changes in ({'entry': 'missing'}, {'input': 'missing'}, {'output': 'in_data'},
@@ -148,7 +181,7 @@ class RegistrationTests(unittest.TestCase):
                 self.registration(grid=grid)
         with self.assertRaisesRegex(TypeError, 'integer constexpr'):
             self.registration(constants={'N': 10.0, 'BLOCK': 128})
-        with self.assertRaisesRegex(NotImplementedError, 'CUDA Engine'):
+        with self.assertRaisesRegex((ValueError, NotImplementedError), 'implementation|CUDA|cuda|target'):
             self.prepare(self.registration(), self.context(device='cpu'))
         with self.assertRaisesRegex(ValueError, 'nonempty'):
             self.prepare(self.registration(), self.context(shape=(0,)))

@@ -1,8 +1,10 @@
-"""Check graph construction and reject behavior a static ASK graph cannot express."""
+"""Trace independent Fuga values, then explicitly lower a static graph to ASK."""
 import unittest
 from types import SimpleNamespace
 
 from ask import Compiler
+from fugatensor.ir import Module, Value
+from fugatensor.lowering import lower_to_ask
 from fugatensor.tensor import Tensor, normalize_data, normalize_dtype
 from fugatensor.tracing import TraceContext
 
@@ -36,7 +38,7 @@ class ShapeTests(unittest.TestCase):
 
 
 class TraceTests(unittest.TestCase):
-    def test_mixed_precision_multioutput_is_real_ask_ir(self):
+    def test_mixed_precision_multioutput_lowers_independent_fuga_ir(self):
         compiler = Compiler()
         for dtype in ("i32", "i64", "f32", "f16", "bf16"):
             with self.subTest(dtype=dtype):
@@ -44,7 +46,13 @@ class TraceTests(unittest.TestCase):
                 x, y = context.inputs
                 result = ((x.astype("f32") + y.astype("f32")) * 2).astype(dtype)
                 module = context.finish((result, x))
-                prepared = compiler.prepare(module)
+                self.assertIsInstance(module, Module)
+                self.assertIsInstance(x.value, Value)
+                module.verify()
+                self.assertIn("fuga.add", module.to_text())
+                self.assertIn("fuga.mul", module.to_text())
+                self.assertNotIn('"ask.add"', module.to_text())
+                prepared = compiler.prepare(lower_to_ask(module))
                 self.assertEqual(prepared.report["phase"], "prepared")
                 self.assertEqual(context.output_specs, (((2, 3), dtype), ((2, 3), dtype)))
                 self.assertTrue(context.output_is_tuple)
@@ -58,7 +66,7 @@ class TraceTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "bool"):
             x + True
         converted = (x.astype("i32") * 2).astype("bool")
-        source = context.finish(converted).to_mlir()
+        source = lower_to_ask(context.finish(converted)).to_mlir()
         self.assertIn('tensor<3xi1>', source)
         self.assertEqual(context.output_specs, (((3,), "bool"),))
 

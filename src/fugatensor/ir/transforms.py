@@ -1,0 +1,136 @@
+"""Resolve static structured control flow before handing a graph to ASK.
+
+The input module remains intact. In particular, a tensor-dependent predicate is
+never evaluated using tracing inputs or replaced with a guessed branch.
+"""
+from __future__ import annotations
+
+from .core import Module
+from .types import ScalarType, constant_value
+
+
+class StaticControlFlowError(ValueError):
+    """The graph needs control-flow execution that ASK does not provide yet."""
+
+
+def _clone_operation(target, operation, operands):
+    """Retain an operation's identity, giving repeated expansions distinct IDs."""
+    identifier, suffix = operation.id, 0
+    while identifier in target.function._ids:
+        suffix += 1
+        identifier = f'{operation.id}.clone{suffix}'
+    return target.operation(operation.opcode, operands,
+                            tuple(value.type for value in operation.results),
+                            attrs=operation.attrs, effects=operation.effects,
+                            id=identifier, origin_id=operation.origin_id)
+
+
+def _iterations(lower, upper, step):
+    if step > 0:
+        return max(0, (upper - lower + step - 1) // step)
+    return max(0, (lower - upper - step - 1) // -step)
+
+
+def _known_scalar(op, operands, constants):
+    """Small exact integer analysis used only to decide static predicates.
+
+    This is not a tensor evaluator or a floating constant-folding pass. Floating
+    arithmetic stays in the graph and is executed by the numerical backend.
+    """
+    if op.opcode == "constant":
+        return constant_value(op.attrs["value"], op.results[0].type.dtype)
+    if len(op.results) != 1 or not isinstance(op.results[0].type, ScalarType):
+        return None
+    if not operands or any(value not in constants for value in operands):
+        return None
+    values = [constants[value] for value in operands]
+    destination = op.results[0].type.dtype
+    if op.opcode == "cast":
+        if destination == "bool":
+            # Literal floating values have already been rounded by the builder.
+            return bool(values[0])
+        if destination in ("i32", "i64") and type(values[0]) in (bool, int):
+            value = int(values[0])
+        else:
+            return None
+    elif op.opcode in ("add", "mul") and destination in ("i32", "i64"):
+        value = values[0] + values[1] if op.opcode == "add" else values[0] * values[1]
+    else:
+        return None
+    width = int(destination[1:])
+    return (value + 2 ** (width - 1)) % (2 ** width) - 2 ** (width - 1)
+
+
+def specialize(module, *, max_unroll=10000):
+    """Return a new flat module for static ASK compilation.
+
+    ``if`` requires a compile-time scalar bool. Counted ``for`` loops have
+    static signed integer bounds and are unrolled with explicit carried values.
+    The total number of expanded loop iterations is bounded by ``max_unroll``;
+    exceeding it is an error, never silent truncation. Data-dependent ``if``
+    and ``while`` remain valid Fuga IR but cannot enter this lowering path.
+    """
+    if not isinstance(module, Module):
+        raise TypeError("specialize expects a Fuga IR Module")
+    if type(max_unroll) is not int or max_unroll < 0:
+        raise ValueError("max_unroll must be a nonnegative integer")
+    module.verify()
+    result = Module()
+    budget = [max_unroll]
+
+    for function in module.functions:
+        target = result.graph(function.name,
+                              inputs={name: value.type for name, value in function.inputs.items()},
+                              results=[value.type for value in function.outputs])
+        constants = {}
+
+        def clone_block(block, mapping):
+            for operation in block.operations:
+                operands = tuple(mapping[value] for value in operation.operands)
+                if operation.opcode in ("return", "yield"):
+                    return operands
+                if operation.opcode == "if":
+                    predicate = constants.get(operands[0])
+                    if type(predicate) is not bool:
+                        raise StaticControlFlowError(
+                            "data-dependent fuga.if requires framework control-flow execution; "
+                            "ASK accepts only a statically selected branch")
+                    branch = operation.regions[0 if predicate else 1].blocks[0]
+                    values = clone_block(branch, dict(zip(branch.arguments, operands[1:])))
+                elif operation.opcode == "for":
+                    lower, upper, step = (operation.attrs[key] for key in ("lower", "upper", "step"))
+                    count = _iterations(lower, upper, step)
+                    if count > budget[0]:
+                        raise StaticControlFlowError(
+                            f"static loop expansion exceeds max_unroll={max_unroll}; "
+                            "the loop was not partially compiled")
+                    budget[0] -= count
+                    values = operands
+                    body = operation.regions[0].blocks[0]
+                    for index in range(lower, upper, step):
+                        identifier = f'{operation.id}.iteration{index}.index'
+                        while identifier in function._ids or identifier in target._ids:
+                            identifier += '.generated'
+                        induction = target.constant(index, dtype="i64", id=identifier)
+                        constants[induction] = index
+                        values = clone_block(body, dict(zip(body.arguments, (induction, *values))))
+                elif operation.opcode == "while":
+                    raise StaticControlFlowError(
+                        "fuga.while requires framework control-flow execution; "
+                        "ASK lowering currently accepts only static if/for control flow")
+                else:
+                    if operation.regions:
+                        raise StaticControlFlowError(
+                            f"no static region lowering for fuga.{operation.opcode}")
+                    copied = _clone_operation(target, operation, operands)
+                    values = copied.results
+                    known = _known_scalar(operation, operands, constants)
+                    if known is not None and len(values) == 1:
+                        constants[values[0]] = known
+                mapping.update(zip(operation.results, values))
+            raise ValueError("verified block has no terminator")
+
+        mapping = dict(zip(function.inputs.values(), target.inputs.values()))
+        target.return_(*clone_block(function.body.blocks[0], mapping))
+    result.verify()
+    return result
