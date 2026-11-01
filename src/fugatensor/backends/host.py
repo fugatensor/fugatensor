@@ -190,15 +190,7 @@ class HostBackend:
         capabilities = self.compiler.capabilities()
         if not capabilities.get("host_codegen"):
             raise CompilerError("this ASK build has no host code generation")
-        # The front end may use nanobind while host emission uses the companion
-        # CLI. Check their complete build descriptions before combining them.
-        result = self._run([self.compiler.executable, "--capabilities"])
-        try:
-            cli_capabilities = json.loads(result.stdout)
-        except json.JSONDecodeError as error:
-            raise CompilerError("ASK companion returned invalid capabilities") from error
-        if cli_capabilities != capabilities:
-            raise CompilerError("ASK bindings and companion CLI belong to different builds")
+        self.compiler._check_companion()
         cc = shutil.which(self.cc)
         if cc is None:
             raise CompilerError(f"host shared-library linker not found: {self.cc}")

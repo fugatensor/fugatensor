@@ -141,3 +141,59 @@ def specialize(module, *, max_unroll=10000, expand_calls=True):
         target.return_(*clone_block(function.body.blocks[0], mapping))
     result.verify()
     return result
+
+
+def analyze_function(function, selected=()):
+    """Convert flat SSA edges once; the native C++ core owns liveness and AD reachability."""
+    from fugatensor import _native
+    values = list(function.inputs.values())
+    indices = {value: index for index, value in enumerate(values)}
+    operations = tuple(op for op in function.operations if op.opcode != "return")
+    operands, counts, effects = [], [], []
+    for operation in operations:
+        operands.append([indices[value] for value in operation.operands])
+        counts.append(len(operation.results))
+        effects.append(bool(operation.effects))
+        for value in operation.results:
+            indices[value] = len(values)
+            values.append(value)
+    plan = _native.analyze(len(function.inputs), operands, counts,
+                           [indices[value] for value in function.outputs], list(selected), effects)
+    return operations, values, plan
+
+
+def prune(module):
+    """Drop dead effect-free operations from a flat Fuga module."""
+    result = Module()
+    for source in module.functions:
+        operations, _, plan = analyze_function(source)
+        kept = {id(operations[index]) for index in plan["live_operations"]}
+        target = result.graph(source.name,
+                              inputs={name: value.type for name, value in source.inputs.items()},
+                              results=[value.type for value in source.outputs])
+        values = dict(zip(source.inputs.values(), target.inputs.values()))
+        for operation in source.operations:
+            if id(operation) not in kept:
+                continue
+            copied = _clone_operation(target, operation, tuple(values[value] for value in operation.operands))
+            values.update(zip(operation.results, copied.results))
+        target.return_(*(values[value] for value in source.outputs))
+    result.verify()
+    return result
+
+
+def project_outputs(module, indices, *, name_suffix="", max_unroll=10000):
+    """Select a subset of result ports and prune unused operations without expanding custom calls."""
+    source = specialize(module, max_unroll=max_unroll, expand_calls=False).functions[0]
+    result = Module()
+    target = result.graph(source.name + name_suffix,
+                          inputs={name: value.type for name, value in source.inputs.items()},
+                          results=[source.outputs[index].type for index in indices])
+    mapping = dict(zip(source.inputs.values(), target.inputs.values()))
+    for operation in source.operations:
+        if operation.opcode == "return":
+            break
+        copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
+        mapping.update(zip(operation.results, copied.results))
+    target.return_(*(mapping[source.outputs[index]] for index in indices))
+    return prune(result.verify())

@@ -8,11 +8,8 @@ import threading
 import weakref
 
 from ._state import active_trace, require_not_tracing
-from .ir import Module, specialize
-from .ir.differentiate import vjp, _prune_flat
-from .ir.transforms import _clone_operation
+from .ir import FLOAT_DTYPES, Module, project_outputs, prune, specialize, vjp
 
-_FLOATS = frozenset(("f16", "bf16", "f32"))
 _enabled = ContextVar("fugatensor_grad_enabled", default=True)
 _cache = weakref.WeakKeyDictionary()
 _dependency_cache = weakref.WeakKeyDictionary()
@@ -75,8 +72,8 @@ def record_execution(module, inputs, outputs, engine):
     if not _enabled.get():
         return outputs
     selected = tuple(index for index, value in enumerate(inputs)
-                     if value.requires_grad and value.dtype in _FLOATS)
-    if not selected or not any(value.dtype in _FLOATS for value in outputs):
+                     if value.requires_grad and value.dtype in FLOAT_DTYPES)
+    if not selected or not any(value.dtype in FLOAT_DTYPES for value in outputs):
         return outputs
     if not isinstance(module, Module) or len(module.functions) != 1:
         raise TypeError("backward history requires one Fuga function")
@@ -94,28 +91,10 @@ def record_execution(module, inputs, outputs, engine):
     node = _Node(module, inputs, tuple(id(value) for value in outputs),
                  tuple((value.shape, value.dtype) for value in outputs), selected, engine)
     for index, value in enumerate(outputs):
-        if value.dtype in _FLOATS and set(selected).intersection(_needed_inputs(module, index)):
+        if value.dtype in FLOAT_DTYPES and set(selected).intersection(_needed_inputs(module, index)):
             value._requires_grad = True
             value._history, value._history_index = node, index
     return outputs
-
-
-def _project(module, outputs):
-    """Keep selected result ports without exposing an unused sibling to AD."""
-    flat = specialize(module, expand_calls=False)
-    source = flat.functions[0]
-    result = Module()
-    target = result.graph(source.name,
-                          inputs={name: value.type for name, value in source.inputs.items()},
-                          results=[source.outputs[index].type for index in outputs])
-    mapping = dict(zip(source.inputs.values(), target.inputs.values()))
-    for operation in source.operations:
-        if operation.opcode == "return":
-            break
-        copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
-        mapping.update(zip(operation.results, copied.results))
-    target.return_(*(mapping[source.outputs[index]] for index in outputs))
-    return _prune_flat(result.verify())
 
 
 def _needed_inputs(module, output_index):
@@ -123,7 +102,7 @@ def _needed_inputs(module, output_index):
     with _cache_lock:
         entries = _dependency_cache.setdefault(module, {})
         if output_index not in entries:
-            function = _project(module, (output_index,)).functions[0]
+            function = project_outputs(module, (output_index,)).functions[0]
             used = {value for op in function.operations for value in op.operands}
             entries[output_index] = tuple(index for index, value in enumerate(function.inputs.values()) if value in used)
         return entries[output_index]
@@ -154,7 +133,7 @@ def _plan(node, output_indices, input_indices, *, create_graph=False):
         by_module = _cache.setdefault(node.engine, weakref.WeakKeyDictionary())
         plans = by_module.setdefault(node.module, {})
         if key not in plans:
-            projected = _project(node.module, output_indices)
+            projected = project_outputs(node.module, output_indices)
             if create_graph:
                 from .ir.primitives import validate_composable
                 validate_composable(projected, phase="forward")
@@ -178,7 +157,7 @@ def _plan(node, output_indices, input_indices, *, create_graph=False):
                           for op in function.operations if op.opcode == "call")
             phase = "backward" + (" of " + ", ".join(names) if names else "")
             validate_composable(plan.derivative, phase=phase)
-            higher = _prune_flat(specialize(plan.derivative, expand_calls=False))
+            higher = prune(specialize(plan.derivative, expand_calls=False))
             validate_composable(higher, phase="composed backward")
             plan.higher_derivative = higher
         return plan
@@ -241,7 +220,7 @@ def backward(tensor, gradient=None, *, retain_graph=None, create_graph=False):
     if retain_graph is None:
         retain_graph = create_graph
     tensor.engine._check_tensor(tensor)
-    if not tensor.requires_grad or tensor.dtype not in _FLOATS:
+    if not tensor.requires_grad or tensor.dtype not in FLOAT_DTYPES:
         raise ValueError("backward requires a floating Tensor with requires_grad=True")
     # Validate the seed before building any backward graph or changing .grad.
     if gradient is not None:

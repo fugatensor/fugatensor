@@ -8,9 +8,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from .errors import DifferentiationError
-from .types import ScalarType, TensorType, as_type, cast_type, constant_value
-
-_FLOATS = frozenset(("f16", "bf16", "f32"))
+from .types import FLOAT_DTYPES, ScalarType, TensorType, as_type, cast_type, constant_value
 
 
 class HigherOrderError(DifferentiationError):
@@ -90,7 +88,7 @@ def _mul_vjp(builder, operation, primals, cotangent, active):
 def _cast_vjp(builder, operation, primals, cotangent, active):
     if not active[0]:
         return (None,)
-    if operation.operands[0].type.dtype not in _FLOATS or operation.results[0].type.dtype not in _FLOATS:
+    if operation.operands[0].type.dtype not in FLOAT_DTYPES or operation.results[0].type.dtype not in FLOAT_DTYPES:
         raise DifferentiationError("integer/bool casts on a derivative path have no floating VJP rule")
     return (builder.cast(cotangent, dtype=operation.operands[0].type.dtype),)
 
@@ -203,7 +201,7 @@ def validate_composable(module, *, phase="forward"):
                 raise HigherOrderError(f"higher-order differentiation has no registered primitive rule for "
                                        f"fuga.{operation.opcode} ({phase}, {operation.id})")
             validate_primitive(operation)
-            if rule.floating_values and any(value.type.dtype not in _FLOATS
+            if rule.floating_values and any(value.type.dtype not in FLOAT_DTYPES
                                             for value in (*operation.operands, *operation.results)):
                 raise HigherOrderError(f"higher-order differentiation requires floating operands/results for "
                                        f"fuga.{operation.opcode} ({phase}, {operation.id})")

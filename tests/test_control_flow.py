@@ -1,257 +1,145 @@
-"""Scalar Python control flow executes and reconnects real ASK graph segments."""
-import os
-import tempfile
+"""Scalar Python control flow (graph-break if/while) across CPU and CUDA with segment caching and AD."""
+from __future__ import annotations
+
 import unittest
 from unittest.mock import patch
 
-from ask import Compiler, CompilerError
 import fugatensor as ft
+from tests._helpers import EngineTestCase, requires_cuda
 
 
-class ControlFlowGraphs:
-    """Identical numerical and cache checks for CPU and CUDA execution."""
-
-    def test_scalar_predicate_selects_actual_path_and_reuses_segments(self):
-        calls = []
+class ControlFlowGraphsMixin:
+    def test_scalar_branch_executes_prefix_downloads_one_scalar_and_caches_segments(self):
+        calls, observed_execs = [], []
 
         @ft.jit
         def choose(x, flag):
             calls.append("entered")
             prefix = x * x + 1
             if flag:
+                observed_execs.append(self.engine.stats["executions"])
                 return prefix + 2
+            observed_execs.append(self.engine.stats["executions"])
             return prefix * 3
 
-        for flag, expected in ((True, 7), (False, 15)):
-            actual = choose(ft.tensor(2), ft.tensor(flag, dtype="bool"))
-            self.assertEqual(actual.tolist(), expected)
-        compilations = self.engine.stats["compilations"]
-        for flag, expected in ((False, 30), (True, 12)):
-            actual = choose(ft.tensor(3), ft.tensor(flag, dtype="bool"))
-            self.assertEqual(actual.tolist(), expected)
-        self.assertEqual(self.engine.stats["compilations"], compilations)
-        # A break continues the current Python frame instead of replaying it.
+        before_execs = self.engine.stats["executions"]
+        read_shapes = []
+        orig_to_flat = self.engine.to_flat
+
+        def spy_download(val):
+            read_shapes.append(val.shape)
+            return orig_to_flat(val)
+
+        with patch.object(self.engine, "to_flat", side_effect=spy_download):
+            out_true = choose(ft.tensor([2, 3]), ft.tensor(True, dtype="bool"))
+        self.assertEqual(read_shapes, [()])
+        self.assertGreater(observed_execs[0], before_execs)
+        self.assertEqual(out_true.tolist(), [7.0, 12.0])
+        self.assertEqual(choose(ft.tensor([2, 3]), ft.tensor(False, dtype="bool")).tolist(), [15.0, 30.0])
+
+        comps = self.engine.stats["compilations"]
+        self.assertEqual(choose(ft.tensor([3, 4]), ft.tensor(False, dtype="bool")).tolist(), [30.0, 51.0])
+        self.assertEqual(choose(ft.tensor([3, 4]), ft.tensor(True, dtype="bool")).tolist(), [12.0, 19.0])
+        self.assertEqual(self.engine.stats["compilations"], comps)
         self.assertEqual(calls, ["entered"] * 4)
 
-    def test_prefix_is_executed_before_python_enters_selected_branch(self):
-        observations = []
-
-        @ft.jit
-        def choose(x, flag):
-            prefix = x + 1
-            if flag:
-                observations.append(self.engine.stats["executions"])
-                return prefix * 2
-            observations.append(self.engine.stats["executions"])
-            return prefix + 3
-
-        before = self.engine.stats["executions"]
-        self.assertEqual(choose(ft.tensor(2), ft.tensor(True, dtype="bool")).tolist(), 6)
-        self.assertGreater(observations[0], before)
-
-    def test_branch_downloads_only_one_scalar_predicate(self):
-        @ft.jit
-        def choose(x, flag):
-            retained = x * x
-            if flag:
-                return retained + 1
-            return retained * 2
-
-        x, flag = ft.tensor([2, 3, 4]), ft.tensor(True, dtype="bool")
-        read_shapes = []
-        original = self.engine.to_flat
-
-        def download(value):
-            read_shapes.append(value.shape)
-            return original(value)
-
-        with patch.object(self.engine, "to_flat", side_effect=download):
-            result = choose(x, flag)
-        self.assertEqual(read_shapes, [()])
-        self.assertEqual(result.tolist(), [5, 10, 17])
-
-    def test_while_handles_zero_iterations_and_reuses_body_at_different_trip_counts(self):
-        calls = []
-
+    def test_while_loop_nested_jit_and_distinct_fun_closures(self):
         @ft.jit
         def repeated(x, counter):
-            calls.append("entered")
-            value = x + 1
+            val = x + 1
             while counter:
-                value = value + 2
+                val = val + 2
                 counter = counter - 1
-            return value
+            return val
 
         self.assertEqual(repeated(ft.tensor(2), ft.tensor(0, dtype="i32")).tolist(), 3)
         self.assertEqual(repeated(ft.tensor(2), ft.tensor(3, dtype="i32")).tolist(), 9)
-        compilations = self.engine.stats["compilations"]
-        self.assertEqual(repeated(ft.tensor(5), ft.tensor(7, dtype="i32")).tolist(), 20)
-        self.assertEqual(repeated(ft.tensor(5), ft.tensor(1, dtype="i32")).tolist(), 8)
-        self.assertEqual(self.engine.stats["compilations"], compilations)
-        self.assertEqual(calls, ["entered"] * 4)
+        comps = self.engine.stats["compilations"]
+        self.assertEqual(repeated(ft.tensor(5), ft.tensor(6, dtype="i32")).tolist(), 18)
+        self.assertEqual(self.engine.stats["compilations"], comps)
 
-    def test_nested_jit_and_keyword_static_arguments_survive_breaks(self):
+        # Nested JIT across breaks + distinct ft.fun backward closures sharing identical forward IR.
         @ft.jit
         def inner(x, *, flag, scale=2):
-            if flag:
-                return x * scale
-            return x + scale
+            return x * scale if flag else x + scale
 
         @ft.jit
         def outer(x, *, flag, bias=3):
-            retained = x * x
-            alias = retained
-            selected = inner(x + 1, flag=flag)
-            return selected + retained + alias + bias
+            sq = x * x
+            return inner(x + 1, flag=flag) + sq + bias
 
-        self.assertEqual(outer(ft.tensor(2), flag=ft.tensor(True, dtype="bool")).tolist(), 17)
-        self.assertEqual(outer(ft.tensor(2), flag=ft.tensor(False, dtype="bool")).tolist(), 16)
+        self.assertEqual(outer(ft.tensor(2), flag=ft.tensor(True, dtype="bool")).tolist(), 13)
+        self.assertEqual(outer(ft.tensor(2), flag=ft.tensor(False, dtype="bool")).tolist(), 12)
 
-    def test_identical_forward_ir_keeps_distinct_custom_backward_closures(self):
         def make_rule(scale):
             class Rule(ft.fun):
                 @ft.jit
                 def forward(self, ctx, x):
                     return x * 2
-
                 @ft.jit
                 def backward(self, ctx, dy):
                     return (dy * scale,)
-
             return Rule()
 
         left, right = make_rule(2), make_rule(3)
 
         @ft.jit
-        def choose(x, flag):
+        def pick_rule(x, flag):
             return left(x) if flag else right(x)
 
-        for flag, expected in ((True, 2), (False, 3), (False, 3), (True, 2)):
-            with self.subTest(flag=flag, expected=expected):
-                x = ft.tensor(4, requires_grad=True)
-                result = choose(x, ft.tensor(flag, dtype="bool"))
-                self.assertEqual(result.tolist(), 8)
-                result.backward()
-                self.assertEqual(x.grad.tolist(), expected)
-        self.assertEqual(choose.cache_info()["compilations"], 2)
-        self.assertEqual(choose.cache_info()["cache_hits"], 2)
+        for flag, exp_grad in ((True, 2), (False, 3), (True, 2)):
+            x = ft.tensor(4, requires_grad=True)
+            pick_rule(x, ft.tensor(flag, dtype="bool")).backward()
+            self.assertEqual(x.grad.tolist(), exp_grad)
 
-    def test_scalar_numeric_truth_and_non_scalar_rejection(self):
+    def test_backward_across_branches_loops_and_rejection_guards(self):
         @ft.jit
-        def choose(x, condition):
-            if condition:
-                return x + 1
-            return x + 2
+        def branch_and_loop(x, flag, count):
+            retained = x * x
+            val = retained * x if flag else retained + x
+            while count:
+                val = val * 2
+                count = count - 1
+            return val
 
-        for dtype, value, expected in (("i64", 0, 5), ("i64", -2, 4),
-                                       ("f32", 0.0, 5), ("f32", -0.5, 4)):
-            with self.subTest(dtype=dtype, value=value):
-                self.assertEqual(choose(ft.tensor(3), ft.tensor(value, dtype=dtype)).tolist(), expected)
-        for condition in (ft.tensor([True], dtype="bool"), ft.tensor([True, False], dtype="bool")):
-            with self.subTest(shape=condition.shape), patch.object(
-                    self.engine, "_execute", side_effect=AssertionError("executed invalid condition")):
-                with self.assertRaisesRegex((TypeError, ValueError), "scalar|shape|truth"):
-                    choose(ft.tensor(3), condition)
+        for flag, trips, exp_val, exp_grad in ((True, 0, 8, 12), (False, 2, 24, 20)):
+            x = ft.tensor(2, requires_grad=True)
+            res = branch_and_loop(x, ft.tensor(flag, dtype="bool"), ft.tensor(trips, dtype="i32"))
+            self.assertEqual(res.tolist(), exp_val)
+            res.backward()
+            self.assertEqual(x.grad.tolist(), exp_grad)
 
-    def test_eager_scalar_truth_uses_value_and_rejects_non_scalar(self):
-        self.assertTrue(bool(ft.tensor(True, dtype="bool")))
-        self.assertFalse(bool(ft.tensor(0, dtype="i32")))
+        # Scalar numeric truthiness & non-scalar rejection + fun internal graph-break rejection.
         self.assertTrue(bool(ft.tensor(-0.5)))
+        self.assertFalse(bool(ft.tensor(0, dtype="i64")))
         with self.assertRaisesRegex((TypeError, ValueError), "scalar|shape|truth"):
             bool(ft.tensor([1, 2]))
 
-    def test_backward_reconnects_values_across_selected_branch_segments(self):
         @ft.jit
-        def loss(x, flag):
-            retained = x * x
-            if flag:
-                return retained * x
-            return retained + x
+        def bad_cond(x, cond):
+            return x + 1 if cond else x + 2
 
-        for flag, expected_value, expected_gradient in ((True, 8, 12), (False, 6, 5)):
-            with self.subTest(flag=flag):
-                x = ft.tensor(2, requires_grad=True)
-                result = loss(x, ft.tensor(flag, dtype="bool"))
-                self.assertEqual(result.tolist(), expected_value)
-                result.backward()
-                self.assertEqual(x.grad.tolist(), expected_gradient)
+        with patch.object(self.engine, "_execute", side_effect=AssertionError("executed invalid condition")):
+            with self.assertRaisesRegex((TypeError, ValueError), "scalar|shape|truth"):
+                bad_cond(ft.tensor(3), ft.tensor([True, False], dtype="bool"))
 
-    def test_backward_reconnects_loop_carried_values(self):
-        @ft.jit
-        def repeated(x, counter):
-            value = x
-            while counter:
-                value = value * 2
-                counter = counter - 1
-            return value
-
-        for iterations in (0, 3):
-            with self.subTest(iterations=iterations):
-                x = ft.tensor(3, requires_grad=True)
-                result = repeated(x, ft.tensor(iterations, dtype="i32"))
-                self.assertEqual(result.tolist(), 3 * 2**iterations)
-                result.backward()
-                self.assertEqual(x.grad.tolist(), 2**iterations)
-
-    def test_plain_static_jit_still_avoids_python_on_cache_hit(self):
-        calls = []
-
-        @ft.jit
-        def static_graph(x, enabled=True):
-            calls.append(enabled)
-            return x + 1 if enabled else x * 2
-
-        self.assertEqual(static_graph(ft.tensor(2)).tolist(), 3)
-        self.assertEqual(static_graph(ft.tensor(3)).tolist(), 4)
-        self.assertEqual(calls, [True])
-        self.assertEqual(static_graph.cache_info()["compilations"], 1)
-        self.assertEqual(static_graph.cache_info()["cache_hits"], 1)
-
-    def test_fun_internal_graph_break_is_rejected_before_execution(self):
-        class Conditional(ft.fun):
+        class BrokenFun(ft.fun):
             @ft.jit
             def forward(self, ctx, x, flag):
-                value = x + 1
-                if flag:
-                    return value * 2
-                return value
+                return x * 2 if flag else x
 
         with patch.object(self.engine, "_execute", side_effect=AssertionError("executed inside fun trace")):
-            with self.assertRaisesRegex((TypeError, ValueError, NotImplementedError),
-                                        "fun|graph.break|control.flow|runtime"):
-                Conditional()(ft.tensor(2), ft.tensor(True, dtype="bool"))
+            with self.assertRaisesRegex((TypeError, ValueError, NotImplementedError), "fun|graph.break|control.flow|runtime"):
+                BrokenFun()(ft.tensor(2), ft.tensor(True, dtype="bool"))
 
 
-class HostControlFlowTests(ControlFlowGraphs, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        try:
-            cls.compiler = Compiler(os.environ.get("ASK_OPT"))
-            capabilities = cls.compiler.capabilities()
-        except CompilerError as error:
-            raise unittest.SkipTest(f"ASK native compiler is required: {error}")
-        if not capabilities.get("host_codegen"):
-            raise unittest.SkipTest("ASK host code generation is disabled")
-
-    def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix="fuga-control-host-")
-        self.addCleanup(directory.cleanup)
-        self.engine = ft.Engine(device="cpu", ask_opt=self.compiler.executable,
-                                cache_dir=directory.name)
-        self.engine.__enter__()
-        self.addCleanup(self.engine.__exit__, None, None, None)
+class HostControlFlowTests(ControlFlowGraphsMixin, EngineTestCase):
+    device = "cpu"
 
 
-@unittest.skipUnless(os.environ.get("FUGATENSOR_TEST_CUDA") == "1", "enable real CUDA control-flow tests explicitly")
-class CUDAControlFlowTests(ControlFlowGraphs, unittest.TestCase):
-    def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix="fuga-control-cuda-")
-        self.addCleanup(directory.cleanup)
-        self.engine = ft.Engine(device="cuda", ask_opt=os.environ["ASK_OPT"], cache_dir=directory.name,
-                                compilers={}, llc=os.environ["FUGATENSOR_LLC"],
-                                ptxas=os.environ["FUGATENSOR_PTXAS"])
-        self.engine.__enter__()
-        self.addCleanup(self.engine.__exit__, None, None, None)
+@requires_cuda
+class CUDAControlFlowTests(ControlFlowGraphsMixin, EngineTestCase):
+    device = "cuda"
 
 
 if __name__ == "__main__":

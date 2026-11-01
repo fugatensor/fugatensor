@@ -7,69 +7,10 @@ not acquire an implicit reduction or an invented scalar loss.
 from __future__ import annotations
 
 from .core import Module
-from .types import TensorType
-from .transforms import specialize, _clone_operation
+from .types import FLOAT_DTYPES, TensorType
+from .transforms import _clone_operation, analyze_function, project_outputs, prune, specialize
 from .errors import DifferentiationError
 from .primitives import primitive_vjp
-
-
-_FLOATS = frozenset(("f16", "bf16", "f32"))
-
-
-def _analyze(function, selected=()):
-    """Convert SSA edges once; the native core owns dependency traversal."""
-    from fugatensor import _native
-    values = list(function.inputs.values())
-    indices = {value: index for index, value in enumerate(values)}
-    operations = tuple(op for op in function.operations if op.opcode != 'return')
-    operands, counts, effects = [], [], []
-    for operation in operations:
-        operands.append([indices[value] for value in operation.operands])
-        counts.append(len(operation.results))
-        effects.append(bool(operation.effects))
-        for value in operation.results:
-            indices[value] = len(values)
-            values.append(value)
-    plan = _native.analyze(len(function.inputs), operands, counts,
-                           [indices[value] for value in function.outputs], list(selected), effects)
-    return operations, values, plan
-
-
-def _prune_flat(module):
-    """Drop unused pure primal work after constructing the reverse graph."""
-    result = Module()
-    for source in module.functions:
-        operations, _, plan = _analyze(source)
-        kept = {id(operations[index]) for index in plan['live_operations']}
-        target = result.graph(source.name,
-                              inputs={name: value.type for name, value in source.inputs.items()},
-                              results=[value.type for value in source.outputs])
-        values = dict(zip(source.inputs.values(), target.inputs.values()))
-        for operation in source.operations:
-            if id(operation) not in kept:
-                continue
-            copied = _clone_operation(target, operation, tuple(values[value] for value in operation.operands))
-            values.update(zip(operation.results, copied.results))
-        target.return_(*(values[value] for value in source.outputs))
-    result.verify()
-    return result
-
-
-def _project_results(module, indices, max_unroll):
-    """Select residual results without changing nested custom call rules."""
-    source = specialize(module, max_unroll=max_unroll, expand_calls=False).functions[0]
-    result = Module()
-    target = result.graph(source.name + "_residuals",
-                          inputs={name: value.type for name, value in source.inputs.items()},
-                          results=[source.outputs[index].type for index in indices])
-    mapping = dict(zip(source.inputs.values(), target.inputs.values()))
-    for operation in source.operations:
-        if operation.opcode == "return":
-            break
-        copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
-        mapping.update(zip(operation.results, copied.results))
-    target.return_(*(mapping[source.outputs[index]] for index in indices))
-    return _prune_flat(result.verify())
 
 
 def _inline_derivative(target, module, bindings):
@@ -106,7 +47,7 @@ def vjp(module, *, argnums=None, max_unroll=10000):
     source = flat.functions[0]
     source_inputs = tuple(source.inputs.values())
     if argnums is None:
-        selected = tuple(index for index, value in enumerate(source_inputs) if value.type.dtype in _FLOATS)
+        selected = tuple(index for index, value in enumerate(source_inputs) if value.type.dtype in FLOAT_DTYPES)
     elif type(argnums) is int:
         selected = (argnums,)
     elif isinstance(argnums, (tuple, list)):
@@ -119,9 +60,9 @@ def vjp(module, *, argnums=None, max_unroll=10000):
         raise ValueError("argnums must contain valid nonnegative input indices")
     if len(set(selected)) != len(selected):
         raise ValueError("argnums must not repeat an input index")
-    if any(source_inputs[index].type.dtype not in _FLOATS for index in selected):
+    if any(source_inputs[index].type.dtype not in FLOAT_DTYPES for index in selected):
         raise DifferentiationError("integer and bool inputs are not differentiable")
-    if not source.outputs or any(value.type.dtype not in _FLOATS for value in source.outputs):
+    if not source.outputs or any(value.type.dtype not in FLOAT_DTYPES for value in source.outputs):
         raise DifferentiationError("vjp requires floating outputs with explicit floating cotangent seeds")
     for index in selected:
         type_ = source_inputs[index].type
@@ -140,7 +81,7 @@ def vjp(module, *, argnums=None, max_unroll=10000):
     target = result.graph(source.name + "_vjp", inputs=input_types,
                           results=[source_inputs[index].type for index in selected])
     values = {value: target.inputs[name] for name, value in source.inputs.items()}
-    operations, numbered_values, plan = _analyze(source, selected)
+    operations, numbered_values, plan = analyze_function(source, selected)
     active = dict(zip(numbered_values, plan['active_values']))
     if any(operation.effects for operation in operations):
         raise DifferentiationError("vjp currently requires an effect-free graph")
@@ -179,7 +120,7 @@ def vjp(module, *, argnums=None, max_unroll=10000):
                                    for value in operation.results[:spec.output_count])
                 gradients = spec.build_backward(target, primals,
                     tuple(values[value] for value in operation.results), cotangents)
-                inputs = tuple(value for value in operation.operands if value.type.dtype in _FLOATS)
+                inputs = tuple(value for value in operation.operands if value.type.dtype in FLOAT_DTYPES)
                 if len(gradients) != len(inputs):
                     raise DifferentiationError(f'{spec.name}.backward returned an invalid gradient count')
                 for value, gradient in zip(inputs, gradients):
@@ -190,12 +131,13 @@ def vjp(module, *, argnums=None, max_unroll=10000):
                                      if operation.results[index] in adjoints)
             if residual_indices:
                 selected_inputs = tuple(index for index, value in enumerate(operation.operands)
-                                        if active[value] and value.type.dtype in _FLOATS)
+                                        if active[value] and value.type.dtype in FLOAT_DTYPES)
                 if selected_inputs:
                     # Hidden values are the explicit computations saved by
                     # forward. Their derivatives follow that SSA graph, while
                     # any visible nested call still chooses its custom rule.
-                    residuals = _project_results(spec.forward, residual_indices, max_unroll)
+                    residuals = project_outputs(spec.forward, residual_indices,
+                                                name_suffix="_residuals", max_unroll=max_unroll)
                     derivative = vjp(residuals, argnums=selected_inputs, max_unroll=max_unroll)
                     seeds = tuple(adjoints[operation.results[index]] for index in residual_indices)
                     gradients = _inline_derivative(target, derivative, (*primals, *seeds))
@@ -223,4 +165,4 @@ def vjp(module, *, argnums=None, max_unroll=10000):
         gradients.append(gradient)
     target.return_(*gradients)
     result.verify()
-    return _prune_flat(result)
+    return prune(result)

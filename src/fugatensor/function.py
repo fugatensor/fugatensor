@@ -8,11 +8,11 @@ import marshal
 from types import MemberDescriptorType
 
 from ._state import active_trace
+from .ir import FLOAT_DTYPES
 from .ir.core import CallSpec
 from .jit import JITFunction, _static_key, jit
 from .tracing import TraceContext, TraceTensor
 
-_FLOATS = frozenset(("f16", "bf16", "f32"))
 _active_functions = ContextVar("fugatensor_active_functions", default=())
 
 
@@ -241,7 +241,7 @@ class fun:
             finally:
                 backward_ctx._closed = True
                 active_trace.reset(token)
-            expected = tuple(type_ for type_ in input_types if type_.dtype in _FLOATS)
+            expected = tuple(type_ for type_ in input_types if type_.dtype in FLOAT_DTYPES)
             if len(values) != len(expected):
                 raise ValueError(f"fun.backward must return {len(expected)} gradients for floating Tensor inputs; "
                                  f"received {len(values)}")

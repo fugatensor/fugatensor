@@ -16,8 +16,7 @@ from ._config import runtime_defaults
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
 from .lowering import lower_to_ask
-from .ir import specialize
-from .ir.differentiate import _prune_flat
+from .ir import prune, specialize
 
 _current = contextvars.ContextVar('fugatensor_engine', default=None)
 _defaults = {}
@@ -213,7 +212,7 @@ class Engine:
                 major, minor = self.session.capability
                 target = {'backend': 'cuda', 'arch': major * 10 + minor}
             source_map = {}
-            flat = _prune_flat(specialize(context.module))
+            flat = prune(specialize(context.module))
             # Autograd supplies saved inputs and cotangents. Remove unused
             # physical parameters while retaining the Python call signature.
             from .ir import Module

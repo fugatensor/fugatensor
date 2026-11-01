@@ -1,10 +1,8 @@
 """Forward-mode differentiation emits ordinary, composable Fuga primitives."""
 from .core import Module
-from .types import TensorType
-from .differentiate import DifferentiationError, _analyze, _prune_flat
-from .transforms import specialize, _clone_operation
-
-_FLOATS = frozenset(("f16", "bf16", "f32"))
+from .errors import DifferentiationError
+from .transforms import _clone_operation, analyze_function, prune, specialize
+from .types import FLOAT_DTYPES, TensorType
 
 
 def _constant_jvp(builder, operation, primals, tangents):
@@ -43,12 +41,12 @@ def jvp(module, *, argnums=None, max_unroll=10000):
     from .primitives import PRIMITIVE_RULES, validate_primitive
     if not isinstance(module, Module):
         raise TypeError("jvp expects a Fuga IR Module")
-    flat = _prune_flat(specialize(module, max_unroll=max_unroll, expand_calls=False))
+    flat = prune(specialize(module, max_unroll=max_unroll, expand_calls=False))
     if len(flat.functions) != 1:
         raise DifferentiationError("jvp currently requires exactly one Fuga function")
     source = flat.functions[0]
     inputs = tuple(source.inputs.values())
-    selected = (tuple(index for index, value in enumerate(inputs) if value.type.dtype in _FLOATS)
+    selected = (tuple(index for index, value in enumerate(inputs) if value.type.dtype in FLOAT_DTYPES)
                 if argnums is None else (argnums,) if type(argnums) is int else argnums)
     if not isinstance(selected, (tuple, list)):
         raise TypeError("argnums must be an input index or a tuple/list of indices")
@@ -56,14 +54,14 @@ def jvp(module, *, argnums=None, max_unroll=10000):
         raise ValueError("argnums must contain valid nonnegative input indices")
     if len(set(selected)) != len(selected):
         raise ValueError("argnums must not repeat an input index")
-    if any(inputs[index].type.dtype not in _FLOATS for index in selected):
+    if any(inputs[index].type.dtype not in FLOAT_DTYPES for index in selected):
         raise DifferentiationError("integer and bool inputs are not differentiable")
-    if not source.outputs or any(value.type.dtype not in _FLOATS for value in source.outputs):
+    if not source.outputs or any(value.type.dtype not in FLOAT_DTYPES for value in source.outputs):
         raise DifferentiationError("jvp requires floating outputs")
     if any(isinstance(value.type, TensorType) and None in value.type.shape
            for value in (*source.outputs, *(inputs[index] for index in selected))):
         raise DifferentiationError("jvp requires concrete differentiated tensor shapes")
-    operations, numbered, plan = _analyze(source, selected)
+    operations, numbered, plan = analyze_function(source, selected)
     if any(operation.effects for operation in operations):
         raise DifferentiationError("jvp currently requires an effect-free graph")
     active = dict(zip(numbered, plan["active_values"]))
@@ -93,7 +91,7 @@ def jvp(module, *, argnums=None, max_unroll=10000):
             rule = validate_primitive(operation)
             if not callable(rule.jvp):
                 raise DifferentiationError(f"fuga.{operation.opcode} has no registered JVP rule")
-            if any(value.type.dtype not in _FLOATS for value in (*operation.operands, *operation.results)):
+            if any(value.type.dtype not in FLOAT_DTYPES for value in (*operation.operands, *operation.results)):
                 raise DifferentiationError("integer/bool operations on a derivative path have no floating JVP rule")
             tangent_results = rule.jvp(target, operation, operands,
                                        tuple(tangents[value] for value in operation.operands))
@@ -110,4 +108,4 @@ def jvp(module, *, argnums=None, max_unroll=10000):
         return target.splat(zero, value.type.shape) if isinstance(value.type, TensorType) else zero
 
     target.return_(*(primals[value] for value in source.outputs), *(tangent(value) for value in source.outputs))
-    return _prune_flat(result.verify())
+    return prune(result.verify())
