@@ -70,9 +70,9 @@ class TraceTests(unittest.TestCase):
         self.assertIn('tensor<3xi1>', source)
         self.assertEqual(context.output_specs, (((3,), "bool"),))
 
-    def test_control_flow_and_value_reads_are_rejected_during_trace(self):
+    def test_vector_conditions_and_value_reads_are_rejected_during_trace(self):
         x = TraceContext([((2,), "f32")]).inputs[0]
-        with self.assertRaisesRegex(TypeError, "data-dependent"):
+        with self.assertRaisesRegex(TypeError, "scalar"):
             bool(x)
         with self.assertRaisesRegex(TypeError, "while tracing"):
             x.tolist()
@@ -98,12 +98,12 @@ class TraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "current trace"):
             first.finish(other_graph)
 
-    def test_real_tensors_reject_cross_engine_or_implicit_truth(self):
+    def test_real_tensors_reject_cross_engine_or_nonscalar_truth(self):
         first = Tensor(SimpleNamespace(device="cpu"), SimpleNamespace(shape=(2,), dtype="f32"))
         second = Tensor(SimpleNamespace(device="cpu"), SimpleNamespace(shape=(2,), dtype="f32"))
         with self.assertRaisesRegex(ValueError, "same Engine"):
             first + second
-        with self.assertRaisesRegex(TypeError, "truth values"):
+        with self.assertRaisesRegex(TypeError, "scalar"):
             bool(first)
 
     def test_graph_result_is_frozen_after_finish(self):

@@ -16,6 +16,8 @@ from ._config import runtime_defaults
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
 from .lowering import lower_to_ask
+from .ir import specialize
+from .ir.differentiate import _prune_flat
 
 _current = contextvars.ContextVar('fugatensor_engine', default=None)
 _defaults = {}
@@ -159,7 +161,7 @@ class Engine:
                 result['runtime'] = self._session.stats
             return result
 
-    def tensor(self, values, *, dtype='f32', shape=None):
+    def tensor(self, values, *, dtype='f32', shape=None, requires_grad=False):
         require_not_tracing()
         flat, shape = normalize_data(values, shape=shape)
         dtype = normalize_dtype(dtype)
@@ -167,7 +169,7 @@ class Engine:
             self._check_open()
             storage = (HostStorage.from_flat(flat, shape=shape, dtype=dtype)
                        if self._ordinal is None else self.session.from_host(flat, shape=shape, dtype=dtype))
-            return Tensor(self, storage)
+            return Tensor(self, storage, requires_grad=requires_grad)
 
     def to_flat(self, tensor):
         require_not_tracing()
@@ -211,18 +213,54 @@ class Engine:
                 major, minor = self.session.capability
                 target = {'backend': 'cuda', 'arch': major * 10 + minor}
             source_map = {}
-            module = lower_to_ask(context.module, target=target, source_map=source_map)
+            flat = _prune_flat(specialize(context.module))
+            # Autograd supplies saved inputs and cotangents. Remove unused
+            # physical parameters while retaining the Python call signature.
+            from .ir import Module
+            from .ir.transforms import _clone_operation
+            function = flat.functions[0]
+            arguments = tuple(function.inputs.items())
+            used = {value for op in function.operations for value in op.operands}
+            input_indices = tuple(index for index, (_, value) in enumerate(arguments) if value in used)
+            if not input_indices and arguments:
+                # Keep one carrier for constant-only kernels and existing ABI.
+                output_type = function.outputs[0].type
+                input_indices = (next((index for index, (_, value) in enumerate(arguments)
+                                       if value.type == output_type), 0),)
+            if len(input_indices) != len(arguments):
+                projected = Module()
+                graph = projected.graph(function.name,
+                    inputs={arguments[index][0]: arguments[index][1].type for index in input_indices},
+                    results=[value.type for value in function.outputs])
+                values = {arguments[index][1]: graph.inputs[arguments[index][0]] for index in input_indices}
+                for op in function.operations:
+                    if op.opcode == 'return':
+                        graph.return_(*(values[value] for value in op.operands))
+                    else:
+                        copied = _clone_operation(graph, op, tuple(values[value] for value in op.operands))
+                        values.update(zip(op.results, copied.results))
+                flat = projected.verify()
+            external_count = sum(op.opcode == 'external' for function in flat.functions for op in function.operations)
+            module = lower_to_ask(flat, target=target, source_map=source_map)
+            source_map['input_bindings'] = [
+                {'argument': index, 'compiled_argument': compiled_index,
+                 'origin_value_id': arguments[index][1].origin_id}
+                for compiled_index, index in enumerate(input_indices)]
+            origins = {arguments[index][1].name: arguments[index][1].origin_id for index in input_indices}
+            for row in source_map['values']:
+                if row['fuga_value'] in origins:
+                    row['origin_value_id'] = origins[row['fuga_value']]
             source = module.to_mlir()
             if self._ordinal is None:
-                if context.external_count:
+                if external_count:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
                 executable = self._host.compile(module)
             else:
-                if context.external_count:
-                    if len(context.inputs) != 1 or len(context.output_specs) != 1 or context.external_count != 1:
+                if external_count:
+                    if len(input_indices) != 1 or len(context.output_specs) != 1 or external_count != 1:
                         raise NotImplementedError('ASK external CUDA fusion currently requires one tensor input, '
                                                   'one output and one external operation')
-                    if context.output_specs[0] != context.input_specs[0]:
+                    if context.output_specs[0] != context.input_specs[input_indices[0]]:
                         raise NotImplementedError('ASK external CUDA fusion requires equal input/output '
                                                   'shape and storage dtype')
                 if self.llc is None or self.ptxas is None:
@@ -231,7 +269,7 @@ class Engine:
                 artifacts.mkdir(exist_ok=True)
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
                 options = {}
-                if not context.external_count:
+                if not external_count:
                     options['target'] = target
                 kernel = self.compiler.compile_cuda(module, compilers=self.compilers,
                     llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
@@ -242,7 +280,7 @@ class Engine:
             (executable.artifact_dir / 'fuga-to-ask.json').write_text(
                 json.dumps(source_map, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
             self._stats['compilations'] += 1
-            return executable
+            return _InputProjection(executable, input_indices, len(arguments))
 
     def _execute(self, executable, inputs):
         with self._lock:
@@ -309,9 +347,23 @@ class _CUDAExecutable:
         return outputs
 
 
-def tensor(values, *, dtype='f32', shape=None, engine=None, device=None):
+class _InputProjection:
+    """Bind the original Fuga signature to the live compiled input ports."""
+    def __init__(self, executable, indices, arity):
+        self.executable, self.indices, self.arity = executable, indices, arity
+
+    def __getattr__(self, name):
+        return getattr(self.executable, name)
+
+    def run(self, inputs):
+        if len(inputs) != self.arity:
+            raise ValueError('input count differs from the original Fuga graph')
+        return self.executable.run([inputs[index] for index in self.indices])
+
+
+def tensor(values, *, dtype='f32', shape=None, engine=None, device=None, requires_grad=False):
     require_not_tracing()
     selected = engine if engine is not None else current_engine(device)
     if device is not None and _device_name(device) != selected.device:
         raise ValueError('device differs from the selected Engine; create an Engine for that device')
-    return selected.tensor(values, dtype=dtype, shape=shape)
+    return selected.tensor(values, dtype=dtype, shape=shape, requires_grad=requires_grad)

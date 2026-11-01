@@ -60,11 +60,46 @@ class Tensor:
     Tensor arithmetic dispatches to the engine's JIT entry. Creating or printing
     a Tensor does not copy its values back from a device.
     """
-    __slots__ = ("_engine", "_storage")
+    __slots__ = ("_engine", "_storage", "_requires_grad", "_grad",
+                 "_history", "_history_index", "__weakref__")
 
-    def __init__(self, engine, storage):
+    def __init__(self, engine, storage, *, requires_grad=False):
+        if type(requires_grad) is not bool:
+            raise TypeError("requires_grad must be bool")
+        if requires_grad and storage.dtype not in ("f16", "bf16", "f32"):
+            raise TypeError("requires_grad is only supported for floating tensors")
         self._engine = engine
         self._storage = storage
+        self._requires_grad = requires_grad
+        self._grad = None
+        self._history = None
+        self._history_index = None
+
+    @property
+    def requires_grad(self):
+        return self._requires_grad
+
+    @property
+    def grad(self):
+        return self._grad
+
+    @property
+    def is_leaf(self):
+        return self._history is None
+
+    def backward(self, gradient=None, *, retain_graph=None, create_graph=False):
+        from .autograd import backward
+        return backward(self, gradient, retain_graph=retain_graph, create_graph=create_graph)
+
+    def zero_grad(self, *, set_to_none=True):
+        from .autograd import zero_grad
+        zero_grad(self, set_to_none=set_to_none)
+
+    def detach(self):
+        """Return a handle sharing this buffer, without gradient history."""
+        require_not_tracing()
+        self.engine._check_tensor(self)
+        return Tensor(self.engine, self._storage)
 
     @property
     def engine(self):
@@ -121,8 +156,26 @@ class Tensor:
     def __rmul__(self, other):
         return self._binary("mul", other, reverse=True)
 
+    def __neg__(self):
+        from .ops import negative
+        return negative(self)
+
+    def __sub__(self, other):
+        from .ops import subtract
+        return subtract(self, other)
+
+    def __rsub__(self, other):
+        from .ops import subtract
+        return subtract(other, self)
+
+    def square(self):
+        from .ops import square
+        return square(self)
+
     def __bool__(self):
-        raise TypeError("Tensor truth values are unsupported; use static metadata for control flow")
+        if self.shape != ():
+            raise TypeError('control-flow conditions require a scalar Tensor with shape=()')
+        return bool(self.tolist())
 
     def __eq__(self, other):
         raise TypeError("tensor comparisons are not implemented; compare downloaded values explicitly")

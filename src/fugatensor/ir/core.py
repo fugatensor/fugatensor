@@ -12,7 +12,7 @@ import math
 import re
 from types import MappingProxyType
 
-from .types import ScalarType, TensorType, Type, as_type, cast_type, constant_value
+from .types import ScalarType, TensorType, Type, as_type, constant_value
 
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z", re.ASCII)
 _TERMINATORS = {"return", "yield"}
@@ -31,7 +31,7 @@ def _freeze(value):
         return MappingProxyType({key: _freeze(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item) for item in value)
-    if value is None or type(value) in (bool, int, float, str) or isinstance(value, (ScalarType, TensorType, ExternalSpec)):
+    if value is None or type(value) in (bool, int, float, str) or isinstance(value, (ScalarType, TensorType, ExternalSpec, CallSpec)):
         return value
     raise TypeError(f"unsupported Fuga attribute: {type(value).__name__}")
 
@@ -83,6 +83,64 @@ class ExternalSpec:
             raise ValueError("external grid must contain three positive 32-bit integers")
         object.__setattr__(self, "grid", grid)
         object.__setattr__(self, "effects", _effects(self.effects))
+
+
+@dataclass(frozen=True, eq=False)
+class CallSpec:
+    """A custom differentiation boundary around an isolated forward graph.
+
+    Executable Python is only a tracing callback, never serialized as tensor
+    computation. The printable descriptor contains the forward program and a
+    stable rule identity. Saved residuals are ordinary hidden SSA results.
+    """
+    name: str
+    forward: Module
+    output_count: int
+    backward_rule: object = field(default=None, repr=False)
+    backward_name: str | None = None
+    definition_key: str = ""
+    input_types: tuple = field(init=False)
+    result_types: tuple = field(init=False)
+    effects: tuple = field(init=False)
+    _forward_text: str = field(init=False, repr=False)
+
+    def __post_init__(self):
+        if not isinstance(self.name, str) or not self.name:
+            raise ValueError("custom calls require a nonempty name")
+        if not isinstance(self.forward, Module) or len(self.forward.functions) != 1:
+            raise TypeError("custom calls require one isolated Fuga forward function")
+        self.forward.verify()
+        function = self.forward.functions[0]
+        if type(self.output_count) is not int or not 0 < self.output_count <= len(function.outputs):
+            raise ValueError("custom call output_count must name its visible forward results")
+        if self.backward_rule is not None and not callable(self.backward_rule):
+            raise TypeError("custom backward rule must be a tracing callback")
+        if self.backward_rule is not None and (not isinstance(self.backward_name, str) or not self.backward_name):
+            raise ValueError("custom backward rules require a stable printable name")
+        if not isinstance(self.definition_key, str):
+            raise TypeError("custom call definition_key must be a string")
+        object.__setattr__(self, "input_types", tuple(value.type for value in function.inputs.values()))
+        object.__setattr__(self, "result_types", tuple(value.type for value in function.outputs))
+        object.__setattr__(self, "effects", tuple(sorted({effect for op in function.operations for effect in op.effects})))
+        object.__setattr__(self, "_forward_text", self.forward.to_text())
+
+    @property
+    def saved_count(self):
+        return len(self.result_types) - self.output_count
+
+    @property
+    def has_backward(self):
+        return self.backward_rule is not None
+
+    def verify(self):
+        if self.forward.to_text() != self._forward_text:
+            raise ValueError("custom call forward graph changed after its definition was captured")
+
+    def build_backward(self, target_graph, operands, forward_results, cotangents, *, engine=None):
+        if not self.has_backward:
+            raise ValueError(f"custom function {self.name} has no backward rule")
+        self.verify()
+        return self.backward_rule(target_graph, operands, forward_results, cotangents, engine=engine)
 
 
 @dataclass(frozen=True, eq=False)
@@ -228,28 +286,28 @@ class BlockBuilder:
         return op
 
     def constant(self, value, *, dtype="i32", id=None):
-        type_ = ScalarType(dtype)
+        from .primitives import infer_result_types
+        type_, = infer_result_types("constant", attrs={"value": value}, dtype=dtype)
         return self.operation("constant", (), (type_,), attrs={"value": constant_value(value, type_.dtype)}, id=id).results[0]
 
     def splat(self, value, shape, *, id=None):
+        from .primitives import infer_result_types
         self._check_values((value,))
-        if not isinstance(value.type, ScalarType):
-            raise TypeError("splat requires a Fuga scalar")
-        result = TensorType(shape, value.type.dtype)
+        result, = infer_result_types("splat", (value.type,), {"shape": shape})
         return self.operation("splat", (value,), (result,), attrs={"shape": result.shape}, id=id).results[0]
 
     def cast(self, value, *, dtype, id=None):
+        from .primitives import infer_result_types
         self._check_values((value,))
-        return self.operation("cast", (value,), (cast_type(value.type, dtype),), id=id).results[0]
+        types = infer_result_types("cast", (value.type,), dtype=dtype)
+        return self.operation("cast", (value,), types, id=id).results[0]
 
     def _binary(self, opcode, lhs, rhs, *, id=None):
+        from .primitives import infer_result_types
         self._check_values((lhs, rhs))
-        if lhs.type != rhs.type:
-            raise TypeError("Fuga add/mul require equal operand shapes and dtypes")
-        if lhs.type.dtype == "bool":
-            raise TypeError("bool add/mul is undefined; cast to a numeric type explicitly")
         attrs = {"overflow": "wrap"} if lhs.type.dtype in ("i32", "i64") else {}
-        return self.operation(opcode, (lhs, rhs), (lhs.type,), attrs=attrs, id=id).results[0]
+        types = infer_result_types(opcode, (lhs.type, rhs.type), attrs)
+        return self.operation(opcode, (lhs, rhs), types, attrs=attrs, id=id).results[0]
 
     def add(self, lhs, rhs, *, id=None):
         return self._binary("add", lhs, rhs, id=id)
@@ -266,6 +324,16 @@ class BlockBuilder:
                 raise ValueError("external requires explicit result_types or a valid same_as operand")
             result_types = (operands[spec.shape_operand].type,)
         return _unpack(self.operation("external", operands, result_types,
+                                     attrs={"spec": spec}, effects=spec.effects, id=id).results)
+
+    def call(self, *operands, spec, id=None):
+        self._check_values(operands)
+        if not isinstance(spec, CallSpec):
+            raise TypeError("call requires a Fuga CallSpec")
+        spec.verify()
+        if tuple(value.type for value in operands) != spec.input_types:
+            raise TypeError("custom call operands disagree with its forward signature")
+        return _unpack(self.operation("call", operands, spec.result_types,
                                      attrs={"spec": spec}, effects=spec.effects, id=id).results)
 
     def _region(self, types):
@@ -491,16 +559,18 @@ def _verify_region(region, terminator, result_types, seen_values, seen_ids, seen
 
 def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
     operands, results, attrs = op.operands, op.results, op.attrs
-    kinds = {"constant", "splat", "cast", "add", "mul", "external", "if", "for", "while", "return", "yield"}
+    kinds = {"constant", "splat", "cast", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
     if op.opcode not in kinds:
         raise ValueError(f"unknown Fuga operation: {op.opcode}")
     if op.opcode not in ("if", "for", "while") and op.regions:
         raise ValueError(f"{op.opcode} cannot own regions")
     if op.opcode in ("constant", "splat", "cast", "add", "mul") and len(results) != 1:
         raise TypeError(f"{op.opcode} requires one result")
-    if op.opcode not in ("external", "if", "for", "while") and op.effects:
+    if op.opcode not in ("external", "call", "if", "for", "while") and op.effects:
         raise ValueError(f"{op.opcode} must be pure")
     if op.opcode == "constant":
+        from .primitives import validate_primitive
+        validate_primitive(op)
         if operands or not isinstance(results[0].type, ScalarType) or set(attrs) != {"value"}:
             raise TypeError("constant requires a scalar result, a value, and no operands")
         canonical = constant_value(attrs["value"], results[0].type.dtype)
@@ -509,22 +579,9 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             equal = (type(raw) is float and math.isnan(raw)) if math.isnan(canonical) else raw == canonical
             if not equal or (canonical == 0 and math.copysign(1.0, raw) != math.copysign(1.0, canonical)):
                 raise ValueError("Fuga floating constants must already be rounded to their declared dtype")
-    elif op.opcode == "splat":
-        if len(operands) != 1 or not isinstance(operands[0].type, ScalarType) or set(attrs) != {"shape"}:
-            raise TypeError("splat requires one scalar and an explicit shape")
-        if results[0].type != TensorType(attrs["shape"], operands[0].type.dtype):
-            raise TypeError("splat result shape or dtype disagrees with its scalar")
-    elif op.opcode == "cast":
-        if len(operands) != 1 or attrs or results[0].type != cast_type(operands[0].type, results[0].type.dtype):
-            raise TypeError("cast must preserve scalar/tensor kind and shape")
-    elif op.opcode in ("add", "mul"):
-        if len(operands) != 2 or operands[0].type != operands[1].type or results[0].type != operands[0].type:
-            raise TypeError("arithmetic requires exactly equal operand and result types")
-        if results[0].type.dtype == "bool":
-            raise TypeError("bool arithmetic is undefined")
-        expected = {"overflow": "wrap"} if results[0].type.dtype in ("i32", "i64") else {}
-        if dict(attrs) != expected:
-            raise ValueError("arithmetic numerical attributes disagree with the declared dtype")
+    elif op.opcode in ("splat", "cast", "add", "mul"):
+        from .primitives import validate_primitive
+        validate_primitive(op)
     elif op.opcode == "external":
         spec = attrs.get("spec")
         if set(attrs) != {"spec"} or not isinstance(spec, ExternalSpec) or not results:
@@ -542,6 +599,15 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             if any(type(value.type) is not type(source) or
                    (isinstance(source, TensorType) and value.type.shape != source.shape) for value in results):
                 raise TypeError("external same_as result shapes disagree with the selected operand")
+    elif op.opcode == "call":
+        spec = attrs.get("spec")
+        if set(attrs) != {"spec"} or not isinstance(spec, CallSpec):
+            raise TypeError("call requires a structured custom function spec")
+        spec.verify()
+        if tuple(value.type for value in operands) != spec.input_types or tuple(value.type for value in results) != spec.result_types:
+            raise TypeError("custom call input or result types disagree with its forward signature")
+        if op.effects != spec.effects:
+            raise ValueError("custom call effects disagree with its forward graph")
     elif op.opcode in _TERMINATORS:
         if results or attrs or op.regions:
             raise TypeError("terminators cannot have results, attributes, or regions")
@@ -579,6 +645,11 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
 def _format_attr(value):
     if isinstance(value, ExternalSpec):
         value = {name: getattr(value, name) for name in value.__dataclass_fields__}
+    elif isinstance(value, CallSpec):
+        value = {"name": value.name, "definition_key": value.definition_key,
+                 "input_types": value.input_types, "result_types": value.result_types,
+                 "output_count": value.output_count, "saved_count": value.saved_count,
+                 "backward": value.backward_name, "forward": value._forward_text}
     if isinstance(value, Mapping):
         return "{" + ", ".join(f"{name}={_format_attr(value[name])}" for name in sorted(value)) + "}"
     if isinstance(value, (tuple, list)):

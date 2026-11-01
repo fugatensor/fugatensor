@@ -1,172 +1,204 @@
-# JIT、grad 与 fun 类：接口提案
+# JIT、backward 与 fun 类
 
-[返回 Fuga IR](README.md) · [已实现的控制流与 VJP](02-控制流与自动微分.md) · [ASK 降级](03-降到ASK.md) · [项目说明](../../README.md) · [ASK 中的框架边界](../../../ask/docs/18-FugaTensor接入示例.md)
+[返回 Fuga IR](README.md) · [内部 VJP 变换](02-控制流与自动微分.md) · [ASK 降级](03-降到ASK.md) · [项目说明](../../README.md) · [ASK 中的框架边界](../../../ask/docs/18-FugaTensor接入示例.md)
 
-本文是待实现方案。现有 `@ft.jit`、基础 IR VJP 和 ASK 执行路径已经存在；这里新增的 `ft.fun` 类、`ft.grad`、张量层 `ft.vjp`、保存上下文及嵌套 JIT 行为尚未实现。名称和参数拼写暂按本文约定，不能把示例直接当作当前可运行代码。
+这份文档最初用于讨论接口，现在按张量上的 backward 接口说明实现。公开用法是 `requires_grad=True`、`output.backward()` 和 `input.grad`；不提供 `ft.grad(f)` 或 `ft.vjp(f, ...)`。编译器内部仍用 IR VJP 生成反向计算，用户不必直接调用它。
 
-目标是让一个 Fuga `fun` 类同时定义正向和反向。调用实例时得到正向结果；`grad` 选择需要的反向规则；`jit` 编译实际用到的计算。外层函数能看到内层的 Fuga 运算，第三方 DSL 仍作为 external 交给 ASK。
-
-## 1. 先区分三件事
-
-| 接口 | 负责什么 | 调用后得到什么 |
-|---|---|---|
-| `class F(ft.fun)` | 保存正向、反向及二者的契约 | 可调用实例，普通调用执行正向 |
-| `ft.grad(f, argnums=0)` | 构造对指定输入求导的函数 | 梯度函数，不改变原函数的返回含义 |
-| `ft.jit(f)` | 追踪并编译函数实际需要的图 | 可复用特化的可调用对象 |
-
-`jit` 不会因为类里存在 `backward` 就调用它。推理图只需要正向。只有 `grad` 或显式 VJP 生成的图，才包含反向所需的正向值和反向运算。
-
-`grad` 装饰时只包装函数定义。首次形成具体形状和静态参数对应的图后，才能完整检查需要的反向规则；检查必须在任何 kernel 执行前完成。
-
-普通 Python 函数可以由 Fuga 按基础算子的规则自动求导。`ft.fun` 实例则声明一个由用户负责的求导边界：需要穿过它求导时必须有 `backward`，不能因为缺少规则就偷偷改为对函数体求导。
-
-## 2. fun 类定义正向和反向
-
-以下全部是提案示例。假设 `scale` 已按[当前 Triton 接口](../../README.md#把自己写的-triton-算子放进图)注册，用户提供的 kernel 实际计算 `2*x`：
+## 1. 创建输入、计算，再反向传播
 
 ```python
 import fugatensor as ft
 
-class TwiceSquare(ft.fun):
-    def forward(self, ctx, x):
-        ctx.save_for_backward(x)
-        return scale(x) * x
-
-    def backward(self, ctx, dy):
-        (x,) = ctx.saved_tensors
-        return (dy * x * 4,)
-
-new_fun = TwiceSquare()
-
 @ft.jit
-def inference(x):
-    return new_fun(x) + x
+def loss(x):
+    return ft.square(x) + 3 * x
 
-@ft.jit
-@ft.grad
-def derivative(x):
-    return new_fun(x) + x
-
-x = ft.tensor(3.0, device="cuda")  # shape=()，浮点标量 Tensor
-print(inference(x).tolist())       # 21.0
-print(derivative(x).tolist())      # 13.0
+x = ft.tensor(2.0, requires_grad=True)
+y = loss(x)
+y.backward()
+print(y.tolist())       # 10.0
+print(x.grad.tolist())  # 7.0
 ```
 
-正向是 `2*x*x+x`，反向是 `4*x+1`。用户声明的反向必须与实际 Triton 代码相符；框架可以检查接口和类型，不能仅凭注册就证明这条数学公式正确。
+`requires_grad` 默认是 False，只有浮点 Tensor 可以开启。叶子输入的 `.grad` 初始为 None，反向传播后保存与输入同形状、同 dtype、同设备的梯度 Tensor。中间结果通常不保存 `.grad`，它们的梯度继续传向叶子。
 
-`ctx` 是每次逻辑调用独立的保存上下文，不能跨调用共享。`save_for_backward` 明确列出反向要用的 Tensor；`saved_tensors` 按相同顺序读取。第一版提议只允许保存 Tensor，静态选项作为实例的不可变配置记录，不允许把真实 Tensor 藏进 `self` 或全局变量。
+`jit` 负责追踪和执行实际计算。每次真实执行后，运行时按需要记录输入、输出和对应 Fuga 图，形成反向传播的连接。内层 JIT 在外层追踪期间仍向图中记录计算，不执行已有机器码来截断依赖。两个分别执行的 JIT 调用也能通过张量历史连接。
 
-第一版 fun 的正向和反向都遵守当前纯计算约定：计算只通过参数和结果传递，不修改输入、全局状态或实例状态。ctx 仅记录显式保存关系，不是执行任意副作用的入口。
+计算函数、内置算子和 fun 的计算方法都声明 `@ft.jit`。内置加、减、乘、取负、平方、cast、zeros_like、ones_like 都能被追踪；减法、取负和平方最终组成已有的基础 Fuga 操作。
 
-追踪时保存的是 SSA 值引用，不是复制数据到 Python。变换后，这些值成为正向与反向之间显式传递的 residual。反向只需 `x` 时就保存 `x`，需要其他中间结果时应在正向显式保存。
-
-普通调用仍只返回正向 Tensor 或 Tensor tuple，不暴露 `(result, residual)`。推理不需要 residual，就不生成专门保存它们的计算。第一版可以保留求导需要的值；何时重算、何时释放是后续优化，不能提前释放仍被反向使用的设备存储。
-
-## 3. 梯度的数量、形状和类型
-
-提议采用以下默认契约：
-
-- 正向参数仍可包含 Tensor 和按值特化的静态参数。可微输入指浮点 Tensor；bool/int Tensor 和静态参数不占反向返回槽位。
-- 一个正向 Tensor 输出时，`backward(ctx, dy)` 的 `dy` 是一个 Tensor；多个输出时，`dy` 是对应顺序的 tuple。第一版要求这些输出均为浮点 Tensor。
-- `backward` 始终返回 tuple，每个可微输入一个梯度，顺序与正向参数一致。即使只有一个输入，也返回 `(dx,)`。
-- 每个输入梯度必须与对应输入的 shape、dtype 完全一致。混合精度反向可在内部转成 f32 计算，返回前显式转回契约要求的 dtype。
-- 数学上为零的梯度仍应显式表达为零。缺少返回项、`None` 或未知导数都不表示零梯度。
-
-检查发生在反向图形成后、提交 ASK 前。错误应包含类名、输入或输出的位置、预期类型与实际类型。不能先执行到 GPU 写入错误大小的缓冲区，再发现契约不匹配。
-
-`argnums=0` 默认选择第一个参数，且该参数必须是浮点 Tensor。整数 `argnums` 返回一个梯度 Tensor；tuple `argnums` 按指定顺序返回梯度 tuple。`fun.backward` 的完整返回契约不随外层本次选择改变；优化可以删除未使用的梯度计算。
-
-## 4. 标量 grad 与带种子的 VJP
-
-`ft.grad` 默认只接收返回单个浮点、零维 Tensor 的函数，并自动使用同类型的标量一作为输出梯度。形状 `(1,)` 仍是张量，不能隐式把它或任意张量输出求和。
-
-张量输出显式提供种子，建议接口为：
+## 2. 张量输出要提供梯度
 
 ```python
-# 提案：返回输入 x 的 cotangent；不返回正向结果。
-dx = ft.vjp(new_fun, x, seed=dy, argnums=0)
-
-@ft.jit
-def weighted_derivative(x, dy):
-    return ft.vjp(new_fun, x, seed=dy, argnums=0)
+x = ft.tensor([1, 2, 3], requires_grad=True)
+y = ft.square(x)
+y.backward(ft.tensor([1, 2, -1]))
+print(x.grad.tolist())  # [2.0, 8.0, -6.0]
 ```
 
-单输出 seed 的 shape、dtype 必须与该输出相同；多输出使用等长 seed tuple，逐项检查。seed 是图的普通输入，改变它的数值不应导致重新编译。这里的张量层 `ft.vjp` 是提案，与当前接受 `Module` 的 IR 变换接口不同。
+没有显式 gradient 时，输出必须是单个浮点零维 Tensor，运行时使用同类型的标量一。形状 `(1,)` 也不是零维，不能隐式求和。显式 gradient 的形状、dtype 和运行时必须与输出匹配。
 
-现有基础算子尚无归约，本文不引入 `sum` 作为默认 loss，也不声称已经支持“对广播标量求梯度所需的归约”。遇到需要但尚未实现的算子，仍要明确报错。
+一个函数返回多个 Tensor 时，可以把结果继续组合成一个标量 loss，再反向传播；也可以分别调用 backward：
 
-## 5. 什么时候报告缺少反向规则
+```python
+@ft.jit
+def pair(x):
+    return x * x, x * 3
 
-先确定输出与 `argnums` 所选输入之间需要求导的依赖，再检查沿途必须穿过的操作。例子如下：
+x = ft.tensor(2.0, requires_grad=True)
+a, b = pair(x)
+a.backward(retain_graph=True)
+b.backward()
+print(x.grad.tolist())  # 7.0
+```
 
-| 情况 | 预期行为 |
+未选中的输出使用零 cotangent，选中输出的贡献继续累加到同一叶子。一个值被多个操作使用、同一个输入占据两个参数位置，都必须把各条路径的贡献相加。
+
+## 3. 梯度累加、释放与停止记录
+
+`backward()` 累加叶子的梯度，不覆盖前一次结果。`x.zero_grad()` 把 `.grad` 设为 None；`x.zero_grad(set_to_none=False)` 把已有梯度清零。下一轮训练前是否清理，由调用者决定。
+
+普通 backward 默认释放相关图的反向状态，再次沿同一图反传会报错。可用 `retain_graph=True` 保留；不显式传 retain_graph 时，它跟随 create_graph，因此高阶请求默认保留所需图。重新执行正向会建立新图，可以对同一叶子继续累加梯度。
+
+`x.detach()` 返回不连接原历史的 Tensor。`with ft.no_grad():` 内执行计算不记录梯度历史，退出后恢复原状态。这两种操作都不改变已有输入的数据，也不把 Tensor 转成 Python 数值。
+
+当前 no_grad 应包住真实 JIT 调用，不能放进 JIT 函数体；后者会明确拒绝，避免词法上下文在追踪后失去含义。detach 目前用于真实 Tensor，追踪值尚未实现这个操作。
+
+默认 backward 不为梯度记录新历史。`create_graph=True` 则把生成的梯度计算继续表达为 Fuga 基础操作，允许再对梯度反传：
+
+```python
+@ft.jit
+def cube(x):
+    return x * x * x
+
+x = ft.tensor(2.0, requires_grad=True)
+cube(x).backward(create_graph=True)
+first = x.grad
+print(first.tolist())  # 12.0
+x.zero_grad()         # 清理叶子累加，不丢弃已经保存的 first
+first.backward()
+print(x.grad.tolist()) # 二阶导数 12.0
+```
+
+继续构建下一阶时，也对对应 backward 传 create_graph=True。显式输出梯度若自身 requires_grad，也保持在这张图中。梯度累加的加法同样可追踪；为避免把不同阶的结果相加，示例每次先保存当前梯度，再清理叶子 `.grad`。
+
+高阶路径必须能用已知的基础规则组合：常量、浮点加乘、浮点 cast 及适用的 splat。规则目录的抽象求值、VJP/JVP 回调实际参与构图和变换，见[原子算子与可组合变换](05-原子算子与可组合变换.md)。浮点 cast 沿用忽略舍入的梯度约定，不是量化函数的严格导数。
+
+梯度图继续保留 fun 的 call 边界，直到交给 ASK 执行时才展开。下一阶对可见输出的 cotangent 仍调用用户 backward；对隐藏保存值的 cotangent，则从 forward 投影出相应 SSA 计算，再递归做 VJP。投影中的嵌套 fun 仍使用自己的规则，两路贡献同时存在时相加。这样不会在提前内联时丢掉用户声明的反向语义。
+
+所需正向或生成的反向包含不透明 external 时，create_graph 请求会在任何反向编译、执行或梯度写入前拒绝。手写了一阶 Triton backward，也不能跳过高阶检查。这里只支持可组合的规则，不是任意程序的符号微分。
+
+显式 create_graph=True 会在外层 no_grad 内临时开启反向图记录，完成后恢复原上下文。若某个梯度已经是与输入无关的常量，它可能不再 requires_grad，不能把重复调用 backward 当作自动补零接口。
+
+## 4. fun 类定义正向与手写反向
+
+```python
+class Square(ft.fun):
+    @ft.jit
+    def forward(self, ctx, x):
+        ctx.save_for_backward(x)
+        return ft.square(x)
+
+    @ft.jit
+    def backward(self, ctx, dy):
+        (x,) = ctx.saved_tensors
+        return (2 * x * dy,)
+
+square = Square()
+x = ft.tensor(3.0, requires_grad=True)
+square(x).backward()
+print(x.grad.tolist())  # 6.0
+```
+
+`forward` 和提供的 `backward` 都必须用 `@ft.jit` 装饰，类定义时检查。只做推理的 fun 可以省略 backward；但需要穿过它反向传播时会报缺少规则。用户声明的反向是求导边界，不能在缺少规则时偷偷改为对函数体求导。
+
+ctx 每次调用独立。`save_for_backward` 显式保存 Tensor 引用，反向从 `saved_tensors` 按顺序取得；追踪中的引用对应 SSA 值及 residual，不会下载到 Python。仅推理时不会调用 backward，也不需要保留只供反向使用的计算。
+
+第一版只允许保存 Tensor；静态选项作为 fun 实例的不可变配置，不能把实际 Tensor 藏入实例或全局变量。forward/backward 遵守纯计算约定，不修改输入和外部状态。ctx 只负责保存关系，不是任意副作用的入口。
+
+反向契约如下：
+
+- forward 返回 Tensor 时，dy 是 Tensor；forward 返回 tuple 时，dy 是对应结构的 tuple，包括单元素 tuple。
+- backward 始终返回 tuple，每个浮点 Tensor 输入一个梯度，按参数顺序排列。bool/int Tensor 和静态参数不占槽位。
+- 每个返回梯度必须与对应输入的 shape、dtype 一致。混合精度可以在内部使用 f32，返回前显式转回。
+- 即使某个输入不要求梯度，手写 backward 也遵守完整返回契约；后续可以删除未使用的计算。
+- 缺少返回项、None 或未知导数不表示零梯度。数学上为零时，应显式产生零 Tensor。
+
+这些检查在反向执行前完成。接口检查只能发现类型和结构错误，不能证明手写公式与正向数学上等价。
+
+## 5. 缺少规则怎样报错
+
+正向执行可以调用没有反向规则的算子。只有请求 backward 时，才根据需要的梯度路径检查规则。运行时先为所有相关节点构造并验证反向计划，再编译和执行反向；发现规则缺失时，不应先执行一部分反向或写入一部分叶子梯度。
+
+| 情况 | 行为 |
 |---|---|
-| 所选输入经过裸 Triton external 到输出，external 无规则 | 报错，指出调用路径和缺少规则的 external |
-| external 只生成与所选输入无关的乘法系数 | 可以保留其正向计算，不要求对该系数的来源求导 |
-| external 位于完全无用的纯计算中 | 删除后无需反向规则 |
-| external 在带正确 backward 的 fun 正向里 | 使用 fun 声明的规则，不再穿过它的正向 external 求导 |
-| forward-only 的 fun 在必经求导路径上 | 报错，指出缺少的 `ClassName.backward` |
+| 裸 external 位于必经求导路径，且没有规则 | 报错，指出需要规则的 external |
+| external 只生成与求导输入无关的系数 | 可以使用正向结果，不要求对该系数来源求导 |
+| external 位于有 backward 的 fun 正向中 | 使用 fun 的规则，不穿过其正向 external 自动求导 |
+| fun 缺少 backward 且位于必经路径 | 报错，指出 fun 类的缺失规则 |
+| 分支没有执行，因此没有进入当前历史 | 不检查这条未执行路径的规则 |
 
-检查不能仅凭“函数返回值是 Tensor”或“源码中出现过 external”作决定。错误至少应列出所选求导参数、外层调用到出错节点的路径，以及需要补充的规则。
+第一版诊断指出出错 external 或 fun 类，不承诺恢复完整 Python 调用栈。错误不会以零梯度或 CPU 回退掩盖。
 
-静态分支应先特化，再检查实际保留的路径；已被删除的分支不要求规则。将来支持运行时分支后，条件未知时两个可能执行的可微分支都必须具备规则，不能只检查第一次输入碰巧走过的一边。当前仍拒绝无法静态处理的分支与循环。
+## 6. Python 控制流与图中断
 
-`backward` 本身也可以调用用户编写的 Triton kernel。一次求导只需执行这些运算，不要求再对这份反向 kernel 求导；若继续求二阶梯度，新的求导路径经过它时也必须有规则。手写一阶反向不意味着自动拥有任意阶导数。
+```python
+@ft.jit
+def choose(x, flag):
+    if flag:
+        return ft.square(x)
+    return x * 3
 
-## 6. 外层 JIT 怎样看到内层函数
+x = ft.tensor(2.0, requires_grad=True)
+y = choose(x, ft.tensor(True, dtype="bool"))
+y.backward()
+print(x.grad.tolist())  # 4.0
+```
 
-目标行为是内层调用传递当前追踪中的 Fuga 值，外层仍能拿到内层结构化函数体。内部可以用引用函数定义的调用节点保存它；这不是当前已经存在的新 IR 操作，具体节点需后续实现。
+条件 Tensor 必须是零维。Python 求其真假时，JIT 先提交此前已记录的片段，读取标量条件，再在同一个 Python 调用帧中继续执行选中的分支。CUDA 条件读取需要等待设备结果。向量和 `(1,)` Tensor 不会自动变成 any/all；目前也未新增张量比较算子，可使用已有 bool 值或显式 cast。
+
+`while` 同样按实际条件执行，每轮产生的计算通过历史连接；反向沿本次实际执行的分支和循环次数返回。这里由 Python 选择下一片段，没有把动态 if/while 直接降给仍要求静态图的 ASK。
+
+包含动态控制流的函数每次调用都要运行 Python 控制逻辑，但可复用已编译片段。`function.last_segments` 按顺序记录本次的 Fuga IR、ASK IR、报告和产物目录；不能把某一个片段当作整次调用的图。
+
+自定义 fun 的隔离 forward/backward 当前仍要求静态追踪，不支持在其内部用运行时 Tensor 条件中断；发现这种情况会在执行前拒绝。可把控制流放在外层函数中，再调用静态 fun。
+
+## 7. 从反向历史到 ASK
 
 ```text
-外层 Python 追踪
-  -> Fuga 函数与调用：保存函数体、类型、定义版本和可选反向规则
-  -> 静态特化，确定要求导的路径
-  -> grad 选择自动规则或 fun.backward
-  -> 展开需要的正向/反向调用，检查类型并优化
-  -> 静态 ASK IR
-  -> ASK 目标降级与合法的 LLVM 链接、内联
+真实正向执行 -> 张量历史连接实际执行的 JIT 片段
+backward 请求 -> 找到需要反传的节点，验证全部反向规则
+             -> 保留 fun 边界并选择用户 backward
+             -> 内部 IR VJP 生成梯度图，保留后续求导所需的 fun 边界
+             -> 执行降级时展开调用，生成静态 ASK IR
+             -> CPU/CUDA 反向执行 -> 叶子梯度累加
 ```
 
-顺序很关键：先保留 `fun` 的求导边界并选择规则，再展开相应函数体。如果提前把正向内联掉，自动微分可能越过用户声明的边界，错误地要求为内部 Triton 再提供导数。
+每一阶都先选择规则，执行降级才展开 fun。若把用于后续求导的图提前内联，会丢失用户声明的反向边界；即使函数体可由基础算子表达，也不能绕过手写规则。执行展开后的基础计算继续优化；Triton DSL 仍作为 external 提交，不会自动变成 Fuga 基础算子。
 
-规则选定后，反向函数里的基础计算与外层基础计算都可参与 Fuga 优化；普通嵌套函数也可展开。所谓“看见函数体”，指能得到对应 Fuga 操作，不是把 Triton DSL 改写成 Fuga 基础算子。Triton 的源码与实现元数据仍保存在 external 中。
+反向逻辑参数可能包含正向输入与输出梯度。若某个参数已不参与反向计算，执行桥会删去对应物理端口，并保存从逻辑输入到实际执行输入的映射。例如线性 scale 的反向只用 dy，就能把它单独交给现有单输入 external 路径。仍需要多个实际输入的 external 反向不会因此自动获得融合支持。
 
-外层正在追踪时，内层即使已有缓存的可执行产物，也必须使用可见的图定义。不能执行旧产物得到真实 Tensor，再把它当作新图常量；不能下载数据、断开依赖，或混用其他追踪上下文的 SSA 值。
+普通基础图和历史连接不绑定设备。实际 CPU/CUDA、GPU 架构仍由 ASK 边界选择；只有 CUDA 实现的 external 在 CPU 上继续报错。external 后绕过它再读取原始输入的融合仍不支持，内联是否合法仍由 ASK 检查。
 
-Fuga 的基础类型、函数和求导规则保持设备无关。选择 CPU/CUDA 及 GPU 架构仍在 ASK 边界处理；只有 CUDA 实现的 external 在 CPU 上仍会报缺少实现。能展开调用也不代表任意多个 external 都能融合成一个 kernel；ASK 必须继续证明 LLVM 链接、内联和执行边界合法。
+## 8. 缓存与定义变化
 
-## 7. 装饰器顺序与嵌套调用
+单图 JIT 热调用复用编译产物，每次执行按实际 requires_grad 状态建立历史。动态控制流会重新执行 Python 控制逻辑，片段按结构和定义依赖缓存。输入数值与梯度种子数值不应被固化进缓存。
 
-以下是目标语义，不是当前兼容保证：
+嵌套 JIT 记录定义依赖。内层 `clear_cache()` 增加定义版本，外层下次调用发现变化后重新特化。fun 的方法和静态配置也参与定义检查。普通全局或闭包状态仍不自动跟踪，修改后要显式清理直接引用它的函数缓存；外部 DSL 文件变化要重新注册。
 
-| 写法 | 目标含义 |
-|---|---|
-| `ft.jit(ft.grad(f))` | 先构造梯度函数，再编译梯度图 |
-| `ft.grad(ft.jit(f))` | 从 JIT 对象取得 Fuga 定义，再求导；不对机器码求导 |
-| 外层 `@ft.jit` 调用内层 `@ft.jit` | 将内层定义带入同一次追踪，允许跨调用优化 |
-| 外层 `@ft.jit` 调用 `ft.grad(f)` | 将生成的反向图带入外层图，不单独下载或执行它 |
-| `ft.grad(ft.grad(f))` | 按新图重新检查规则；支持的算子、结果形状及高阶规则都满足时才成立 |
+动态片段的键同时包含图文本和定义的身份、版本。两个前向文本相同、但使用不同 backward 闭包实例的 fun，不能复用同一份反向语义。缓存的反向计划还验证反向图及其依赖；已保存历史中的嵌套定义变化会报错，不能把旧正向与新反向混用。
 
-Python 装饰器从下向上应用，因此示例中的 `@ft.jit` 在 `@ft.grad` 上方，表示 `jit(grad(f))`。两种顺序应得到一致的梯度语义，缓存与执行入口可以不同。
+当前还没有跨进程 Python 定义存档。ASK 的 IR 与可执行产物缓存独立工作，不等同于 Fuga 内存命中。
 
-当前嵌套 `@ft.jit` 仍会拒绝，`@ft.grad` 和 `ft.fun` 尚不存在。已有普通 Python 张量表达式辅助函数可以被追踪，不应把这一点与待实现的嵌套 JIT 混为一谈。
+## 9. C++ 分工与当前边界
 
-## 8. 定义变化怎样影响缓存
+[cpp/graph.cpp](../../cpp/graph.cpp) 负责 SSA 拓扑、所选输入依赖、反向路径和活跃性分析，通过必要的 nanobind `_native` 扩展提供能力，没有 Python 静默替代。构建需要 C++17、CMake 和锁定的 nanobind，bootstrap 安装 Fuga 时构建。
 
-每个 fun 需要正向定义版本、反向定义版本及不可变配置标识。Python 方法体、被捕获的静态配置或 external 源码快照变化，都应产生新的对应版本。第一版不支持追踪期间修改实例状态；外部文件变化仍需显式重新注册源码。
+Python 目前仍负责公开接口、追踪、张量历史、IR 对象和反向规则展开；实际 Tensor 算术由 ASK 执行。这是逐步迁移核心逻辑，没有宣称整个编译器已在 C++ 中或给出未经测量的加速结论。
 
-推理缓存依赖正向定义及其调用链；反向定义单独变化不必重编译纯推理。梯度缓存还依赖所选反向规则、`argnums`、种子类型和调用链版本。内层定义变化必须使引用它的外层特化失效，不能只清内层缓存。
+当前没有归约、矩阵乘法、广播或通用保存值重算。高阶反向只接受可组合的基础规则，不支持不透明第三方运算。保存张量、释放历史和梯度累加已经接入；它们不等于完整训练框架的所有功能。多元素输出必须提供 gradient。
 
-形状、dtype、静态参数与编译目标继续参与相应层级的缓存键。Tensor 和 seed 的数值不进入键。仅用类名或函数名作键不够：同名类重新定义后不能拿到旧图。第一版可采用进程内定义版本配合显式清理；持久缓存还需对定义与配置生成稳定摘要，无法稳定表示的捕获应拒绝或禁用持久复用。
+[可运行示例](../../examples/autodiff.py) 与[测试](../../tests/test_autodiff.py) 共用 CPU/CUDA 图验证多精度、有限差分、共享输入、显式梯度、多输出、历史释放、no_grad/detach 和错误路径。Triton 测试检查原始源码、实际正反向编译报告与数值，确认两边都经过 ASK 原生 LLVM 路径。
 
-## 9. 实现顺序与验收
+[高阶测试](../../tests/test_higher_order.py) 另查二阶与三阶、跨 JIT 片段、实际分支/循环、纯 fun 保存值、梯度种子及累加的依赖，并验证不透明 Triton 正向或反向会提前报错。
 
-1. 增加 Fuga 函数定义与调用关系，验证参数、结果、作用域和显式捕获；接通嵌套追踪，禁止跨图值及真实执行混入。
-2. 实现 `ft.fun`、每调用独立的 ctx 和 residual 契约，先验证纯基础算子的手写反向；保留求导边界直到规则选择完成。
-3. 用现有 IR VJP 接通标量 `grad` 和带 seed 的张量 VJP，加入调用路径诊断、形状和类型检查。
-4. 展开选定的函数体，继续经过当前 ASK 桥接；再验证手写 Triton 正向、手写反向及混合图的实际执行。
-5. 加入定义版本与外层缓存依赖；之后再扩充归约、动态控制流和高阶规则，分别注明支持范围。
-
-验收至少包含：推理从不调用 backward；标量与张量 seed 数值正确；共享输入的梯度累加；缺少 external 规则报错；静态死分支不误报；错误梯度数量、shape、dtype 在编译前失败；嵌套 jit/grad 保持依赖且装饰器顺序一致；更换内层规则使梯度缓存失效；反向 external 的二阶规则缺失时拒绝。
-
-同一组纯 Fuga 图要在 CPU/CUDA 多精度下复用测试，分别比较正向与反向数值。Triton 测试另外检查原始源码、ASK external、实际编译报告与数值，不能只凭打印的图声称完成 LLVM 融合。
+[嵌套高阶测试](../../tests/test_nested_higher_order.py) 进一步检查 backward 中调用 fun、保存嵌套 fun 结果、两路 cotangent 累加和反向依赖变化，确保自定义规则在每一阶都保留。

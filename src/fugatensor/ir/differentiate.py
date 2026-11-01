@@ -9,27 +9,38 @@ from __future__ import annotations
 from .core import Module
 from .types import TensorType
 from .transforms import specialize, _clone_operation
+from .errors import DifferentiationError
+from .primitives import primitive_vjp
 
 
 _FLOATS = frozenset(("f16", "bf16", "f32"))
 
 
-class DifferentiationError(ValueError):
-    """The requested derivative has no implemented Fuga IR rule."""
+def _analyze(function, selected=()):
+    """Convert SSA edges once; the native core owns dependency traversal."""
+    from fugatensor import _native
+    values = list(function.inputs.values())
+    indices = {value: index for index, value in enumerate(values)}
+    operations = tuple(op for op in function.operations if op.opcode != 'return')
+    operands, counts, effects = [], [], []
+    for operation in operations:
+        operands.append([indices[value] for value in operation.operands])
+        counts.append(len(operation.results))
+        effects.append(bool(operation.effects))
+        for value in operation.results:
+            indices[value] = len(values)
+            values.append(value)
+    plan = _native.analyze(len(function.inputs), operands, counts,
+                           [indices[value] for value in function.outputs], list(selected), effects)
+    return operations, values, plan
 
 
 def _prune_flat(module):
     """Drop unused pure primal work after constructing the reverse graph."""
     result = Module()
     for source in module.functions:
-        live = set(source.outputs)
-        kept = set()
-        for operation in reversed(source.operations):
-            if operation.opcode == "return":
-                continue
-            if operation.effects or any(value in live for value in operation.results):
-                kept.add(id(operation))
-                live.update(operation.operands)
+        operations, _, plan = _analyze(source)
+        kept = {id(operations[index]) for index in plan['live_operations']}
         target = result.graph(source.name,
                               inputs={name: value.type for name, value in source.inputs.items()},
                               results=[value.type for value in source.outputs])
@@ -42,6 +53,34 @@ def _prune_flat(module):
         target.return_(*(values[value] for value in source.outputs))
     result.verify()
     return result
+
+
+def _project_results(module, indices, max_unroll):
+    """Select residual results without changing nested custom call rules."""
+    source = specialize(module, max_unroll=max_unroll, expand_calls=False).functions[0]
+    result = Module()
+    target = result.graph(source.name + "_residuals",
+                          inputs={name: value.type for name, value in source.inputs.items()},
+                          results=[source.outputs[index].type for index in indices])
+    mapping = dict(zip(source.inputs.values(), target.inputs.values()))
+    for operation in source.operations:
+        if operation.opcode == "return":
+            break
+        copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
+        mapping.update(zip(operation.results, copied.results))
+    target.return_(*(mapping[source.outputs[index]] for index in indices))
+    return _prune_flat(result.verify())
+
+
+def _inline_derivative(target, module, bindings):
+    source = module.functions[0]
+    mapping = dict(zip(source.inputs.values(), bindings))
+    for operation in source.operations:
+        if operation.opcode == "return":
+            return tuple(mapping[value] for value in operation.operands)
+        copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
+        mapping.update(zip(operation.results, copied.results))
+    raise DifferentiationError("a residual derivative requires a return terminator")
 
 
 def vjp(module, *, argnums=None, max_unroll=10000):
@@ -61,7 +100,7 @@ def vjp(module, *, argnums=None, max_unroll=10000):
     """
     if not isinstance(module, Module):
         raise TypeError("vjp expects a Fuga IR Module")
-    flat = specialize(module, max_unroll=max_unroll)
+    flat = specialize(module, max_unroll=max_unroll, expand_calls=False)
     if len(flat.functions) != 1:
         raise DifferentiationError("vjp currently requires exactly one Fuga function")
     source = flat.functions[0]
@@ -101,15 +140,13 @@ def vjp(module, *, argnums=None, max_unroll=10000):
     target = result.graph(source.name + "_vjp", inputs=input_types,
                           results=[source_inputs[index].type for index in selected])
     values = {value: target.inputs[name] for name, value in source.inputs.items()}
-    active = {value: index in selected for index, value in enumerate(source_inputs)}
-    operations = tuple(op for op in source.operations if op.opcode != "return")
+    operations, numbered_values, plan = _analyze(source, selected)
+    active = dict(zip(numbered_values, plan['active_values']))
     if any(operation.effects for operation in operations):
         raise DifferentiationError("vjp currently requires an effect-free graph")
     for operation in operations:
         copied = _clone_operation(target, operation, tuple(values[value] for value in operation.operands))
         values.update(zip(operation.results, copied.results))
-        for output in operation.results:
-            active[output] = any(active[value] for value in operation.operands)
 
     adjoints = {}
 
@@ -122,34 +159,58 @@ def vjp(module, *, argnums=None, max_unroll=10000):
 
     for value, name in zip(source.outputs, seed_names):
         contribute(value, target.inputs[name])
-    for operation in reversed(operations):
+    def zero(type_):
+        value = target.constant(0.0, dtype=type_.dtype)
+        return target.splat(value, type_.shape) if isinstance(type_, TensorType) else value
+
+    for index in plan['reverse_operations']:
+        operation = operations[index]
         if not any(value in adjoints for value in operation.results):
             continue
-        if operation.opcode == "constant":
-            continue
         if operation.opcode == "external":
-            raise DifferentiationError("fuga.external on a derivative path requires an explicit VJP rule")
+            raise DifferentiationError(f"fuga.external {operation.id!r} on a derivative path requires an explicit VJP rule")
+        if operation.opcode == 'call':
+            spec = operation.attrs['spec']
+            primals = tuple(values[value] for value in operation.operands)
+            if any(value in adjoints for value in operation.results[:spec.output_count]):
+                if not spec.has_backward:
+                    raise DifferentiationError(f'{spec.name}.backward is required on this derivative path')
+                cotangents = tuple(adjoints[value] if value in adjoints else zero(value.type)
+                                   for value in operation.results[:spec.output_count])
+                gradients = spec.build_backward(target, primals,
+                    tuple(values[value] for value in operation.results), cotangents)
+                inputs = tuple(value for value in operation.operands if value.type.dtype in _FLOATS)
+                if len(gradients) != len(inputs):
+                    raise DifferentiationError(f'{spec.name}.backward returned an invalid gradient count')
+                for value, gradient in zip(inputs, gradients):
+                    if gradient.type != value.type:
+                        raise DifferentiationError(f'{spec.name}.backward gradient shape and dtype must match {value.type}')
+                    contribute(value, gradient)
+            residual_indices = tuple(index for index in range(spec.output_count, len(operation.results))
+                                     if operation.results[index] in adjoints)
+            if residual_indices:
+                selected_inputs = tuple(index for index, value in enumerate(operation.operands)
+                                        if active[value] and value.type.dtype in _FLOATS)
+                if selected_inputs:
+                    # Hidden values are the explicit computations saved by
+                    # forward. Their derivatives follow that SSA graph, while
+                    # any visible nested call still chooses its custom rule.
+                    residuals = _project_results(spec.forward, residual_indices, max_unroll)
+                    derivative = vjp(residuals, argnums=selected_inputs, max_unroll=max_unroll)
+                    seeds = tuple(adjoints[operation.results[index]] for index in residual_indices)
+                    gradients = _inline_derivative(target, derivative, (*primals, *seeds))
+                    for index, gradient in zip(selected_inputs, gradients):
+                        contribute(operation.operands[index], gradient)
+            continue
         if len(operation.results) != 1:
             raise DifferentiationError(f"no reverse rule for multi-result fuga.{operation.opcode}")
         cotangent = adjoints[operation.results[0]]
-        if operation.opcode == "add":
-            for value in operation.operands:
-                contribute(value, cotangent)
-        elif operation.opcode == "mul":
-            left, right = operation.operands
-            if active[left]:
-                contribute(left, target.mul(cotangent, values[right]))
-            if active[right]:
-                contribute(right, target.mul(cotangent, values[left]))
-        elif operation.opcode == "cast":
-            value = operation.operands[0]
-            if value.type.dtype not in _FLOATS or operation.results[0].type.dtype not in _FLOATS:
-                raise DifferentiationError("integer/bool casts on a derivative path have no floating VJP rule")
-            contribute(value, target.cast(cotangent, dtype=value.type.dtype))
-        elif operation.opcode == "splat":
-            raise DifferentiationError("scalar-input splat VJP requires a sum reduction, which is not implemented")
-        else:
-            raise DifferentiationError(f"no reverse rule for fuga.{operation.opcode}")
+        gradients = primitive_vjp(target, operation,
+                                  tuple(values[value] for value in operation.operands), cotangent,
+                                  tuple(active[value] for value in operation.operands))
+        for value, gradient in zip(operation.operands, gradients):
+            if gradient is not None:
+                contribute(value, gradient)
 
     gradients = []
     for index in selected:

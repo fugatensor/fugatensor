@@ -28,7 +28,59 @@ print(arithmetic.last_ask_ir)   # 降给 ASK 的静态图
 
 `last_ir` 暂时保留原来的 ASK 文本含义。每个编译目录同时保存 `fuga.ir`、`frontend.mlir` 和逐值对应关系 `fuga-to-ask.json`，便于核对是哪一层改变了图。对象模型、控制流、基础 VJP 和 ASK 边界见 [Fuga IR 文档](docs/ir/README.md)。
 
-后续接口见 [JIT、grad 与 fun 类提案](docs/ir/04-JIT与自定义梯度提案.md)：fun 类定义正向与反向，grad 选择规则，jit 保留嵌套函数体并编译。`ft.fun`、`ft.grad`、自定义反向和嵌套 JIT 都尚未实现，提案示例不是当前可运行 API。
+fun 类定义正向与反向，backward 沿实际执行的计算传播梯度，jit 保留嵌套函数体并编译。接口和当前边界见 [JIT、backward 与 fun 类](docs/ir/04-JIT与自定义梯度提案.md)。
+
+## 基础自动微分
+
+创建张量时开启梯度，执行计算后调用 backward：
+
+```python
+@ft.jit
+def loss(x):
+    return ft.square(x) + 3 * x
+
+x = ft.tensor(2.0, requires_grad=True)
+y = loss(x)
+y.backward()
+print(x.grad.tolist())  # 7.0
+```
+
+张量输出必须指定输出梯度种子，不会隐式求和：
+
+```python
+x = ft.tensor([1, 2, 3], requires_grad=True)
+dy = ft.tensor([1, 2, -1])
+ft.square(x).backward(dy)
+print(x.grad.tolist())  # [2.0, 8.0, -6.0]
+```
+
+参与计算的函数统一使用 `@ft.jit`。自己提供反向时，定义 fun 类；`forward` 和提供的 `backward` 都必须带 `@ft.jit`。`backward` 返回与浮点输入顺序对应的梯度 tuple：
+
+```python
+class Square(ft.fun):
+    @ft.jit
+    def forward(self, ctx, x):
+        ctx.save_for_backward(x)
+        return ft.square(x)
+
+    @ft.jit
+    def backward(self, ctx, dy):
+        (x,) = ctx.saved_tensors
+        return (2 * x * dy,)
+
+square = Square()
+x = ft.tensor(3.0, requires_grad=True)
+square(x).backward()
+print(x.grad.tolist())  # 6.0
+```
+
+梯度累加在叶子 `.grad` 中；`x.zero_grad()` 清理梯度，`x.detach()` 断开历史，`with ft.no_grad():` 可包住不需要记录梯度的调用。普通 backward 后释放图；`retain_graph=True` 保留历史，`create_graph=True` 还记录梯度的计算图，默认同时保留所需历史。
+
+对已保存的 `first = x.grad` 再调用 backward，可以求下一阶；先 `x.zero_grad()`，避免把不同阶结果累加在一起。高阶计算必须由已知 Fuga 基础运算组成，纯 fun 的手写反向也可参与；若需要的不透明 Triton 正向或反向没有可组合规则，会在任何反向执行前报错。
+
+裸 external 位于必经反向路径且缺少规则时，在反向编译和执行前报错。用户可以把 Triton 调用放在 fun 的正向或反向中；框架检查梯度接口，公式仍由用户负责。可运行 [autodiff.py](examples/autodiff.py) 展示基础计算、fun 类及手写 Triton 反向。
+
+内置 `ft.add`、`ft.multiply`、`ft.subtract`、`ft.negative`、`ft.square`、`ft.cast`、`ft.zeros_like` 和 `ft.ones_like` 也都声明为 JIT 函数。`x - y`、`-x`、`x.square()` 使用同样的可见计算；减法、取负和平方展开为已有的加乘，不引入隐藏的 Python 数值计算。
 
 ## 同一段代码在 GPU 上运行
 
@@ -97,9 +149,12 @@ CUDA 创建张量时上传数据，JIT 调用提交计算，`tolist()` 等待并
 python3 tools/bootstrap.py
 .venv/bin/python examples/jit_demo.py --device both
 .venv/bin/python examples/mixed_triton.py
+.venv/bin/python examples/autodiff.py --device both --triton
 ```
 
 初始化默认使用同级 `../ask`，以 `ASK_THIRD_PARTY_COMPILERS=all` 构建并安装 ASK，再把 FugaTensor 以可编辑方式装入 `.venv`。当前 `all` 包含 Triton 适配器；对应编译器包按 ASK 的依赖锁文件安装。LLVM/MLIR 缺失时使用 ASK 已有的锁定下载流程，已有 SDK 会复用。初始化脚本需要 Python 3.11+、pip 和系统 C/C++ 工具链，会补齐缺少或过旧的 CMake/Ninja；GPU 示例需要 CUDA 驱动与硬件。也可 `source .venv/bin/activate` 后使用普通 `python` 命令。
+
+Fuga 自己也会构建必要的 nanobind C++ 扩展，负责 SSA 依赖和反向路径分析。Python 保留接口、追踪和求导规则展开；实际 Tensor 计算继续交给 ASK。这次迁移先覆盖图分析，后续可继续移动核心变换。
 
 工具路径保存到 `.venv/share/fugatensor/engine.json`，运行时自动读取。通常不需要每次填写 `ASK_OPT`、`llc`、`ptxas` 或 worker 路径。`mixed_triton.py` 读取用户编写的 [kernels.py](examples/kernels.py)，把普通 Fuga 运算与 Triton 算子一起交给 ASK 做原生 LLVM 融合，并检查结果 `[7.0, 9.0, 11.0]`。
 
@@ -169,23 +224,25 @@ print(arithmetic.last_artifact_dir)
 |---|---|
 | 创建张量 | Python 标量或矩形 list/tuple；支持显式 shape；默认 `f32` |
 | 类型 | `bool`、`i32`、`i64`、`f32`、`f16`、`bf16`；`fp16` 是 `f16` 的别名 |
-| 基础计算 | 加法、乘法、显式 `astype`；同形状同类型张量，或张量与 Python 常量 |
+| 基础计算 | 加、减、乘、取负、平方、显式 cast，以及 zeros_like/ones_like；同形状同类型张量，或张量与 Python 常量 |
 | Fuga IR | 独立的类型、SSA 值、operation、block 和 region；可验证并打印 |
 | IR 控制流 | 显式 if/for/while region；ASK 入口目前只接受可静态选择的 if 和可有界展开的 for |
-| IR 自动微分 | 显式种子的基础浮点 VJP，生成可继续降到 ASK 的反向图 |
+| Python 控制流 | 零维 Tensor 的 if/while 触发图中断，由 Python 选择并调度静态片段 |
+| 自动微分 | `requires_grad`、backward、叶子梯度累加、fun 自定义反向；create_graph 支持可组合基础运算的高阶反向 |
+| 组合调用 | 嵌套 JIT 与真实执行片段的反向连接；fun 的 forward/backward 都需 `@ft.jit` |
 | CPU JIT | 多输入、多输出；静态形状，包括零维与空张量 |
 | 自有 CUDA JIT | 多输入、多输出；静态形状，包括零维与空张量；每个输出可有自己的形状和 dtype |
-| Triton 融合 | 一个输入、一个同形状同存储类型输出、一个 Triton external |
+| Triton 融合 | 删除无用参数后，一个实际输入、一个同形状同存储类型输出、一个 external |
 | 混合精度 | 显式写 `astype("f32")` 计算后再转回，支持低精度存储与 f32 中间计算 |
 | Python 参数 | Tensor 或按值特化的 `bool/int/float/str/None`；返回 Tensor 或 Tensor tuple |
 
-自定义 Triton 源码仍需满足 ASK 适配器能够证明的逐元素范围；注册 API 接收源码，不代表任意 Triton kernel 都能融合。
+自定义 Triton 源码仍需满足 ASK 适配器能够证明的逐元素范围；注册 API 接收源码，不代表任意 Triton kernel 都能融合。当前 external 后的计算只能使用 external 结果与常量，尚不能绕过它再次引用原始输入。反向会删除无用的物理输入，因此只依赖 dy 的手写 Triton backward 可正常接收运行时梯度；确实需要多个实际输入时仍受现有 external 限制。
 
-当前没有张量广播、矩阵乘法和归约，也没有完整的 `Tensor.backward()`/梯度 tape。基础 VJP 是 IR 变换接口；运行时数据控制的分支与循环尚未接通执行，普通 Python `if tensor` 仍会报错。bool 可以创建和转换，不能直接加乘。CPU bf16 编译及 CUDA bf16 执行由 ASK 检查实际硬件，不支持时明确报错。
+当前没有张量广播、矩阵乘法和归约；不透明第三方运算不支持高阶反向。普通 JIT 中，零维 Tensor 可作为 Python 条件；向量条件仍拒绝，也未增加张量比较运算。fun 的隔离 forward/backward 内部仍要求静态追踪，不能对运行时 Tensor 条件进行图中断。bool 可以创建和转换，不能直接加乘。CPU bf16 编译及 CUDA bf16 执行由 ASK 检查实际硬件，不支持时明确报错。
 
 自有 CUDA 路径和 Triton 融合路径共用 ASK 的设备张量、异步 Session、LLVM IR 缓存与 cubin 缓存。选择 CUDA 就在 CUDA 上计算，编译失败会报告错误。一个图目前最多有 64 个输入输出指针参数；加乘的两侧仍要求同形状同类型。独立输出可以有不同形状，不能据此进行张量广播。
 
-JIT 函数只在追踪时执行 Python，不要依赖其中的副作用在每次调用时发生。追踪时不能读取真实 Tensor 数据、创建实际张量或触发即时计算；需要的张量应作为函数参数传入。当前不支持嵌套 `@jit`，普通张量表达式辅助函数可以在追踪期间调用。执行分工见[实现说明](docs/architecture.md)。
+没有图中断的 JIT 只在追踪时执行 Python；有运行时条件的函数每次执行 Python 控制逻辑，并复用已编译片段。需要的张量应作为参数传入；不能任意读取真实 Tensor 数据或创建张量来固化第一次输入。嵌套 JIT 继续记录计算，图中断按实际执行片段连接反向历史。用 `last_segments` 查看本次各片段的 IR 和报告；执行分工见[实现说明](docs/architecture.md)。
 
 ## 测试
 
@@ -204,8 +261,6 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 python3 -m unittest discover -s 
 
 `tests/test_jit_integration.py` 的 `BasicJITGraphs` 只定义一套图，CPU 与自有 CUDA 共享这些测试：六种 dtype、多输入输出、不同输出类型与形状、零维、空张量、尾部越界，以及 fp16/bf16 转 f32 计算再转回。硬件支持 bf16 就执行，不支持才验证明确拒绝。GPU 另测清除内存特化后，LLVM IR 与可执行产物缓存都能命中；用户 Triton 内核保留独立的可选回归测试。
 
-此前自有 CUDA 接入阶段在 RTX 3080 上验证：`none` 构建执行 56 项测试全部通过，另有 7 项 Triton 测试未启用；切换到 Triton 构建并启用外部算子测试后，63 项全部通过。基础 CPU/CUDA 示例与可选 Triton 示例也已执行并核对结果。该阶段的本地记录位于 `build/owned-cuda-*.log` 和对应 JSON，不纳入 Git。
+`tests/test_autodiff.py` 复用 CPU/CUDA 图验证叶子梯度、多输出、共享输入累加、混合精度、历史释放、no_grad/detach 和手写 Triton 反向。`tests/test_higher_order.py` 检查可组合基础运算的二阶、三阶及不透明外部算子的提前拒绝；图中断、原语规则和内部 JVP 另有独立测试。
 
-本次 Fuga IR 接入后，默认初始化得到的 `.venv` 与 ASK `all` 安装完成 111 项测试，全部通过；`none` 构建发现同样的 111 项，其中 103 项通过，8 项 Triton 测试按配置跳过。最后补充的配置覆盖检查另跑 5 项，也全部通过。新增测试核对 CPU/CUDA 的同一份 Fuga 图、静态分支与循环、显式种子 VJP 的真实数值、两层 IR 的对应关系，以及手写 Triton 与 ASK 的 LLVM 融合。另从 `/tmp` 用 Python `-I` 执行两个示例，未设置工具路径环境变量，CPU、自有 CUDA 和 Triton 融合结果均正确。本地记录为 `build/fuga-ir-installed-all-tests.log`、`build/fuga-ir-demo-installed.json` 和 `build/fuga-ir-mixed-installed.log`。
-
-随后修正多函数 Module 的 ASK ID 冲突，并完成 12 项边界与真实 CPU/CUDA/Triton 回归，全部通过；记录见 `build/fuga-ir-final-boundary-tests.log`。接口提案尚未实现，不计入这些执行能力。
+本次全量验证日志为 `build/final-composable-all-tests.log` 和 `build/final-composable-none-tests.log`。`build/final-composable-demo-installed.log` 记录从 `/tmp` 使用 Python `-I`、不设置工具路径环境变量的示例，涵盖 CPU/CUDA、运行时 if/while、三阶梯度和 Triton 一阶反向。这些本地输出不纳入 Git。

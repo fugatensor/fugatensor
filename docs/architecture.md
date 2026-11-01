@@ -10,7 +10,7 @@ FugaTensor 先把用户表达的计算变成自己的 Fuga IR。控制流和自�
 
 CPU Tensor 持有 `HostStorage`，其 ctypes 缓冲区按照 ASK dtype 编码。f16/bf16 也使用实际的 16 位存储，不保存成一份 Python float 列表。编码与解码复用 ASK 的数值转换函数；这一步是数据搬运，不执行张量加乘。
 
-CUDA Tensor 持有 ASK 的 `DeviceTensor`。分配、上传、事件和下载由 ASK Session 管理。`Tensor` 自身只保留 engine 和 storage；打印其描述不读取设备数据，`tolist()` 才取得结果。
+CUDA Tensor 持有 ASK 的 `DeviceTensor`。分配、上传、事件和下载由 ASK Session 管理。Tensor 还保存 requires_grad、叶子梯度及需要的执行历史；打印描述不读取设备数据，`tolist()` 才取得结果。
 
 ## 2. 第一次 JIT 调用记录 Fuga 图
 
@@ -18,11 +18,21 @@ CUDA Tensor 持有 ASK 的 `DeviceTensor`。分配、上传、事件和下载由
 
 第一次遇到某个特化时，用追踪值替换 Tensor 参数，执行一次 Python 函数。`TraceTensor.value` 是 Fuga 自己的 SSA 值。加法映射到 `fuga.add`，乘法映射到 `fuga.mul`，`astype` 映射到 `fuga.cast`。Python 常量变成标量常量，并按张量形状 splat。返回值决定图的输出列表。
 
-此时 `x` 只有类型和形状，没有输入元素。对它调用 `tolist()`、判断真假或使用数据驱动的控制流都会失败。追踪上下文也禁止读取闭包里的真实 Tensor 数据，以及创建真实 Tensor 或触发即时执行；否则 Python 可能把第一次输入的数据固化进后续所有调用。需要的数据必须通过 JIT 参数进入图。可以根据 `x.dtype` 这类特化时已知的元信息选择表达式，因为不同 dtype 本来就有不同的特化。
+追踪值通常只有类型和形状，不能任意调用 `tolist()` 读取数据，也不能把闭包里的真实 Tensor 隐式带入计算。数据必须作为参数传入。shape、dtype 等静态元信息可以直接用于 Python 选择。
 
-追踪产物是独立的 `fugatensor.ir.Module`：操作保存 operands、results、属性和嵌套 region，能够被验证和变换。它不依赖 ASK 的 `Value`、类型或字符串构图器。显式 IR builder 可以创建分支和循环；这不表示 Python `if tensor` 会自动转换成 region，Python 追踪仍按上一段的规则拒绝读取张量数据。
+零维 Tensor 的 Python 条件有专门路径：先执行已经记录的前缀，读取标量真假，再在同一个调用帧中继续追踪实际分支。while 逐轮执行同样的流程。CUDA 条件读取会同步设备；向量条件明确拒绝，不隐式 any/all。包含这种图中断的函数每次运行 Python 控制逻辑，复用的是已编译片段。
+
+追踪产物是独立的 `fugatensor.ir.Module`：操作保存 operands、results、属性和嵌套 region，能够被验证和变换。它不依赖 ASK 的 `Value`、类型或字符串构图器。显式 IR builder 的 if/for/while region 与 Python 图中断是两条路径：前者保存 IR 结构，后者由 Python 调度本次实际执行的静态片段。
 
 `lower_to_ask` 是两层之间的边界。它先处理可静态确定的控制流，再逐个映射操作、类型和外部实现，创建新的 `ask.Module`。动态条件、while 和没有具体形状的图在这一步明确拒绝，不能取第一次运行的数据来把它们偷偷固定下来。控制流和 VJP 的实现范围见 [Fuga IR 变换](ir/02-控制流与自动微分.md)。
+
+真实执行的片段通过 Tensor 历史相连。`output.backward()` 先检查全部反向计划，再用内部 IR VJP 生成静态计算并交给 ASK，最终把贡献累加到 requires_grad 叶子的 `.grad`。fun 类的 forward 和提供的 backward 都必须声明 `@ft.jit`；`fuga.call` 保留求导边界，选定规则后才展开。普通嵌套 JIT 继续记录外层图，图中断后的真实结果继续携带历史。接口和生命周期见 [fun 与 backward](ir/04-JIT与自定义梯度提案.md)。
+
+fun 的隔离 forward/backward 暂不支持运行时 Tensor 条件中断，遇到时在执行前拒绝。`no_grad` 应包住真实 JIT 调用，不能放进待追踪的计算函数体；real Tensor 的 detach 可在外层使用，TraceTensor 暂无 detach。
+
+Fuga 的必要 C++ 扩展 `_native` 负责 SSA 拓扑、所选输入的依赖传播、反向路径与活跃性分析。Python 暂时保留 IR 对象、追踪和反向规则生成；原生分析结果决定哪些操作需要处理。Tensor 算术与设备代码仍全部由 ASK 执行。这是核心逻辑的第一步迁移，没有宣称整个编译过程已经在 C++ 中，也没有未经测量的加速结论。
+
+执行桥还会删除完全无用的物理输入，记录逻辑参数到实际端口的映射。调用方仍传原来的参数列表，执行包装器只选择底层代码需要的存储。例如反向只需要 dy 时，不把未使用的原始 x 强塞进 Triton 融合入口。
 
 ## 3. CPU 首次编译与执行
 
@@ -94,21 +104,26 @@ ASK 返回规范化产物和自己的 cubin。FugaTensor 将其准备到常驻 S
 
 | 缓存 | 归属 | 命中后跳过什么 |
 |---|---|---|
-| 函数特化与已准备的 executable | FugaTensor 内存 | Python 追踪及完整编译流程 |
+| 单图函数特化与已准备的 executable | FugaTensor 内存 | Python 追踪及完整编译流程 |
+| 动态控制流的已编译片段 | FugaTensor 内存 | 该片段编译；Python 控制逻辑仍执行 |
 | GPU LLVM IR | ASK 持久缓存 | 自有 CUDA 降级，或第三方导出与 LLVM 融合 |
 | PTX / cubin | ASK 持久缓存 | LLVM 到 PTX 和 ptxas |
 | 已加载 CUDA module | ASK Session | 同一 Session 内的重复加载 |
 
 Python 静态参数值变化时会生成新特化。Tensor 内容变化时仍命中旧特化，实际输入缓冲区在调用时绑定。Engine 不同也不复用同一个 executable，避免把模块、stream 或设备张量跨运行时混用。特化缓存按 Engine 分组，用弱引用保存其归属；运行时关闭时主动移除对应特化。CUDA executable 仍然保持实际使用的 ASK Session，直到相关对象释放。
 
+动态片段不能只按前向文本缓存：文本相同的两个 fun 可能有不同 backward 闭包。片段键还包含当前定义的身份与版本，保留各自的反向语义；普通可变闭包状态仍需要调用者显式 clear_cache。
+
 `function.cache_info()` 查看 FugaTensor 特化次数和命中；`last_fuga_ir` 查看变换前的 Fuga 图，`last_ask_ir` 查看提交 ASK 的静态图，`last_ir` 保留后者的兼容含义。编译目录同时写入 `fuga.ir`、`frontend.mlir` 和逐值映射 `fuga-to-ask.json`，循环展开得到的多个值保留原始来源。`last_report` 保留 ASK 的报告，其中 GPU 路径另有 IR 与可执行缓存记录。不要把内存 JIT 命中等同于某一次磁盘缓存命中：内存命中时根本没有再次请求磁盘缓存。
+
+包含图中断时，用 `last_segments` 逐段查看本次执行的 `fuga_ir`、`ask_ir`、`report` 和 `artifact_dir`。单个产物字段不能代表全部控制流；反向沿实际执行片段连接，而不沿某次首次追踪固定的分支。
 
 ## 7. 这版的边界
 
-已有 IR 层基础 VJP，尚无完整的 `Tensor.backward()`、梯度 tape、张量广播、视图、别名输出或跨设备复制。动态 region 能保存在 Fuga IR 中，当前执行桥接仍只接收能转为静态图的部分。CPU 输出使用新缓冲区，CUDA 输出同样由当前 Engine 分配。退出 `with Engine(...)`、调用 `engine.close()`，或者用 `ft.shutdown()` 关闭默认运行时后，使用已经关闭的 Engine 或混用两个 Engine 的张量会报错。
+已有 backward、叶子梯度累加、fun 自定义反向、历史释放与保留、no_grad 和外层 detach。create_graph 把梯度继续表达为可组合的 Fuga 基础操作，支持对它再反传；不透明第三方正向或反向会在高阶请求的反向执行前拒绝。归约、张量广播、通用视图和跨设备复制仍未实现。动态 Python 控制流由运行时调度，ASK 每次仍只接收静态片段。CPU/CUDA 输出均由 Engine 分配；关闭 Engine 后不能继续计算或反向，跨 Engine 混用张量也会报错。
 
 常量和张量都显式声明 dtype。低精度输入若需要 f32 中间计算，代码应写出 cast，再在返回之前转回所需存储类型。f16/bf16 的创建、CPU 编译和 GPU 执行是不同步骤：能编码一份数据不表示当前 CPU/GPU 能执行该类型，设备能力检查由 ASK 完成。
 
-Python 函数中的副作用只在追踪时发生。闭包和全局对象不会被自动序列化或持续监视；会改变计算的值应写成静态参数。修改了捕获常量时，应调用 `function.clear_cache()` 后重新追踪。图构造失败或编译失败不登记成功特化，下一次调用仍会重新尝试。
+单图函数的 Python 代码只在追踪时运行；动态函数每次运行控制逻辑，因此不要依赖两条路径的 Python 副作用次数相同。闭包和全局对象不会自动持续监视；会改变计算的值应写成静态参数，修改捕获常量后显式 clear_cache。图构造或编译失败不登记成功特化。
 
 当前注册协议的 constexpr 常量限于有符号 64 位整数。源码文本仍可包含浮点字面量；若需要浮点 constexpr 参数或更复杂的参数封送，需要先扩展 ASK 的请求协议。

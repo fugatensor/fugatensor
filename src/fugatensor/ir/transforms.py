@@ -61,7 +61,7 @@ def _known_scalar(op, operands, constants):
     return (value + 2 ** (width - 1)) % (2 ** width) - 2 ** (width - 1)
 
 
-def specialize(module, *, max_unroll=10000):
+def specialize(module, *, max_unroll=10000, expand_calls=True):
     """Return a new flat module for static ASK compilation.
 
     ``if`` requires a compile-time scalar bool. Counted ``for`` loops have
@@ -69,11 +69,15 @@ def specialize(module, *, max_unroll=10000):
     The total number of expanded loop iterations is bounded by ``max_unroll``;
     exceeding it is an error, never silent truncation. Data-dependent ``if``
     and ``while`` remain valid Fuga IR but cannot enter this lowering path.
+    Custom calls expand their forward graphs by default. AD uses
+    ``expand_calls=False`` to retain each call's explicit backward rule.
     """
     if not isinstance(module, Module):
         raise TypeError("specialize expects a Fuga IR Module")
     if type(max_unroll) is not int or max_unroll < 0:
         raise ValueError("max_unroll must be a nonnegative integer")
+    if type(expand_calls) is not bool:
+        raise TypeError("expand_calls must be bool")
     module.verify()
     result = Module()
     budget = [max_unroll]
@@ -118,6 +122,9 @@ def specialize(module, *, max_unroll=10000):
                     raise StaticControlFlowError(
                         "fuga.while requires framework control-flow execution; "
                         "ASK lowering currently accepts only static if/for control flow")
+                elif operation.opcode == "call" and expand_calls:
+                    callee = operation.attrs["spec"].forward.functions[0]
+                    values = clone_block(callee.body.blocks[0], dict(zip(callee.inputs.values(), operands)))
                 else:
                     if operation.regions:
                         raise StaticControlFlowError(
