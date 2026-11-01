@@ -1,6 +1,5 @@
 """Trace tensor expressions into device-independent Fuga SSA."""
 from __future__ import annotations
-import weakref
 
 from .ir import Module, TensorType, Value
 
@@ -9,7 +8,7 @@ from ._state import active_trace
 
 
 class TraceTensor:
-    """A Fuga SSA value used only while a JIT specialization is being traced."""
+    """A Fuga SSA value used only while an operation is being traced."""
     __slots__ = ("context", "value", "__weakref__")
 
     def __init__(self, context: TraceContext, value: Value):
@@ -19,7 +18,6 @@ class TraceTensor:
             raise TypeError("TraceTensor requires a Fuga tensor value")
         self.context = context
         self.value = value
-        context._handles[id(self)] = self
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -47,7 +45,7 @@ class TraceTensor:
                 raise TypeError("tensor operands require equal dtypes; use astype explicitly")
             return other.value
         if type(other) not in (bool, int, float):
-            raise TypeError("traced expressions accept traced tensors or Python scalars; pass tensor captures as JIT arguments")
+            raise TypeError("traced expressions accept traced tensors or Python scalars; pass tensor captures as operation arguments")
         constant = self.context.graph.constant(other, dtype=self.dtype)
         return self.context.graph.splat(constant, self.shape)
 
@@ -84,15 +82,13 @@ class TraceTensor:
     def __bool__(self):
         if self.shape != ():
             raise TypeError('control-flow conditions require a scalar Tensor with shape=()')
-        if self.context._runtime is None:
-            raise TypeError('data-dependent control flow inside an isolated fun or backward trace is unsupported')
-        return self.context._runtime.break_graph(self)
+        raise TypeError('data-dependent control flow inside an isolated fun or backward trace is unsupported')
 
     def tolist(self):
-        raise TypeError("tensor values cannot be read while tracing a jit function")
+        raise TypeError("tensor values cannot be read while tracing an isolated operation")
 
     def __eq__(self, other):
-        raise TypeError("tensor comparisons and data-dependent control flow are unsupported inside jit")
+        raise TypeError("tensor comparisons and data-dependent control flow are unsupported inside isolated traces")
 
     def __ne__(self, other):
         return self.__eq__(other)
@@ -105,8 +101,6 @@ class TraceContext:
     """Own one Fuga graph and infer its result types from the Python return."""
     def __init__(self, input_specs, *, engine=None, name="fuga_main"):
         self.engine = engine
-        self._handles = weakref.WeakValueDictionary()
-        self._runtime = None
         self.module = Module()
         self.input_specs = tuple((normalize_shape(shape), normalize_dtype(dtype))
                                  for shape, dtype in input_specs)
@@ -127,8 +121,6 @@ class TraceContext:
     def from_graph(cls, graph, *, engine=None):
         """Attach tracing glue to an existing Fuga builder during transforms."""
         context = cls.__new__(cls)
-        context._handles = weakref.WeakValueDictionary()
-        context._runtime = None
         parent = active_trace.get()
         context.engine = engine if engine is not None else (parent.engine if parent is not None else None)
         context.module = graph.module
@@ -157,9 +149,9 @@ class TraceContext:
         is_tuple = isinstance(result, tuple)
         outputs = result if is_tuple else (result,)
         if not outputs or any(not isinstance(value, TraceTensor) for value in outputs):
-            raise TypeError("a jit function must return a traced Tensor or a nonempty tuple of traced Tensors")
+            raise TypeError("an operation trace must return a traced Tensor or a nonempty tuple of traced Tensors")
         if any(value.context is not self for value in outputs):
-            raise ValueError("jit outputs must belong to the current trace")
+            raise ValueError("operation outputs must belong to the current trace")
         self.graph.return_(*(value.value for value in outputs))
         self.output_specs = tuple((value.shape, value.dtype) for value in outputs)
         self.output_is_tuple = is_tuple

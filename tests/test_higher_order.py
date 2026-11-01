@@ -12,7 +12,6 @@ from tests._helpers import EXAMPLES_DIR, EngineTestCase, requires_cuda, requires
 
 class SharedHigherOrderMixin:
     def test_quartic_three_orders_control_flow_and_seed_participation(self):
-        @ft.jit
         def quartic(x):
             sq = x * x
             return sq * sq
@@ -37,7 +36,6 @@ class SharedHigherOrderMixin:
                 self.assertFalse(val.requires_grad)
 
         # Runtime branch + loop + explicit differentiable seed + outer no_grad override.
-        @ft.jit
         def selected(x, flag, count):
             if flag:
                 while count:
@@ -69,12 +67,10 @@ class SharedHigherOrderMixin:
 
     def test_nested_fun_rules_saved_intermediates_and_mutation_revalidation(self):
         class Inner(ft.fun):
-            @ft.jit
             def forward(self, ctx, x):
                 ctx.save_for_backward(x)
                 return x * x
 
-            @ft.jit
             def backward(self, ctx, dy):
                 (x,) = ctx.saved_tensors
                 return (dy * x * 7,)
@@ -82,12 +78,10 @@ class SharedHigherOrderMixin:
         inner = Inner()
 
         class Outer(ft.fun):
-            @ft.jit
             def forward(self, ctx, x):
                 ctx.save_for_backward(inner(x))
                 return x * x * x
 
-            @ft.jit
             def backward(self, ctx, dy):
                 (saved,) = ctx.saved_tensors
                 return (dy * saved,)
@@ -100,24 +94,20 @@ class SharedHigherOrderMixin:
             self.assertEqual(val.tolist(), expected)
             x.zero_grad()
 
-        # Mutating nested fun or helper JIT invalidates cached higher-order plans.
+        # Mutating a nested custom rule invalidates cached higher-order plans.
         class MutableInner(ft.fun):
             def __init__(self):
                 self.factor = 2
-            @ft.jit
             def forward(self, ctx, t):
                 return t * self.factor
-            @ft.jit
             def backward(self, ctx, dy):
                 return (dy * self.factor,)
 
         mi = MutableInner()
 
         class Wrapper(ft.fun):
-            @ft.jit
             def forward(self, ctx, t):
                 return t * t
-            @ft.jit
             def backward(self, ctx, dy):
                 return (mi(dy),)
 
@@ -154,18 +144,14 @@ class OpaqueExternalHigherOrderTests(EngineTestCase):
         )
 
         class ForwardExternal(ft.fun):
-            @ft.jit
             def forward(self, ctx, x):
                 return scale(x)
-            @ft.jit
             def backward(self, ctx, dy):
                 return (dy * 2,)
 
         class BackwardExternal(ft.fun):
-            @ft.jit
             def forward(self, ctx, x):
                 return x * 2
-            @ft.jit
             def backward(self, ctx, dy):
                 return (scale(dy),)
 

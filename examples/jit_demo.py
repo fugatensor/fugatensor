@@ -10,24 +10,23 @@ import fugatensor as ft
 from ask import CompilerEnvironment
 
 
-def _details(function):
-    directory = Path(function.last_artifact_dir)
+def _details(engine):
+    directory = Path(engine.last_artifact_dir)
     ir_path = directory / "frontend.mlir"
-    ir_path.write_text(function.last_ir)
+    ir_path.write_text(engine.last_ask_ir)
     return {
-        "cache": function.cache_info(),
+        "cache": engine.cache_info(),
         "ir_file": str(ir_path),
         "fuga_ir_file": str(directory / "fuga.ir"),
         "artifact_dir": str(directory),
-        "phase": function.last_report.get("phase"),
-        "external_compiler": function.last_report.get("fusion", {}).get("compiler"),
-        "ir_cache": function.last_report.get("ir_cache", {}).get("status"),
-        "executable_cache": function.last_report.get("executable_cache", {}).get("status"),
+        "phase": engine.last_report.get("phase"),
+        "external_compiler": engine.last_report.get("fusion", {}).get("compiler"),
+        "ir_cache": engine.last_report.get("ir_cache", {}).get("status"),
+        "executable_cache": engine.last_report.get("executable_cache", {}).get("status"),
     }
 
 
 def arithmetic_demo(device):
-    @ft.jit
     def arithmetic(x, y):
         return (x + y) * 2
 
@@ -44,7 +43,7 @@ def arithmetic_demo(device):
         raise AssertionError((second, expected_second))
     return {"device": device, "expression": "(x + y) * 2", "first": first,
             "new_input": second, "shape": x.shape, "dtype": x.dtype,
-            "verified": True, **_details(arithmetic)}
+            "verified": True, **_details(x.engine)}
 
 
 def triton_demo():
@@ -56,7 +55,6 @@ def triton_demo():
         options={"num_warps": 4},
     )
 
-    @ft.jit
     def mixed(x):
         return scale(x + 1) + 3
 
@@ -72,7 +70,7 @@ def triton_demo():
         raise AssertionError((second, expected_second))
     return {"device": "cuda", "expression": "ASK(x + 1) -> Triton(* 2) -> ASK(+ 3)",
             "first": first, "new_input": second, "shape": x.shape, "dtype": x.dtype,
-            "user_kernel": str(source), "verified": True, **_details(mixed)}
+            "user_kernel": str(source), "verified": True, **_details(x.engine)}
 
 
 def configure_tools(args):

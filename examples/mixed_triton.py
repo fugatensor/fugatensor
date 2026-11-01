@@ -16,22 +16,19 @@ def main():
         grid=lambda spec: ((spec.numel + 127) // 128,),
     )
 
-    @ft.jit
     def mixed(x):
         return scale(x + 1) + 3
 
-    try:
+    with ft.Engine(device="cuda") as engine:
         x = ft.tensor([1, 2, 3], device="cuda")
         result = mixed(x).tolist()
         assert result == [7.0, 9.0, 11.0], result
-        assert mixed.last_report["phase"] == "fused_llvm"
-        assert mixed.last_report["fusion"]["compiler"] == "triton"
+        assert engine.last_report["phase"] == "fused_llvm"
+        assert engine.last_report["fusion"]["compiler"] == "triton"
         print(result)
         print("\nFuga IR:")
-        print(mixed.last_fuga_ir)
-        print("ASK IR and LLVM artifacts:", mixed.last_artifact_dir)
-    finally:
-        ft.shutdown()
+        print(engine.last_fuga_ir)
+        print("ASK IR and LLVM artifacts:", engine.last_artifact_dir)
 
 
 if __name__ == "__main__":

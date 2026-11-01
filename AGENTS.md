@@ -12,13 +12,14 @@
 ## 架构与编码规范
 
 - **Fuga IR 独立性与算术执行边界**：
-  - Python 追踪先生成独立于 ASK 的 Fuga IR（`src/fugatensor/ir/`），框架层的控制流化简、C++ 活跃性分析与 JVP/VJP 自动微分均作用于 Fuga IR，最后通过 `lowering.py` 降级为高层 ASK IR。
+  - Tensor 自动组图生成独立于 ASK 的 Fuga IR（`src/fugatensor/ir/`），框架层的控制流化简、C++ 活跃性分析与 JVP/VJP 自动微分均作用于 Fuga IR，最后通过 `lowering.py` 降级为高层 ASK IR。
   - Fuga IR 不包装或依赖 `ask.Value`、`ask.Type` 或 MLIR 字符串。
   - 实际张量算术统一编译后交由 ASK 执行，不在 Python 中实现张量数值计算回退。
-- **`@ft.jit` 与 `ft.fun` 契约**：
-  - 参与张量计算的函数（包括内置运算与用户算子）统一声明 `@ft.jit`；自定义求导类 `ft.fun` 的 `forward` 和提供的 `backward` 也须声明 `@ft.jit`。
-  - 普通嵌套 `@ft.jit` 调用内联进外层追踪图以保留完整数据流与求导依赖，不在追踪期执行缓存产物切断图连接。
-  - Python 0-D 标量运行时控制流通过图中断（Graph Break）分段编译调度，各片段之间通过 `GradHistory` 串联反向历史，不把首次运行的分支条件固化进特化缓存。
+- **自动组图、执行边界与 `ft.fun` 契约**：
+  - 用户无需 JIT 装饰器；普通 Python 函数每次正常执行，Tensor 运算返回待计算图节点。读取数据、0-D 标量条件判断、反向传播与 `ft.evaluate(...)` 触发所需依赖图的 JIT 编译和执行。
+  - 跨算子与普通函数调用保留图连接和融合机会；执行缓存属于 `Engine`，按图结构和自定义函数定义身份复用，不能跳过用户 Python 逻辑。
+  - `ft.fun` 的普通 `forward` 与可选 `backward` 自动进行隔离追踪，保留 `CallSpec`、保存值与定义变更校验；方法内部不支持数据依赖控制流。Triton 源码中的 `@triton.jit` 保留。
+  - 梯度历史在组图时记录，`no_grad` 与 `detach` 的边界不随实际执行时间改变；Python 条件每次读取真实标量值，反向沿实际路径传播。
 - **自动微分与原语闭合**：
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。

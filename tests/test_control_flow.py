@@ -1,4 +1,4 @@
-"""Scalar Python control flow (graph-break if/while) across CPU and CUDA with segment caching and AD."""
+"""Ordinary Python if/while with lazy scalar predicates, graph caching, and autodiff."""
 from __future__ import annotations
 
 import unittest
@@ -9,10 +9,9 @@ from tests._helpers import EngineTestCase, requires_cuda
 
 
 class ControlFlowGraphsMixin:
-    def test_scalar_branch_executes_prefix_downloads_one_scalar_and_caches_segments(self):
+    def test_scalar_branch_reads_only_condition_and_caches_selected_graphs(self):
         calls, observed_execs = [], []
 
-        @ft.jit
         def choose(x, flag):
             calls.append("entered")
             prefix = x * x + 1
@@ -33,7 +32,8 @@ class ControlFlowGraphsMixin:
         with patch.object(self.engine, "to_flat", side_effect=spy_download):
             out_true = choose(ft.tensor([2, 3]), ft.tensor(True, dtype="bool"))
         self.assertEqual(read_shapes, [()])
-        self.assertGreater(observed_execs[0], before_execs)
+        self.assertEqual(observed_execs[0], before_execs)
+        self.assertEqual(self.engine.stats["executions"], before_execs)
         self.assertEqual(out_true.tolist(), [7.0, 12.0])
         self.assertEqual(choose(ft.tensor([2, 3]), ft.tensor(False, dtype="bool")).tolist(), [15.0, 30.0])
 
@@ -43,8 +43,25 @@ class ControlFlowGraphsMixin:
         self.assertEqual(self.engine.stats["compilations"], comps)
         self.assertEqual(calls, ["entered"] * 4)
 
-    def test_while_loop_nested_jit_and_distinct_fun_closures(self):
-        @ft.jit
+    def test_computed_predicate_does_not_flush_unrelated_pending_tensor(self):
+        vector = ft.tensor([2, 3]) * 7 + 1
+        condition = ft.tensor(2, dtype="i32") - 1
+        before = self.engine.stats["executions"]
+        read_shapes = []
+        to_flat = self.engine.to_flat
+
+        def observe(value):
+            read_shapes.append(value.shape)
+            return to_flat(value)
+
+        with patch.object(self.engine, "to_flat", side_effect=observe):
+            self.assertTrue(bool(condition))
+        self.assertEqual(read_shapes, [()])
+        self.assertEqual(self.engine.stats["executions"], before + 1)
+        self.assertEqual(vector.tolist(), [15.0, 22.0])
+        self.assertEqual(self.engine.stats["executions"], before + 2)
+
+    def test_while_loop_ordinary_helpers_and_distinct_fun_closures(self):
         def repeated(x, counter):
             val = x + 1
             while counter:
@@ -54,16 +71,16 @@ class ControlFlowGraphsMixin:
 
         self.assertEqual(repeated(ft.tensor(2), ft.tensor(0, dtype="i32")).tolist(), 3)
         self.assertEqual(repeated(ft.tensor(2), ft.tensor(3, dtype="i32")).tolist(), 9)
-        comps = self.engine.stats["compilations"]
         self.assertEqual(repeated(ft.tensor(5), ft.tensor(6, dtype="i32")).tolist(), 18)
+        comps = self.engine.stats["compilations"]
+        self.assertEqual(repeated(ft.tensor(7), ft.tensor(6, dtype="i32")).tolist(), 20)
         self.assertEqual(self.engine.stats["compilations"], comps)
+        self.assertEqual(repeated(ft.tensor(4), ft.tensor(1, dtype="i32")).tolist(), 7)
 
-        # Nested JIT across breaks + distinct ft.fun backward closures sharing identical forward IR.
-        @ft.jit
+        # Plain nested functions + distinct ft.fun backward closures sharing identical forward IR.
         def inner(x, *, flag, scale=2):
             return x * scale if flag else x + scale
 
-        @ft.jit
         def outer(x, *, flag, bias=3):
             sq = x * x
             return inner(x + 1, flag=flag) + sq + bias
@@ -73,17 +90,14 @@ class ControlFlowGraphsMixin:
 
         def make_rule(scale):
             class Rule(ft.fun):
-                @ft.jit
                 def forward(self, ctx, x):
                     return x * 2
-                @ft.jit
                 def backward(self, ctx, dy):
                     return (dy * scale,)
             return Rule()
 
         left, right = make_rule(2), make_rule(3)
 
-        @ft.jit
         def pick_rule(x, flag):
             return left(x) if flag else right(x)
 
@@ -93,7 +107,6 @@ class ControlFlowGraphsMixin:
             self.assertEqual(x.grad.tolist(), exp_grad)
 
     def test_backward_across_branches_loops_and_rejection_guards(self):
-        @ft.jit
         def branch_and_loop(x, flag, count):
             retained = x * x
             val = retained * x if flag else retained + x
@@ -115,7 +128,6 @@ class ControlFlowGraphsMixin:
         with self.assertRaisesRegex((TypeError, ValueError), "scalar|shape|truth"):
             bool(ft.tensor([1, 2]))
 
-        @ft.jit
         def bad_cond(x, cond):
             return x + 1 if cond else x + 2
 
@@ -124,7 +136,6 @@ class ControlFlowGraphsMixin:
                 bad_cond(ft.tensor(3), ft.tensor([True, False], dtype="bool"))
 
         class BrokenFun(ft.fun):
-            @ft.jit
             def forward(self, ctx, x, flag):
                 return x * 2 if flag else x
 

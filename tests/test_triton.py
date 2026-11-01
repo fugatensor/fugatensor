@@ -107,6 +107,47 @@ class TritonRegistrationTests(unittest.TestCase):
             req = self.prepare_request(self.registration(), self.context(dtype=dtype))
             self.assertEqual(req["signature"], {"in_data": sig, "out_data": sig})
 
+    def test_pending_kernel_calls_snapshot_changed_callback_configuration(self):
+        class CapturedGraph(RuntimeError):
+            pass
+
+        for wrapped in (False, True):
+            with self.subTest(custom_fun=wrapped), tempfile.TemporaryDirectory() as directory:
+                configuration = {"block": 128}
+                op = self.registration(
+                    constants=lambda spec: {"N": spec.numel, "BLOCK": configuration["block"]},
+                    grid=lambda spec: ((spec.numel + configuration["block"] - 1) // configuration["block"],),
+                )
+
+                class Forward(ft.fun):
+                    def forward(self, ctx, value):
+                        return op(value)
+
+                call = Forward() if wrapped else op
+                with ft.Engine(cache_dir=directory) as engine:
+                    x = ft.tensor(list(range(257)), dtype="i32")
+                    first = call(x)
+                    configuration["block"] = 256
+                    second = call(x)
+                    requests = []
+
+                    def capture(context):
+                        module = ft.ir.specialize(context.module)
+                        request = self.compiler.prepare(lower_to_ask(
+                            module, target={"backend": "cuda", "arch": 86}
+                        )).report["external_requests"][0]
+                        requests.append(request)
+                        # Inspect the queued compiler contract without requiring a GPU.
+                        raise CapturedGraph("captured pending graph")
+
+                    with mock.patch.object(engine, "_compile", side_effect=capture):
+                        for output in (first, second):
+                            with self.assertRaises(CapturedGraph):
+                                output.tolist()
+                    self.assertEqual([request["constants"]["BLOCK"] for request in requests], [128, 256])
+                    self.assertEqual([request["grid"] for request in requests], [[3, 1, 1], [2, 1, 1]])
+                    self.assertEqual(engine.stats["executions"], 0)
+
     def test_deferred_arch_binding_and_invalid_registration_guards(self):
         class NoProbeEngine:
             device = "cuda"
@@ -167,7 +208,6 @@ class TritonGPUExecutionTests(EngineTestCase):
     def test_fused_forward_across_precisions_algorithms_and_custom_backward(self):
         scale, identity, polynomial = self.scale, self.identity, self.polynomial
 
-        @ft.jit
         def mixed(x):
             return scale(x + 1) + 3
 
@@ -175,24 +215,25 @@ class TritonGPUExecutionTests(EngineTestCase):
             with self.subTest(dtype=dtype):
                 if dtype == "bf16" and not self.supports_bf16:
                     with self.assertRaisesRegex(CUDAError, "bf16"):
-                        mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype))
+                        mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype)).tolist()
                     continue
+                before = self.engine.stats["executions"]
                 out = mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype))
+                self.assertEqual(self.engine.stats["executions"], before)
                 self.assertEqual((out.tolist(), out.dtype), ([[7, 9], [11, 13]], dtype))
+                self.assertEqual(self.engine.stats["executions"], before + 1)
                 self.assertEqual(mixed(ft.tensor([[5, 6], [7, 8]], dtype=dtype)).tolist(), [[15, 17], [19, 21]])
-                self.assertEqual(mixed.last_report["phase"], "fused_llvm")
-                self.assertEqual(mixed.last_report["fusion"]["compiler"], "triton")
-                self.assertEqual(mixed.last_report["external_requests"][0]["source"], self.scale_path.read_text())
-                self.assertTrue((Path(mixed.last_artifact_dir) / "fused.ll").is_file())
+                self.assertEqual(self.engine.last_report["phase"], "fused_llvm")
+                self.assertEqual(self.engine.last_report["fusion"]["compiler"], "triton")
+                self.assertEqual(self.engine.last_report["external_requests"][0]["source"], self.scale_path.read_text())
+                self.assertTrue((Path(self.engine.last_artifact_dir) / "fused.ll").is_file())
 
         # Bool kernel, mixed-precision casts, and custom polynomial kernel.
-        @ft.jit
         def bool_id(x):
             return identity(x)
 
         self.assertEqual(bool_id(ft.tensor([False, True, False], dtype="bool")).tolist(), [False, True, False])
 
-        @ft.jit
         def poly_graph(x):
             return polynomial(x + 1) + 3
 
@@ -207,16 +248,13 @@ class TritonGPUExecutionTests(EngineTestCase):
         self.assertIsNone(rx.grad)
 
         class UserScale(ft.fun):
-            @ft.jit
             def forward(self, ctx, x):
                 return scale(x)
-            @ft.jit
             def backward(self, ctx, dy):
                 return (scale(dy),)
 
         op = UserScale()
 
-        @ft.jit
         def diff_mixed(x):
             return op(x + 1) + 3
 

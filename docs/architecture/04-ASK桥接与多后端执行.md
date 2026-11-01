@@ -2,7 +2,7 @@
 
 返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](01-张量模型与追踪机制.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/05-常驻运行时与多级缓存.md)
 
-追踪或自动微分产出静态 Fuga IR `Module` 后，`Engine` 负责裁剪未使用的物理输入端口、降级为 ASK IR、写出跨层溯源产物，并调用 CPU 动态库或 GPU 常驻会话执行。
+读取结果或反向传播触发待计算表达式合并为 Fuga IR `Module` 后，`Engine` 负责裁剪未使用的物理输入端口、降级为 ASK IR、写出跨层溯源产物，并调用 CPU 动态库或 GPU 常驻会话执行。
 
 <a id="engine-lifecycle"></a>
 
@@ -10,10 +10,10 @@
 
 `Engine` 管理 FugaTensor 与 [ASK 编译器及运行时](../../../ask/docs/02-前端接入与构建配置.md#python-sdk) 的连接状态：
 
-- **延迟初始化与上下文隔离**：默认按设备惰性创建全局引擎（首次使用 `device="cpu"` 或 `device="cuda"` / `"cuda:0"` 时建立，进程退出或调用 `ft.shutdown()` 时释放）；也可通过 `with ft.Engine(device=..., cache_dir=...) as eng:` 创建独立引擎。`Tensor` 绑定创建它的 `Engine`，访问已关闭引擎或跨 `Engine` 混用张量均会报错。
-- **无用物理输入端口裁剪（`_prune_unused_inputs`）**：
-  反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine.compile_fuga` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_ProjectedExecutable` 在调用时按索引筛选实参。这样单输入手写 Triton 反向不会因多余的未用参数而违反单输入融合限制。
-- **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/03-降级到ASK.md#external-and-sourcemap)），可通过 `fn.last_artifact_dir`、`fn.last_fuga_ir`、`fn.last_ask_ir` 查看。
+- **延迟初始化与上下文隔离**：默认按设备惰性创建全局引擎（首次使用 `device="cpu"` 或 `device="cuda"` / `"cuda:0"` 时建立，调用 `ft.shutdown()` 时关闭）；也可通过 `with ft.Engine(device=..., cache_dir=...) as eng:` 创建独立引擎。`Tensor` 绑定创建它的 `Engine`，使用已关闭引擎读取张量数据、继续运算，或跨 `Engine` 混用张量均会报错。
+- **无用物理输入端口裁剪**：
+  反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine._compile` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_InputProjection` 在调用时按索引筛选实参。这样单输入手写 Triton 反向不会因多余的未用参数而违反单输入融合限制。
+- **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/03-降级到ASK.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。
 
 <a id="host-backend"></a>
 
@@ -31,31 +31,34 @@ Fuga Module -> lower_to_ask -> ask-opt --optimize --emit-object (graph.o + repor
 
 <a id="cuda-and-triton"></a>
 
-## 3. 自有 CUDA 与用户 Triton 算子执行（`backends/cuda.py` / `triton.py`）
+## 3. 自有 CUDA 与用户 Triton 算子执行（`engine.py` / `triton.py`）
 
-GPU `Engine` 初始化时创建常驻 [ASK `ExecutionSession`](../../../ask/docs/05-常驻运行时与多级缓存.md#execution-session) 并查询物理设备的 Compute Capability（如 `sm_86`），随后按图中是否含外部算子分派：
+GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine.session` 时才创建常驻 [ASK `ExecutionSession`](../../../ask/docs/05-常驻运行时与多级缓存.md#execution-session)；编译图或访问 `engine.capability` 时查询设备能力，确定如 `sm_86` 的目标架构。编译时按图中是否含外部算子分派：
 
 1. **纯自有计算图 → ASK 自有 CUDA 降级**：
-   不依赖 Triton。`CUDABackend` 将 `ask.Module` 与 `arch` 传给 `Compiler.compile_cuda`，由 [ASK 自有 CUDA 后端](../../../ask/docs/03-图优化与自有代码生成.md#owned-cuda) 生成 `cubin`，加载到会话后通过 `PreparedCUDAKernel.submit_many(inputs, outputs)` 异步提交到同一 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 标量与空张量。
+   不依赖 Triton。`Engine` 将 `ask.Module` 与 `arch` 传给 `Compiler.compile_cuda`，由 [ASK 自有 CUDA 后端](../../../ask/docs/03-图优化与自有代码生成.md#owned-cuda) 生成 `cubin`，加载到会话后通过 `PreparedCUDAKernel.submit_many(inputs, outputs)` 异步提交到同一 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 标量与空张量。
 2. **含 `ft.triton.kernel` 的混合图 → `ASK → Triton → ASK` 融合**：
    - 通过 `ft.triton.kernel("kernels.py", entry=..., input=..., output=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - **源码快照**：注册时按 UTF-8 读取源码文本并复制配置字典，不在宿主进程导入用户模块或 Triton；后续修改原文件不影响已注册的算子对象。
-   - **延迟架构绑定**：`constants` 与 `grid` 回调仅接收不含张量数据的 `TensorSpec(shape, dtype, device, numel)` 生成设备无关的 `fuga.external`；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
+   - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
    - 由 [ASK Triton 适配器与通用边界内联器](../../../ask/docs/04-外部编译器适配与边界内联.md#triton-fusion) 将前后逐元素计算合并进同一 `cubin` 并提交给 `ExecutionSession` 执行。
+
+一次 Triton 混合图求值仍限于一个外部算子、一个张量输入和一个同形状同存储类型的输出。自动组图不会自动拆分多个外部 kernel；需要分别执行时，用 `ft.evaluate(intermediate)` 明确中间结果的执行边界。包含外部算子的联合多输出求值也受此限制，所有被提交的计算仍通过 ASK JIT。
 
 <a id="cache-hierarchy"></a>
 
-## 4. 五层缓存分工
+## 4. 图编译与 ASK 缓存分工
 
 | 层级 | 位置 | 缓存键 | 命中后跳过的工作 |
 | --- | --- | --- | --- |
-| **1. 单图 JIT 特化缓存** | FugaTensor `JITFunction` 内存 | `(Engine, 参数 shape/dtype, 静态标量值, fun 版本)` | Python 追踪、Fuga IR 降级及后端编译 |
-| **2. 动态片段缓存** | FugaTensor `_segment_cache` 内存 | `(Engine, 片段 Fuga IR 文本, 活跃 fun 版本)` | 片段编译（外层 Python `if`/`while` 控制逻辑仍按次运行） |
-| **3. GPU LLVM IR 持久缓存** | `Engine.cache_dir/ask/entries` 磁盘 | 提交的 ASK IR 原文摘要、形状快照、目标与工具指纹；外部路径还包含适配器、DSL 和环境指纹 | 自有降级或 Triton 子进程导出与边界内联 |
-| **4. GPU `cubin` 持久缓存** | `Engine.cache_dir/ask/executables/entries` 磁盘 | LLVM IR 摘要、产物契约、代码生成参数与工具/环境指纹 | `llc` PTX 生成与 `ptxas` 汇编 |
-| **5. 会话已加载模块** | ASK `ExecutionSession` 会话内 | `cubin` 字节与入口名 | 同一 GPU 会话内的 `cuModuleLoadDataEx` |
+| **1. 引擎图编译缓存** | 每个 FugaTensor `Engine` 内存 | 合并后的 Fuga IR 文本、相关 `ft.fun` 定义身份 | Fuga IR 降级及后端编译；普通 Python 逻辑仍每次执行 |
+| **2. GPU LLVM IR 持久缓存** | `Engine.cache_dir/ask/entries` 磁盘 | ASK IR 原文摘要、形状快照、目标与工具指纹；外部路径还包含适配器、DSL 和环境指纹 | 自有降级或 Triton 子进程导出与边界内联 |
+| **3. GPU `cubin` 持久缓存** | `Engine.cache_dir/ask/executables/entries` 磁盘 | LLVM IR 摘要、产物契约、代码生成参数与工具/环境指纹 | `llc` PTX 生成与 `ptxas` 汇编 |
+| **4. 会话已加载模块** | ASK `ExecutionSession` 会话内 | `cubin` 字节与入口名 | 同一 GPU 会话内的 `cuModuleLoadDataEx` |
 
-调用 `fn.clear_cache()` 仅清除第 1、2 层 FugaTensor 内存特化；第 3、4 层在各项键输入仍一致时可命中。ASK 不把语义相同但原文本不同的图自动归为一个缓存项，具体检查与失效条件见 [ASK 双层持久缓存](../../../ask/docs/05-常驻运行时与多级缓存.md#two-tier-cache)。
+`engine.cache_info()` 返回累计 `compilations`、累计 `cache_hits` 与当前 `specializations` 数；清缓存不重置这两个累计计数。`engine.clear_cache()` 清除引擎的已编译图与最近一次诊断信息，不使已计算 Tensor 失效，也不删除 ASK 磁盘缓存。执行后通过 `engine.last_fuga_ir`、`last_ask_ir`、`last_report`、`last_artifact_dir` 查看最近提交的图与编译报告；这些信息属于引擎，不属于普通 Python 函数。
+
+ASK 不把语义相同但原文本不同的图自动归为一个缓存项。持久缓存的检查与失效条件见 [ASK 双层持久缓存](../../../ask/docs/05-常驻运行时与多级缓存.md#two-tier-cache)。
 
 <a id="bootstrap-and-config"></a>
 

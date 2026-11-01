@@ -1,5 +1,5 @@
 """Builtins are visible Fuga expressions, including during backward tracing."""
-from .jit import jit
+from ._jit import jit
 from .tracing import TraceTensor
 
 

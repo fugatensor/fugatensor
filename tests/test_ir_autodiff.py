@@ -11,7 +11,6 @@ from fugatensor.function import fun
 from fugatensor.ir import ExternalSpec, Module, ScalarType, TensorType, jvp, specialize, vjp
 from fugatensor.ir.core import CallSpec
 from fugatensor.ir.differentiate import DifferentiationError
-from fugatensor.jit import jit
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tracing import TraceContext
 from tests._helpers import make_ask_compiler
@@ -52,12 +51,10 @@ def trace_fn(function, specs=(((3,), "f32"),), *static):
 
 
 class CustomSquare(fun):
-    @jit
     def forward(self, ctx, x):
         ctx.save_for_backward(x)
         return x * x
 
-    @jit
     def backward(self, ctx, dy):
         (x,) = ctx.saved_tensors
         return (dy * x * 2,)
@@ -174,34 +171,45 @@ class ReverseAndForwardIRTests(unittest.TestCase):
 
 
 class CustomFunctionIRContractTests(unittest.TestCase):
-    def test_decorator_signatures_saved_residuals_and_custom_rule_selection(self):
-        with self.assertRaisesRegex(TypeError, "forward.*@ft.jit"):
+    def test_plain_method_signatures_saved_residuals_and_custom_rule_selection(self):
+        with self.assertRaisesRegex(TypeError, "define forward"):
             class MissingForward(fun):
-                def forward(self, ctx, x):
+                pass
+        with self.assertRaisesRegex(TypeError, "instance method"):
+            class StaticForward(fun):
+                @staticmethod
+                def forward(ctx, x):
                     return x
-        with self.assertRaisesRegex(TypeError, "backward.*@ft.jit"):
-            class MissingBackward(fun):
-                @jit
-                def forward(self, ctx, x):
-                    return x
-                def backward(self, ctx, dy):
-                    return (dy,)
         with self.assertRaisesRegex(TypeError, "backward.*signature"):
             class BadSig(fun):
-                @jit
                 def forward(self, ctx, x):
                     return x
-                @jit
+
                 def backward(self, ctx, a, b):
                     return (a,)
 
         class Scale(fun):
-            @jit
             def forward(self, ctx, x, factor=2, *, offset=1):
                 return x * factor + offset
 
         scale = Scale()
         self.assertEqual(str(inspect.signature(scale)), "(x, factor=2, *, offset=1)")
+
+        # Ordinary methods create stable internal definitions, including when
+        # inherited. Repeated tracing must not invalidate their captured rules.
+        square = CustomSquare()
+        definition = square._definition_key()
+        traced = trace_fn(square)
+        self.assertEqual(square._definition_key(), definition)
+        self.assertEqual(trace_fn(square).module.to_text(), traced.module.to_text())
+
+        class InheritedSquare(CustomSquare):
+            pass
+        self.assertIs(inspect.getattr_static(InheritedSquare, "forward"),
+                      inspect.getattr_static(CustomSquare, "forward"))
+        square.clear_cache()
+        with self.assertRaisesRegex(ValueError, "definition changed"):
+            vjp(traced.module)
 
         # Hidden saved residuals stay on CallSpec until expansion.
         ctx = trace_fn(CustomSquare())
@@ -213,10 +221,9 @@ class CustomFunctionIRContractTests(unittest.TestCase):
 
         # Custom backward rule overrides differentiating forward.
         class Surrogate(fun):
-            @jit
             def forward(self, ctx, x):
                 return x * x
-            @jit
+
             def backward(self, ctx, dy):
                 return (dy * 7,)
 
@@ -227,12 +234,18 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         with self.assertRaisesRegex(DifferentiationError, "call.*explicit JVP"):
             jvp(ctx.module)
 
+        class Conditional(fun):
+            def forward(self, ctx, x):
+                return x if x else -x
+
+        with self.assertRaisesRegex(TypeError, "isolated fun"):
+            trace_fn(Conditional(), (((), "f32"),))
+
     def test_mixed_inputs_tuples_missing_rules_and_definition_invalidation(self):
         class MixedPair(fun):
-            @jit
             def forward(self, ctx, x, idx, mask, factor):
                 return x, x * factor
-            @jit
+
             def backward(self, ctx, dy):
                 d0, d1 = dy
                 return (d0 + d1 * 3,)
@@ -244,10 +257,9 @@ class CustomFunctionIRContractTests(unittest.TestCase):
 
         # Singleton tuple preserves tuple cotangent structure.
         class Singleton(fun):
-            @jit
             def forward(self, ctx, x):
                 return (x,)
-            @jit
+
             def backward(self, ctx, dy):
                 (s,) = dy
                 return (s,)
@@ -265,10 +277,9 @@ class CustomFunctionIRContractTests(unittest.TestCase):
             (lambda dy: None, TypeError, "None"),
         ):
             class Broken(fun):
-                @jit
                 def forward(self, ctx, x):
                     return x
-                @jit
+
                 def backward(self, ctx, dy):
                     return rule(dy)
             with self.assertRaisesRegex(err, msg):
@@ -277,10 +288,10 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         class MutableScale(fun):
             def __init__(self):
                 self.factor = 2
-            @jit
+
             def forward(self, ctx, x):
                 return x * self.factor
-            @jit
+
             def backward(self, ctx, dy):
                 return (dy * self.factor,)
 
@@ -292,6 +303,28 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         ms.bad_tensor = TraceContext([((3,), "f32")]).inputs[0]
         with self.assertRaisesRegex(TypeError, "pass Tensor state"):
             ms._definition_key()
+
+        # Replacing a plain method still invalidates an already-captured rule;
+        # the replacement is usable by a fresh trace without a decorator.
+        class ReplaceRule(fun):
+            def forward(self, ctx, x):
+                return x
+
+            def backward(self, ctx, dy):
+                return (dy,)
+
+        replacement = ReplaceRule()
+        old = trace_fn(replacement)
+
+        def new_backward(self, ctx, dy):
+            return (dy * 9,)
+
+        ReplaceRule.backward = new_backward
+        with self.assertRaisesRegex(ValueError, "definition changed"):
+            vjp(old.module)
+        new_derivative = vjp(trace_fn(replacement).module).functions[0]
+        self.assertIn(9.0, [op.attrs["value"] for op in new_derivative.operations
+                            if op.opcode == "constant"])
 
         # CallSpec forward mutation detection.
         mod = Module()

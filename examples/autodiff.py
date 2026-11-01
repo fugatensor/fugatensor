@@ -8,12 +8,10 @@ import fugatensor as ft
 
 
 class Square(ft.fun):
-    @ft.jit
     def forward(self, ctx, x):
         ctx.save_for_backward(x)
         return ft.square(x)
 
-    @ft.jit
     def backward(self, ctx, dy):
         (x,) = ctx.saved_tensors
         return (2 * x * dy,)
@@ -22,19 +20,15 @@ class Square(ft.fun):
 def run_basic(device, dtype):
     square = Square()
 
-    @ft.jit
     def loss(x):
         return square(x) + 3 * x
 
-    @ft.jit
     def builtin_loss(x):
         return ft.square(x) + 3 * x
 
-    @ft.jit
     def cube(x):
         return x * x * x
 
-    @ft.jit
     def controlled(x, take_square, count):
         if take_square:
             x = ft.square(x)
@@ -43,9 +37,11 @@ def run_basic(device, dtype):
             count = count - 1
         return x
 
-    with ft.Engine(device=device):
+    with ft.Engine(device=device) as engine:
         scalar = ft.tensor(2, dtype=dtype, requires_grad=True)
         output = loss(scalar)
+        ft.evaluate(output)
+        forward_artifacts = engine.last_artifact_dir
         output.backward()
         value, gradient = output.tolist(), scalar.grad.tolist()
         assert (value, gradient) == (10.0, 7.0)
@@ -58,14 +54,13 @@ def run_basic(device, dtype):
         vector_gradient = x.grad.tolist()
         assert vector_gradient == [2.0, 8.0, -6.0]
         print(f"{device} {dtype}: loss={value}, x.grad={gradient}, seeded backward={vector_gradient}")
-        print("Forward ASK artifacts:", loss.last_artifact_dir)
+        print("Forward ASK artifacts:", forward_artifacts)
 
         start = ft.tensor(2, dtype=dtype, requires_grad=True)
         selected = controlled(start, ft.tensor(True, dtype="bool"), ft.tensor(3, dtype="i32"))
         selected.backward()
         assert (selected.tolist(), start.grad.tolist()) == (32.0, 32.0)
-        assert len(controlled.last_segments) > 1
-        print(f"{device} runtime if/while: output=32.0, x.grad=32.0, segments={len(controlled.last_segments)}")
+        print(f"{device} runtime if/while: output=32.0, x.grad=32.0")
 
         higher = ft.tensor(2, dtype=dtype, requires_grad=True)
         cube(higher).backward(create_graph=True)
@@ -88,29 +83,28 @@ def run_triton():
     )
 
     class UserScale(ft.fun):
-        @ft.jit
         def forward(self, ctx, x):
             return scale(x)
 
-        @ft.jit
         def backward(self, ctx, dy):
             return (scale(dy),)
 
     op = UserScale()
 
-    @ft.jit
     def mixed(x):
         return op(x + 1) + 3
 
-    with ft.Engine(device="cuda"):
+    with ft.Engine(device="cuda") as engine:
         x = ft.tensor([1, 2, 3], requires_grad=True)
         output = mixed(x)
+        ft.evaluate(output)
+        forward_report = engine.last_report
         output.backward(ft.tensor([1, 2, -1]))
         result, gradient = output.tolist(), x.grad.tolist()
         assert result == [7.0, 9.0, 11.0]
         assert gradient == [2.0, 4.0, -2.0]
-        assert mixed.last_report["phase"] == "fused_llvm"
-        assert mixed.last_report["fusion"]["compiler"] == "triton"
+        assert forward_report["phase"] == "fused_llvm"
+        assert forward_report["fusion"]["compiler"] == "triton"
         print(f"cuda user Triton: forward={result}, x.grad={gradient}")
 
         higher = mixed(ft.tensor(3, requires_grad=True))

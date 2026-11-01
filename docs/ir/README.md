@@ -15,7 +15,7 @@ Fuga IR（`src/fugatensor/ir/`）是 FugaTensor 内部的中间表示，使用�
 - **设备无关表示**：Fuga 的类型与 SSA 值不包含设备放置或显卡 `sm_xx` 架构号；同一函数、相同 `(shape, dtype)` 的输入在 CPU 和 CUDA 上生成相同的 Fuga IR，外部 Triton 算子的物理架构号延迟到降级阶段绑定。
 
 ```text
-Python 追踪 (tracing.py)
+Tensor 自动组图 (_lazy.py) / 自定义函数隔离追踪 (tracing.py)
   -> Fuga IR Module (设备无关、含 Region 与 fuga.call)
   -> 框架级变换：C++ 活跃性分析与剪枝 (transforms.py) / JVP & VJP 求导 (jvp.py, differentiate.py)
   -> 降级桥接 (lowering.py)：静态 if 选择、有界 for 展开、架构绑定与 fuga-to-ask.json 溯源
@@ -26,7 +26,7 @@ Python 追踪 (tracing.py)
 
 ## 2. 对象模型与验证
 
-Fuga IR 由 `TensorType`、SSA `Value`、`Operation`、`Block`、`Region`、`Function` 和 `Module` 组成，所有图变换直接在内存对象结构上执行；`module.to_text()` 仅用于输出可读调试文本（如编译目录中的 `fuga.ir`）。模块在进入变换与降级前均经过 `verify_module` 检查支配关系、类型匹配与区域终结符。
+Fuga IR 由 `TensorType`、SSA `Value`、`Operation`、`Block`、`Region`、`Function` 和 `Module` 组成，所有图变换直接在内存对象结构上执行；`module.to_text()` 输出可读调试文本（如编译目录中的 `fuga.ir`），也参与引擎图缓存键。模块在进入变换与降级前均经过 `verify_module` 检查支配关系、类型匹配与区域终结符。
 
 工程细节：[01. 对象模型与验证](01-对象模型与验证.md) · [原生图分析与 C++ 边界](../architecture/02-原生图分析与C++边界.md)
 

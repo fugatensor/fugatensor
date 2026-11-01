@@ -10,7 +10,7 @@ from types import MemberDescriptorType
 from ._state import active_trace
 from .ir import FLOAT_DTYPES
 from .ir.core import CallSpec
-from .jit import JITFunction, _static_key, jit
+from ._jit import JITFunction, _static_key, jit
 from .tracing import TraceContext, TraceTensor
 
 _active_functions = ContextVar("fugatensor_active_functions", default=())
@@ -50,7 +50,12 @@ def _method(cls, name):
         return None, None
     if not inspect.isfunction(descriptor):
         raise TypeError(f"fun.{name} must be an instance method")
-    return descriptor, None
+    # Keep one internal wrapper per method definition. Repeated lookups must
+    # retain its revision identity so queued graphs and derivative plans can
+    # detect method replacement and explicit cache invalidation.
+    wrapper = jit(descriptor)
+    setattr(cls, name, wrapper)
+    return descriptor, wrapper
 
 
 def _configuration_value(value):
@@ -99,7 +104,7 @@ def _outputs(result, context, where):
 
 
 class fun:
-    """Subclass with a jitted forward and an optional explicit backward rule.
+    """Subclass with a plain forward and an optional explicit backward rule.
 
     ``backward(self, ctx, dy)`` receives a Tensor or tuple matching forward's
     return structure. It returns a tuple of gradients for floating Tensor
@@ -109,8 +114,8 @@ class fun:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         forward, wrapper = _method(cls, "forward")
-        if not isinstance(wrapper, JITFunction):
-            raise TypeError("fun.forward must be decorated with @ft.jit")
+        if forward is None:
+            raise TypeError("fun subclasses must define forward(self, ctx, ...)")
         parameters = tuple(inspect.signature(forward).parameters.values())
         if len(parameters) < 2 or any(parameter.kind not in
                 (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -119,8 +124,6 @@ class fun:
         cls.__signature__ = inspect.signature(forward).replace(parameters=parameters[2:])
         backward, backward_wrapper = _method(cls, "backward")
         if backward is not None:
-            if not isinstance(backward_wrapper, JITFunction):
-                raise TypeError("fun.backward must be decorated with @ft.jit")
             backward_parameters = tuple(inspect.signature(backward).parameters.values())
             if len(backward_parameters) != 3 or any(parameter.kind not in
                     (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -145,11 +148,9 @@ class fun:
         state.update((name, value) for name, value in vars(self).items() if not name.startswith("_fuga_"))
         configuration = tuple(sorted((name, _configuration_value(value)) for name, value in state.items()))
         forward, forward_wrapper = _method(type(self), "forward")
-        if not isinstance(forward_wrapper, JITFunction):
-            raise TypeError("fun.forward must remain decorated with @ft.jit")
+        if forward is None:
+            raise TypeError("fun.forward must remain an instance method")
         backward, backward_wrapper = _method(type(self), "backward")
-        if backward is not None and not isinstance(backward_wrapper, JITFunction):
-            raise TypeError("fun.backward must remain decorated with @ft.jit")
         return configuration, _function_key(forward, forward_wrapper), _function_key(backward, backward_wrapper)
 
     def __call__(self, *args, **kwargs):
@@ -162,12 +163,15 @@ class fun:
                 return self._trace(*args, **kwargs)
             invoke.__signature__ = self.__signature__
             invoke.__name__ = type(self).__name__
-            compiled = jit(invoke)
+            # A custom forward may register external nodes whose static
+            # callbacks observe current Python configuration. Capture a fresh
+            # CallSpec per invocation; executable caching belongs to Engine.
+            compiled = jit(invoke, cache=False)
             object.__setattr__(self, "_fuga_compiled", compiled)
         return compiled(*args, **kwargs)
 
     def clear_cache(self):
-        """Invalidate compiled calls after changing Python captures."""
+        """Invalidate recorded calls after changing untracked Python captures."""
         compiled = getattr(self, "_fuga_compiled", None)
         if compiled is not None:
             compiled.clear_cache()

@@ -1,4 +1,4 @@
-"""Runtime history connects executed JIT graphs; ASK executes every derivative."""
+"""Record graph history when tensors are created; ASK executes fused derivatives."""
 from __future__ import annotations
 
 from contextlib import ContextDecorator, contextmanager
@@ -17,7 +17,7 @@ _cache_lock = threading.RLock()
 
 
 class no_grad(ContextDecorator):
-    """Execute computations without attaching backward history to their outputs."""
+    """Construct computations without attaching backward history to their outputs."""
     def __init__(self):
         self._tokens = ContextVar(f"fugatensor_no_grad_{id(self)}", default=())
 
@@ -55,17 +55,16 @@ class _Plan:
     output_indices: tuple
     derivative: Module
     dependencies: tuple = ()
-    executable: object = None
     higher_derivative: Module = None
-    higher_executable: object = None
 
 
 def record_execution(module, inputs, outputs, engine):
-    """Attach one history node after a successful ASK graph execution.
+    """Attach one history node when a graph's stable output handles are created.
 
     The caller must use the returned tuple: an identity/duplicate return may
     need a new Tensor handle so an input leaf never acquires its own history.
-    Grad-enabled state affects history, not forward compilation signatures.
+    Capture grad-enabled state now, even if numerical execution happens later.
+    Materialization must preserve these handles and must not record them again.
     """
     from .tensor import Tensor
     inputs, outputs = tuple(inputs), tuple(outputs)
@@ -79,7 +78,7 @@ def record_execution(module, inputs, outputs, engine):
         raise TypeError("backward history requires one Fuga function")
     source = module.functions[0]
     if len(source.inputs) != len(inputs) or len(source.outputs) != len(outputs):
-        raise ValueError("executed Fuga graph does not match its tensor bindings")
+        raise ValueError("Fuga graph does not match its tensor bindings")
     seen = {id(value) for value in inputs}
     result = []
     for value in outputs:
@@ -109,7 +108,7 @@ def _needed_inputs(module, output_index):
 
 
 def _validate_definitions(module):
-    """Check custom rules even when their derivative executable is cached."""
+    """Check custom rules even when their derivative graph is cached."""
     def visit(operations):
         for operation in operations:
             if operation.opcode == "call":
@@ -163,25 +162,6 @@ def _plan(node, output_indices, input_indices, *, create_graph=False):
         return plan
 
 
-def _compile(node, plan, *, create_graph=False):
-    executable = plan.higher_executable if create_graph else plan.executable
-    if executable is not None:
-        return executable
-    from .tracing import TraceContext
-    derivative = plan.higher_derivative if create_graph else plan.derivative
-    function = derivative.functions[0]
-    context = TraceContext.from_graph(function, engine=node.engine)
-    context.output_specs = tuple((value.type.shape, value.type.dtype) for value in function.outputs)
-    context.output_is_tuple = True
-    context._finished = True
-    executable = node.engine._compile(context)
-    if create_graph:
-        plan.higher_executable = executable
-    else:
-        plan.executable = executable
-    return executable
-
-
 def _add(left, right):
     from .ops import add
     return right if left is None else add(left, right)
@@ -213,7 +193,7 @@ def _recording(enabled):
 
 
 def backward(tensor, gradient=None, *, retain_graph=None, create_graph=False):
-    """Execute reverse graphs, optionally retaining their Fuga derivative graph."""
+    """Validate reverse graphs, then execute their fused gradient updates."""
     require_not_tracing()
     if (retain_graph is not None and type(retain_graph) is not bool) or type(create_graph) is not bool:
         raise TypeError("retain_graph must be bool or None; create_graph must be bool")
@@ -282,24 +262,26 @@ def backward(tensor, gradient=None, *, retain_graph=None, create_graph=False):
                 pending.append((parent, False))
     plans = {node: _plan(node, tuple(sorted(ports[node])), tuple(sorted(active_inputs[node])),
                          create_graph=create_graph) for node in ordered}
+    from ._lazy import defer_module
     with _recording(create_graph):
-        executables = {node: _compile(node, plans[node], create_graph=create_graph) for node in ordered}
         adjoints = {id(tensor): _seed(tensor, gradient, create_graph=create_graph)}
         for node in reversed(ordered):
             plan = plans[node]
             seeds = [adjoints[node.output_ids[index]] for index in plan.output_indices]
             bindings = (*node.inputs, *seeds)
-            gradients = node.engine._execute(executables[node], bindings)
-            if create_graph:
-                gradients = record_execution(plan.higher_derivative, bindings, gradients, node.engine)
+            gradients = defer_module(plan.higher_derivative if create_graph else plan.derivative,
+                                     bindings, engine=node.engine, dependencies=plan.dependencies)
             if len(gradients) != len(plan.input_indices):
-                raise RuntimeError("compiled backward returned an invalid gradient count")
+                raise RuntimeError("backward graph returned an invalid gradient count")
             for index, value in zip(plan.input_indices, gradients):
                 original = node.inputs[index]
                 adjoints[id(original)] = _add(adjoints.get(id(original)), value)
-        # Commit leaf gradients only once every reverse graph succeeded.
+        # Accumulation is part of the same lazy graph. Force every update before
+        # committing any .grad so compilation/execution failures stay atomic.
         updates = [(leaf, _add(leaf._grad, adjoints[id_]))
                    for id_, leaf in leaves.items() if id_ in adjoints]
+        if updates:
+            tensor.engine.evaluate(*(value for _, value in updates))
         for leaf, value in updates:
             leaf._grad = value
     if not retain_graph:

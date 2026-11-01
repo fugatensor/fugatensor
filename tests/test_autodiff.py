@@ -11,14 +11,12 @@ from tests._helpers import EngineTestCase, requires_cuda
 
 
 class ForwardOnly(ft.fun):
-    @ft.jit
     def forward(self, ctx, x):
         return x + 3
 
 
 class SharedAutodiffMixin:
     def test_precisions_finite_difference_multiport_and_mixed_precision(self):
-        @ft.jit
         def poly(x):
             return ft.square(x) - 3 * x + 2
 
@@ -35,7 +33,6 @@ class SharedAutodiffMixin:
                 self.assertFalse(x.grad.requires_grad)
 
         # Finite-difference check on cubic.
-        @ft.jit
         def cubic(x):
             return x * x * x - 2 * x
 
@@ -46,7 +43,6 @@ class SharedAutodiffMixin:
         self.assertAlmostEqual(x.grad.tolist(), fd, delta=0.002)
 
         # Multi-input, multi-output, duplicate ports, and mixed-precision backward.
-        @ft.jit
         def pair(a, b):
             return a * b, a + a
 
@@ -62,7 +58,6 @@ class SharedAutodiffMixin:
         (s0 + s1).backward()
         self.assertEqual(shared.grad.tolist(), 8.0)
 
-        @ft.jit
         def widened_sq(v):
             return ft.square(ft.cast(v, "f32")).astype(v.dtype)
 
@@ -71,7 +66,6 @@ class SharedAutodiffMixin:
         self.assertEqual((wx.grad.tolist(), wx.grad.dtype), ([-4, 2, 3], "f16"))
 
     def test_builtins_custom_fun_no_grad_zero_grad_and_retain_graph(self):
-        @ft.jit
         def builtins(x, y):
             return ft.add(ft.multiply(x, y), ft.negative(ft.subtract(x, y))), ft.zeros_like(x), ft.ones_like(x)
 
@@ -79,12 +73,10 @@ class SharedAutodiffMixin:
         self.assertEqual((res.tolist(), z.tolist(), o.tolist()), ([10, -7], [0, 0], [1, 1]))
 
         class ProductPair(ft.fun):
-            @ft.jit
             def forward(self, ctx, x, y, mask):
                 ctx.save_for_backward(x, y)
                 return x * y, x + x + mask.astype(x.dtype)
 
-            @ft.jit
             def backward(self, ctx, dy):
                 x, y = ctx.saved_tensors
                 d0, d1 = dy
@@ -113,6 +105,74 @@ class SharedAutodiffMixin:
         self.assertFalse(ng.requires_grad)
         self.assertFalse(lx.detach().requires_grad)
 
+    def test_grad_mode_is_captured_before_materialization_and_detach_stops_history(self):
+        x = ft.tensor(3.0, requires_grad=True)
+        self.assertTrue(x.is_leaf)
+        out = x * x
+        self.assertTrue(out.requires_grad)
+        self.assertFalse(out.is_leaf)
+        with ft.no_grad():
+            self.assertEqual(out.tolist(), 9.0)
+        out.backward()
+        self.assertEqual(x.grad.tolist(), 6.0)
+        x.zero_grad()
+
+        with ft.no_grad():
+            stopped = x * x
+        self.assertFalse(stopped.requires_grad)
+        self.assertEqual(stopped.tolist(), 9.0)
+        with self.assertRaisesRegex(ValueError, "requires_grad"):
+            stopped.backward()
+        self.assertIsNone(x.grad)
+
+        pending = x * x + 1
+        before = self.engine.stats["executions"]
+        detached = pending.detach()
+        self.assertEqual(self.engine.stats["executions"], before)
+        self.assertFalse(detached.requires_grad)
+        self.assertTrue(pending.requires_grad)
+        mixed = detached * x
+        mixed.backward()
+        self.assertEqual(x.grad.tolist(), 10.0)
+        self.assertEqual(pending.tolist(), detached.tolist())
+        self.assertEqual(pending.storage.data_ptr, detached.storage.data_ptr)
+
+    def test_custom_definition_change_rejects_pending_forward_and_retraces_new_call(self):
+        class Scale(ft.fun):
+            def __init__(self):
+                self.factor = 2
+
+            def forward(self, ctx, value):
+                return value * self.factor
+
+            def backward(self, ctx, dy):
+                return (dy * self.factor,)
+
+        scale = Scale()
+        x = ft.tensor(3.0, requires_grad=True)
+        pending = scale(x)
+        scale.factor = 5
+        with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled stale definition")):
+            with self.assertRaisesRegex((ValueError, RuntimeError), "definition changed"):
+                pending.tolist()
+        self.assertIsNone(x.grad)
+        fresh = scale(x)
+        self.assertEqual(fresh.tolist(), 15.0)
+        fresh.backward()
+        self.assertEqual(x.grad.tolist(), 5.0)
+
+    def test_failed_reverse_execution_preserves_gradients_and_can_retry(self):
+        x = ft.tensor(3.0, requires_grad=True)
+        (x * x).backward()
+        self.assertEqual(x.grad.tolist(), 6.0)
+        out = x * x + 1
+        with patch.object(self.engine, "_execute", side_effect=RuntimeError("reverse execution failed")):
+            with self.assertRaisesRegex(RuntimeError, "reverse execution failed"):
+                out.backward()
+        self.assertEqual(x.grad.tolist(), 6.0)
+        out.backward()
+        self.assertEqual(x.grad.tolist(), 12.0)
+
 
 class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
     device = "cpu"
@@ -122,11 +182,9 @@ class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
         self.assertFalse(hasattr(ft, "vjp"))
 
         # Unused sibling output or unused input does not visit ForwardOnly's missing backward rule.
-        @ft.jit
         def with_forward_only(x):
             return ForwardOnly()(x), x * x
 
-        @ft.jit
         def ignore_second(x, unused):
             return x * x
 
@@ -143,7 +201,7 @@ class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
         ignore_second(x2, ForwardOnly()(x2)).backward()
         self.assertEqual(x2.grad.tolist(), 6.0)
 
-        # Preflight seed / flag / dtype / no_grad-inside-jit guards.
+        # Seed / flag / dtype validation must precede compilation and gradient changes.
         for bad_dtype, val in (("bool", True), ("i32", 2), ("i64", 2)):
             with self.assertRaisesRegex((TypeError, ValueError), "float|requires_grad"):
                 ft.tensor(val, dtype=bad_dtype, requires_grad=True)
@@ -160,22 +218,20 @@ class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
                 vy.backward(ft.tensor([1, 1]), create_graph=1)
         self.assertIsNone(vx.grad)
 
-        @ft.jit
-        def bad_no_grad(t):
+        def without_history(t):
             with ft.no_grad():
                 return t * t
 
-        with self.assertRaisesRegex(TypeError, "while tracing"):
-            bad_no_grad(ft.tensor(2.0, requires_grad=True))
+        no_history = without_history(ft.tensor(2.0, requires_grad=True))
+        self.assertFalse(no_history.requires_grad)
+        self.assertEqual(no_history.tolist(), 4.0)
 
         # Mutated custom function state invalidates cached backward plan atomically.
         class Scale(ft.fun):
             def __init__(self):
                 self.factor = 2
-            @ft.jit
             def forward(self, ctx, t):
                 return t * self.factor
-            @ft.jit
             def backward(self, ctx, dy):
                 return (dy * self.factor,)
 
@@ -190,7 +246,6 @@ class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
         self.assertEqual(sx.grad.tolist(), 2.0)
 
         # Iterative topological backward handles >1000 chained steps without RecursionError.
-        @ft.jit
         def step(t):
             return t + 1
 

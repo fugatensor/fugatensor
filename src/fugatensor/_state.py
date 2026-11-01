@@ -6,5 +6,5 @@ active_trace = ContextVar('fugatensor_active_trace', default=None)
 
 def require_not_tracing():
     if active_trace.get() is not None:
-        raise TypeError('real tensor data and eager operations are unavailable while tracing; '
-                        'pass tensors as JIT arguments')
+        raise TypeError('real tensor data and operations are unavailable while tracing; '
+                        'pass tensors as explicit operation arguments')

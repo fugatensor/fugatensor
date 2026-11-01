@@ -28,7 +28,8 @@ class ShapeAndTracingTests(unittest.TestCase):
             with self.subTest(shape=bad_shape), self.assertRaises(ValueError):
                 normalize_data([], bad_shape)
 
-        engine = SimpleNamespace(device="cpu", to_flat=lambda t: t.storage.values)
+        engine = SimpleNamespace(device="cpu", to_flat=lambda t: t.storage.values,
+                                 _check_tensor=lambda t: None)
         for shape, vals, expected in (((2, 2), [1, 2, 3, 4], [[1, 2], [3, 4]]), ((2, 0), [], [[], []]), ((), [7], 7)):
             t = Tensor(engine, SimpleNamespace(shape=shape, dtype="i32", values=vals))
             self.assertEqual(t.tolist(), expected)

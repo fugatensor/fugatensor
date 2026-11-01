@@ -55,12 +55,12 @@ def _nested(values, shape):
 
 
 class Tensor:
-    """A buffer owned by an Engine, with explicit shape and element type.
+    """A deferred expression or buffer, with explicit shape and element type.
 
-    Tensor arithmetic dispatches to the engine's JIT entry. Creating or printing
+    Arithmetic records expressions for the engine's JIT. Creating or printing
     a Tensor does not copy its values back from a device.
     """
-    __slots__ = ("_engine", "_storage", "_requires_grad", "_grad",
+    __slots__ = ("_engine", "_storage", "_shape", "_dtype", "_pending", "_requires_grad", "_grad",
                  "_history", "_history_index", "__weakref__")
 
     def __init__(self, engine, storage, *, requires_grad=False):
@@ -70,10 +70,23 @@ class Tensor:
             raise TypeError("requires_grad is only supported for floating tensors")
         self._engine = engine
         self._storage = storage
+        self._shape = tuple(storage.shape)
+        self._dtype = storage.dtype
+        self._pending = None
         self._requires_grad = requires_grad
         self._grad = None
         self._history = None
         self._history_index = None
+
+    @classmethod
+    def _from_pending(cls, engine, shape, dtype, pending):
+        result = cls.__new__(cls)
+        result._engine, result._storage = engine, None
+        result._shape, result._dtype = tuple(shape), dtype
+        result._pending = pending
+        result._requires_grad = False
+        result._grad = result._history = result._history_index = None
+        return result
 
     @property
     def requires_grad(self):
@@ -99,6 +112,9 @@ class Tensor:
         """Return a handle sharing this buffer, without gradient history."""
         require_not_tracing()
         self.engine._check_tensor(self)
+        if self._storage is None:
+            from ._lazy import Alias
+            return Tensor._from_pending(self.engine, self.shape, self.dtype, Alias(self))
         return Tensor(self.engine, self._storage)
 
     @property
@@ -108,15 +124,18 @@ class Tensor:
     @property
     def storage(self):
         require_not_tracing()
+        self.engine._check_tensor(self)
+        if self._storage is None:
+            self.engine.evaluate(self)
         return self._storage
 
     @property
     def shape(self) -> tuple[int, ...]:
-        return tuple(self._storage.shape)
+        return self._shape
 
     @property
     def dtype(self) -> str:
-        return self._storage.dtype
+        return self._dtype
 
     @property
     def device(self) -> str:

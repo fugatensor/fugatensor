@@ -126,9 +126,12 @@ class Engine:
         self._closed = False
         self._lock = threading.RLock()
         self._operations = {}
+        self._graph_cache = {}
         self._jit_functions = weakref.WeakSet()
         self._tokens = contextvars.ContextVar(f'fugatensor_context_{id(self)}', default=())
-        self._stats = {'compilations': 0, 'executions': 0}
+        self._stats = {'compilations': 0, 'executions': 0, 'cache_hits': 0}
+        self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
+        self.last_report = self.last_artifact_dir = None
 
     @property
     def closed(self):
@@ -182,10 +185,9 @@ class Engine:
             raise ValueError('tensor belongs to a different FugaTensor Engine')
 
     def elementwise(self, operation, operands, *, dtype=None):
-        # Eager syntax is a tiny JIT function too. @jit groups a whole expression
-        # so its intermediate tensors need not cross the Python execution API.
+        # Primitive templates create deferred nodes; evaluation fuses the DAG.
         require_not_tracing()
-        from .jit import jit
+        from ._jit import jit
         for value in operands:
             if isinstance(value, Tensor):
                 self._check_tensor(value)
@@ -203,6 +205,28 @@ class Engine:
                 self._operations[key] = jit(function)
             function = self._operations[key]
         return function(*operands)
+
+    def evaluate(self, *tensors):
+        """Compile and materialize the requested Tensor graphs together."""
+        require_not_tracing()
+        from ._lazy import materialize
+        with self._lock:
+            self._check_open()
+            return materialize(self, tensors)
+
+    def cache_info(self):
+        with self._lock:
+            return {'compilations': self._stats['compilations'],
+                    'cache_hits': self._stats['cache_hits'],
+                    'specializations': len(self._graph_cache)}
+
+    def clear_cache(self):
+        """Drop compiled graphs; already materialized tensors remain valid."""
+        with self._lock:
+            self._check_open()
+            self._graph_cache.clear()
+            self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
+            self.last_report = self.last_artifact_dir = None
 
     def _compile(self, context):
         with self._lock:
@@ -313,6 +337,7 @@ class Engine:
             functions = tuple(self._jit_functions)
             self._jit_functions.clear()
             self._operations.clear()
+            self._graph_cache.clear()
         for function in functions:
             function._drop_engine(self)
 
@@ -358,6 +383,14 @@ class _InputProjection:
         if len(inputs) != self.arity:
             raise ValueError('input count differs from the original Fuga graph')
         return self.executable.run([inputs[index] for index in self.indices])
+
+
+def evaluate(*tensors):
+    """Materialize tensors together, returning the same handles."""
+    if not tensors or any(not isinstance(value, Tensor) for value in tensors):
+        raise TypeError('evaluate requires at least one Tensor')
+    results = tensors[0].engine.evaluate(*tensors)
+    return results[0] if len(results) == 1 else results
 
 
 def tensor(values, *, dtype='f32', shape=None, engine=None, device=None, requires_grad=False):

@@ -13,7 +13,7 @@ from types import MappingProxyType
 
 from ask import CompilerEnvironment
 
-from .jit import jit
+from ._jit import jit
 from .ir import ExternalSpec
 from .tensor import Tensor
 from .tracing import TraceTensor
@@ -68,7 +68,7 @@ class TritonKernel:
 
     Registration does not import or execute the source. ASK's selected Triton
     adapter validates and compiles it later. Re-register after changing source,
-    and retrace an enclosing JIT function if it captured the old registration.
+    then call the new registration to record new expressions.
     """
     def __init__(self, source, *, entry, input, output, grid, constants=None,
                  options=None, source_path=None):
@@ -112,11 +112,13 @@ class TritonKernel:
                 raise ValueError('ASK integer options must fit in signed 64 bits')
         self._options = MappingProxyType(selected)
 
-        # Each registration owns its own wrapper/cache. Its body is only a graph
-        # call; the user source is handed to ASK unchanged, never synthesized.
+        # Callback results are frozen into each ExternalSpec as the pending
+        # expression is built. Do not cache a graph by shape/dtype here: a
+        # constants/grid callback may intentionally capture updated Python
+        # configuration between calls. ASK still caches compiled artifacts.
         def invoke(value):
             return self._trace(value)
-        self._eager = jit(invoke)
+        self._record = jit(invoke, cache=False)
 
     @property
     def source(self):
@@ -138,7 +140,7 @@ class TritonKernel:
 
     def __call__(self, value):
         if isinstance(value, Tensor):
-            return self._eager(value)
+            return self._record(value)
         return self._trace(value)
 
     def _trace(self, value):
@@ -162,14 +164,6 @@ class TritonKernel:
         result = context.graph.external(value.value, spec=implementation, id=symbol)
         context.external_count = count + 1
         return context.wrap(result)
-
-    def cache_info(self):
-        """Statistics for direct op(tensor) calls; enclosing @jit owns its cache."""
-        return self._eager.cache_info()
-
-    def clear_cache(self):
-        self._eager.clear_cache()
-
 
 def kernel(source_path, *, entry, input, output, grid, constants=None, options=None):
     """Snapshot a UTF-8 Python source file without importing its Triton module."""

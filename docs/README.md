@@ -9,10 +9,10 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 | 文档 | 内容 | 对应代码 |
 | --- | --- | --- |
 | [架构总览](architecture/README.md) | FugaTensor 与 ASK 的职责划分、端到端调用流程与子系统入口 | 全局架构 |
-| [01. 张量模型与追踪机制](architecture/01-张量模型与追踪机制.md) | CPU/CUDA 张量存储、`@ft.jit` 特化键、`TraceContext` 追踪与 0-D 标量动态图中断（Graph Break） | `tensor.py`、`ops.py`、`jit.py`、`tracing.py` |
+| [01. 张量模型与追踪机制](architecture/01-张量模型与追踪机制.md) | CPU/CUDA 张量存储、自动组图、按需 JIT 执行、隔离追踪与 0-D 标量条件 | `tensor.py`、`ops.py`、`_lazy.py`、`_jit.py`、`tracing.py` |
 | [02. 原生图分析与 C++ 边界](architecture/02-原生图分析与C++边界.md) | Python 与 C++ `_native` 扩展的分工、可达性与反向边界分析、`ir/transforms.py` 剪枝投影与无状态并发 | `cpp/graph.h`、`cpp/graph.cpp`、`cpp/bindings.cpp`、`ir/transforms.py` |
 | [03. 自动微分与自定义算子](architecture/03-自动微分与自定义算子.md) | 运行时 `GradHistory` 反向图调度、`ft.fun` 自定义前向/反向、JVP/VJP 高阶求导与反向预检 | `autograd.py`、`function.py`、`ir/differentiate.py`、`ir/jvp.py` |
-| [04. ASK 桥接与多后端执行](architecture/04-ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、自有 CUDA 与 Triton 融合执行、五层缓存与 `bootstrap.py` 配置 | `engine.py`、`backends/`、`triton.py`、`_config.py`、`tools/bootstrap.py` |
+| [04. ASK 桥接与多后端执行](architecture/04-ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、自有 CUDA 与 Triton 融合执行、图编译及 ASK 缓存与 `bootstrap.py` 配置 | `engine.py`、`backends/`、`triton.py`、`_config.py`、`tools/bootstrap.py` |
 
 ## Fuga IR 设计与变换（`docs/ir/`）
 
