@@ -32,9 +32,10 @@
 ## 构建与测试
 
 - **构建指令**：
-  - 完整构建与环境引导：`python3 tools/bootstrap.py`（默认构建 `all` 适配器并将配置写入 `.venv/share/fugatensor/engine.json`）。
-  - 仅修改 FugaTensor 代码时重编：`python3 tools/bootstrap.py --skip-ask`。
-  - 仅构建无第三方适配器的核心路径：`python3 tools/bootstrap.py --compilers none`。
+  - ASK 是必需的运行依赖，但两个项目分别构建：先在 ASK 自身工程中按其依赖锁生成 `ask-compiler==0.1.0` wheel，再独立构建 FugaTensor，最后将两个兼容 wheel 安装到运行环境。
+  - FugaTensor 独立构建：`python3 -m pip wheel --no-deps . --wheel-dir dist`，不要求安装 ASK、检出 ASK 源码或准备 LLVM SDK；本项目 C++ 扩展只依赖自身源码与构建依赖。
+  - 已安装兼容 ASK 时，仅修改 FugaTensor 可运行 `python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`。安装详情及可选开发引导见 [`docs/安装.md`](docs/安装.md)。
+  - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试运行**：
   - 测试收敛在 `tests/` 下 10 个模块（共用 `tests/_helpers.py` 中的 `EngineTestCase`）：
     - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`
@@ -46,7 +47,7 @@
 
 ## 文档与双向链接
 
-- 文档分设 `docs/architecture/`（系统架构与运行时）和 `docs/ir/`（Fuga IR 对象模型、变换与降级）两个目录，由 `docs/README.md` 索引，并与同级 `../ask/docs/` 跨仓互链：
+- 文档分设 `docs/architecture/`（系统架构与运行时）和 `docs/ir/`（Fuga IR 对象模型、变换与降级）两个目录，由 `docs/README.md` 索引，并与同级 `../ask/docs/` 跨仓互链。跨仓链接仅供源码浏览，并列目录不是构建或运行依赖：
   - 总览文档（`docs/architecture/README.md`、`docs/ir/README.md`）每节设置 `<a id="..."></a>` 锚点，节末以 `工程细节：...` 指向专题文档；
   - 专题文档首行以 `返回架构总览 / 返回 IR 总览：... · 相关细节：...` 链回总览与关联文档，内部小节提供 `<a id="..."></a>` 锚点。
 - 修改文档标题、文件名或锚点后，校验 `fugatensor` 与同级 `ask` 仓库中的 Markdown 相对链接和 `#anchor` 引用。

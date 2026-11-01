@@ -1,6 +1,6 @@
 """A user-written Triton kernel stays inside the Fuga -> ASK compilation path.
 
-After `python3 tools/bootstrap.py`, run:
+After installing both packages and configuring CUDA/Triton (see docs/安装.md), run:
     .venv/bin/python examples/mixed_triton.py
 """
 from pathlib import Path

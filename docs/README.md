@@ -2,6 +2,8 @@
 
 FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之上：前端记录独立的 Fuga IR，结合 C++ 原生图分析完成控制流化简与前向/反向微分，再将静态计算图降级为 ASK IR 交由 CPU 或 CUDA 执行。
 
+安装入口：[安装与独立构建](安装.md)。ASK 是必需的运行依赖；ASK 与 FugaTensor 分别构建，再安装两者的产物。FugaTensor 的 wheel 构建不需要 ASK 源码或已安装的 ASK。
+
 ## 系统架构（`docs/architecture/`）
 
 | 文档 | 内容 | 对应代码 |
@@ -23,6 +25,9 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 
 ## 底层编译引擎文档（`ask/docs/`）
 
+以下相对链接供源码并列检出时浏览，不表示必须存在同级 ASK 目录；独立构建和包安装不依赖这些文档路径。
+
+- [ASK 安装](../../ask/docs/安装.md)
 - [ASK 文档目录](../../ask/docs/README.md) · [ASK 核心思想](../../ask/docs/核心思想.md)
 - [ASK IR 与数值语义](../../ask/docs/01-ASK-IR与数值语义.md) · [外部编译器适配与边界内联](../../ask/docs/04-外部编译器适配与边界内联.md)
 - [常驻运行时与多级缓存](../../ask/docs/05-常驻运行时与多级缓存.md) · [FugaTensor 协同与演进路线](../../ask/docs/07-FugaTensor协同与演进路线.md)

@@ -1,4 +1,4 @@
-"""Load the tool paths written by the local bootstrap, once per Engine."""
+"""Load optional tool configuration from the installed environment, once per Engine."""
 from __future__ import annotations
 
 import json

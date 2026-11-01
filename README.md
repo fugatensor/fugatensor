@@ -24,33 +24,26 @@ print(arithmetic(x, y).tolist())
 
 <a id="setup"></a>
 
-## 构建与环境引导
+## 独立构建与安装
 
-环境要求：Python 3.11+、`pip`、C/C++17 工具链（默认读取同级目录 `../ask`；GPU 执行另需 NVIDIA 驱动与 CUDA `ptxas`）。
+ASK 是必需的运行依赖，负责实际图编译与算术执行；两个项目分别构建，再安装到同一运行环境。当前 FugaTensor 包要求 Python 3.10+、`ask-compiler==0.1.0`。运行不要求 ASK 源码树，也不要求两个仓库位于同级目录。
 
-在仓库根目录执行 `bootstrap.py` 完成依赖拉取、ASK 编译安装、FugaTensor（含 C++ `_native` 图分析扩展）可编辑安装，并将工具路径写入 `.venv/share/fugatensor/engine.json`：
-
-```bash
-# 默认启用 ASK_THIRD_PARTY_COMPILERS=all（含 Triton 3.7.1 适配器）
-python3 tools/bootstrap.py
-
-# 运行示例
-.venv/bin/python examples/jit_demo.py --device both
-.venv/bin/python examples/mixed_triton.py
-.venv/bin/python examples/autodiff.py --device both --triton
-```
-
-常用构建参数：
+1. **构建 ASK**：在 ASK 自身的构建环境中准备其锁定 LLVM/MLIR SDK，生成兼容的 `ask-compiler` wheel；已有该产物时可复用。
+2. **构建 FugaTensor**：在独立构建环境中执行 `python3 -m pip wheel --no-deps /absolute/path/to/fugatensor --wheel-dir /absolute/path/to/fuga-wheel-output`。该步骤需要 C++17 工具链、Python 开发头文件与 CMake 3.28+，不需要安装 ASK 或 LLVM SDK。
+3. **安装并运行**：准备与 Python ABI、系统及架构匹配的两个 wheel，在运行环境中安装：
 
 ```bash
-# 仅修改 FugaTensor 自身 Python / C++ 代码时跳过 ASK 重编
-python3 tools/bootstrap.py --skip-ask
-
-# 仅启用自有 CPU + 自有 CUDA 后端，不安装 Triton 依赖
-python3 tools/bootstrap.py --compilers none
+python3 -m venv .venv
+# 填入两个实际产物的完整文件名
+ask_wheel='/absolute/path/to/ask_compiler-0.1.0-<python>-<abi>-<platform>.whl'
+fuga_wheel='/absolute/path/to/fugatensor-0.1.0-<python>-<abi>-<platform>.whl'
+.venv/bin/python -m pip install --no-index "$ask_wheel" "$fuga_wheel"
+.venv/bin/python -m pip check
 ```
 
-引导完成后直接使用 `.venv/bin/python` 即可自动读取已保存的工具路径。如需在代码中指定缓存目录或工具路径，可调用 `ft.configure(device="cpu", cache_dir="...")` 或使用 `with ft.Engine(...)`，见 [ASK 桥接与多后端执行](docs/architecture/04-ASK桥接与多后端执行.md#bootstrap-and-config)。
+CPU JIT 还需要 `cc` 链接器，运行时使用 ASK 包内的原生扩展和伴生 CLI，无需 LLVM SDK 或 `engine.json`。CUDA 执行另需配置独立的 `llc`、`ptxas` 和 NVIDIA 驱动；用户 Triton 算子还要求 ASK 包已启用 Triton 适配器。
+
+完整命令、源码目录之外的 CPU 验收、GPU 配置与可选开发引导见[安装文档](docs/安装.md)。这里从本地产物安装，不假定项目已发布到 PyPI。文档中的 `../ask/...` 跨仓链接只供并列检出源码时浏览，不构成构建或运行路径要求。
 
 ## 基本用法
 
@@ -147,6 +140,7 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 
 ## 文档
 
+- [安装与独立构建](docs/安装.md)
 - [文档目录](docs/README.md)
 - **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [01. 张量模型与追踪机制](docs/architecture/01-张量模型与追踪机制.md) · [02. 原生图分析与 C++ 边界](docs/architecture/02-原生图分析与C++边界.md) · [03. 自动微分与自定义算子](docs/architecture/03-自动微分与自定义算子.md) · [04. ASK 桥接与多后端执行](docs/architecture/04-ASK桥接与多后端执行.md)
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [01. 对象模型与验证](docs/ir/01-对象模型与验证.md) · [02. 控制流与可组合变换](docs/ir/02-控制流与可组合变换.md) · [03. 降级到 ASK](docs/ir/03-降级到ASK.md)

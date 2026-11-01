@@ -26,7 +26,7 @@ Fuga Module -> lower_to_ask -> ask-opt --optimize --emit-object (graph.o + repor
             -> cc -shared (graph.so) -> ctypes 按 ABI 报告调用函数指针
 ```
 
-- **SDK 与 CLI 伴生校验**：生成 `.o` 前调用 `self.compiler._check_companion()`（结果缓存在 `Compiler` 实例上），确认进程内 `ask._native` 与外部 `ask-opt` 来自同一次构建。
+- **SDK 与 CLI 伴生校验**：生成 `.o` 前调用 `self.compiler._check_companion()`（结果缓存在 `Compiler` 实例上），比较进程内 `ask._native` 与外部 `ask-opt` 的完整 capabilities，确认声明的版本、能力与构建身份匹配。`build_id` 不含源码内容哈希，不能据此证明二者来自同一次构建，见 [ASK 版本契约](../../../ask/docs/02-前端接入与构建配置.md#version-contract)。
 - **按报告绑定 ABI**：从 `report.json` 读取入口符号名及 `inputs` / `outputs` 的 shape、dtype 和字节数；重复调用时仅校验输入缓冲区、分配输出 `HostStorage` 并调用驻留内存的 C 函数指针。
 
 <a id="cuda-and-triton"></a>
@@ -51,33 +51,26 @@ GPU `Engine` 初始化时创建常驻 [ASK `ExecutionSession`](../../../ask/docs
 | --- | --- | --- | --- |
 | **1. 单图 JIT 特化缓存** | FugaTensor `JITFunction` 内存 | `(Engine, 参数 shape/dtype, 静态标量值, fun 版本)` | Python 追踪、Fuga IR 降级及后端编译 |
 | **2. 动态片段缓存** | FugaTensor `_segment_cache` 内存 | `(Engine, 片段 Fuga IR 文本, 活跃 fun 版本)` | 片段编译（外层 Python `if`/`while` 控制逻辑仍按次运行） |
-| **3. GPU LLVM IR 持久缓存** | ASK `cache_dir/ir` 磁盘 | 规范化请求 + 适配器与源码指纹 + `arch` | 自有降级或 Triton 子进程导出与边界内联 |
-| **4. GPU `cubin` 持久缓存** | ASK `cache_dir/executables` 磁盘 | LLVM IR SHA256 + `llc`/`ptxas` 指纹 + `arch` | `llc` PTX 生成与 `ptxas` 汇编 |
-| **5. 会话已加载模块** | ASK `ExecutionSession` 显存 | 已 `prepare(session)` 的 `PreparedCUDAKernel` | 同一 GPU 会话内的 `cuModuleLoadData` |
+| **3. GPU LLVM IR 持久缓存** | `Engine.cache_dir/ask/entries` 磁盘 | 提交的 ASK IR 原文摘要、形状快照、目标与工具指纹；外部路径还包含适配器、DSL 和环境指纹 | 自有降级或 Triton 子进程导出与边界内联 |
+| **4. GPU `cubin` 持久缓存** | `Engine.cache_dir/ask/executables/entries` 磁盘 | LLVM IR 摘要、产物契约、代码生成参数与工具/环境指纹 | `llc` PTX 生成与 `ptxas` 汇编 |
+| **5. 会话已加载模块** | ASK `ExecutionSession` 会话内 | `cubin` 字节与入口名 | 同一 GPU 会话内的 `cuModuleLoadDataEx` |
 
-调用 `fn.clear_cache()` 仅清除第 1、2 层 FugaTensor 内存特化；若重新追踪得到的静态计算图未变，第 3、4 层 ASK 磁盘缓存仍可命中。
+调用 `fn.clear_cache()` 仅清除第 1、2 层 FugaTensor 内存特化；第 3、4 层在各项键输入仍一致时可命中。ASK 不把语义相同但原文本不同的图自动归为一个缓存项，具体检查与失效条件见 [ASK 双层持久缓存](../../../ask/docs/05-常驻运行时与多级缓存.md#two-tier-cache)。
 
 <a id="bootstrap-and-config"></a>
 
-## 5. 环境引导与配置优先级（`tools/bootstrap.py` / `_config.py`）
+## 5. 安装后的配置与开发引导（`tools/bootstrap.py` / `_config.py`）
 
-```bash
-# 完整构建（拉取锁定 LLVM、编译安装带 Triton 适配器的 ASK、编译安装 FugaTensor 并写入配置）
-python3 tools/bootstrap.py
+ASK 是必需的运行依赖，但 ASK 与 FugaTensor 各自构建 wheel，再安装到同一运行环境。FugaTensor 的 wheel 构建不需要安装 ASK，也不读取其源码或 SDK。完整步骤见[独立构建与安装](../安装.md)。
 
-# 仅修改 FugaTensor Python/C++ 代码时跳过 ASK 重编译
-python3 tools/bootstrap.py --skip-ask
+CPU 引擎直接使用 ASK 包内的原生扩展和伴生 `ask-opt`，并通过 `cc` 链接 JIT 目标文件，不需要 LLVM SDK、同级 ASK 源码目录或 `engine.json`。CUDA 引擎另需显式配置 `llc` / `ptxas`，用户 Triton 融合还需已启用适配器的 ASK 包及对应 worker 环境。
 
-# 仅构建自有 CPU/CUDA 后端，不安装 Triton 依赖
-python3 tools/bootstrap.py --compilers none
-```
-
-`tools/bootstrap.py` 会复用 `.venv` 中已满足锁定版本的构建依赖，通过 `pip install --no-deps --no-build-isolation` 安装 ASK 与包含 `_native` 扩展的 FugaTensor，并将 `llc`、`ptxas` 及各适配器 `worker` 路径原子写入 `.venv/share/fugatensor/engine.json`。
-
-运行时 `_config.py` 按以下优先级读取配置：
+`Engine` 与 `_config.py` 按以下优先级读取配置：
 
 1. **显式传参**：`ft.configure(device=..., ...)` 或 `ft.Engine(...)` 参数；
-2. **环境变量**：`ASK_OPT`、`FUGATENSOR_CACHE_DIR`、`FUGATENSOR_LLC`、`FUGATENSOR_PTXAS`、`FUGATENSOR_CC`、`FUGATENSOR_TRITON_{PYTHON,WORKER}`（以及指定配置文件路径的 `FUGATENSOR_CONFIG`）；
-3. **环境配置文件**：`.venv/share/fugatensor/engine.json`。
+2. **环境变量**：`ASK_OPT`、`FUGATENSOR_CACHE_DIR`、`FUGATENSOR_LLC`、`FUGATENSOR_PTXAS`、`FUGATENSOR_TRITON_{PYTHON,WORKER}`（以及指定配置文件路径的 `FUGATENSOR_CONFIG`）；
+3. **可选环境配置文件**：当前 Python 环境的 `sys.prefix/share/fugatensor/engine.json`，不存在时使用空配置。
 
-当通过代码或环境变量显式指定另一套 `ask_opt` 路径时，`_config.py` 不会混读默认 `engine.json` 中保存的 SDK 与 worker 路径。
+`cc` 仅通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 指定，没有 `FUGATENSOR_CC` 环境变量入口。当通过代码或环境变量显式指定另一套 `ask_opt` 路径时，不会混读默认 `engine.json` 中保存的 SDK 与 worker 路径。
+
+只使用两个 wheel 的安装无需执行 `tools/bootstrap.py`。该脚本以 `--ask-wheel` 或目标虚拟环境中已安装的 ASK 为输入，只构建、可编辑安装 FugaTensor。默认保留有效的已有工具配置，新环境写入 CPU 空工具配置；显式工具参数或 `--reset-config` 控制重写，详见[可选开发引导](../安装.md#source-bootstrap)。文档中的跨仓相对链接仅供浏览源码，不参与配置解析。

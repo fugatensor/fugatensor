@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Build a local ASK engine and install FugaTensor into an isolated environment.
+"""Install FugaTensor for development using an independently built ASK package.
 
-Run ``python3 tools/bootstrap.py`` from any directory. By default this enables
-all registered ASK compiler adapters inside ``.venv`` and writes
-``.venv/share/fugatensor/engine.json``. Pass ``--skip-ask`` when iterating on
-FugaTensor alone after ASK is already installed in ``.venv``.
+Pass --ask-wheel /path/to/ask_compiler.whl, or install the exact ASK dependency
+into --venv first. This script never builds ASK or reads a neighboring checkout.
+CPU setup needs no LLVM SDK. CUDA tools and compiler Python environments are
+configured only when explicitly supplied. Supplying any tool or compiler path
+replaces the entire saved GPU configuration; otherwise it is preserved.
 """
 from __future__ import annotations
 
 import argparse
+from email.parser import BytesParser
 import json
 import os
 from pathlib import Path
@@ -19,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import venv
+import zipfile
 
 try:
     import tomllib
@@ -27,36 +30,10 @@ except ImportError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-_IDENTIFIER = re.compile(r"[a-z][a-z0-9_]*\Z", re.ASCII)
 
 
 def read_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def compiler_catalog(ask_root):
-    value = read_json(ask_root / "adapters/registry.json")
-    if value.get("schema_version") != 1 or not isinstance(value.get("compilers"), dict):
-        raise ValueError("unsupported ASK compiler registry")
-    result = value["compilers"]
-    if any(not _IDENTIFIER.fullmatch(name) or not isinstance(directory, str)
-           or not _IDENTIFIER.fullmatch(directory) for name, directory in result.items()):
-        raise ValueError("ASK compiler IDs and directories must be simple lowercase names")
-    return result
-
-
-def select_compilers(selection, catalog):
-    if selection == "all":
-        return tuple(sorted(catalog))
-    if selection == "none":
-        return ()
-    names = selection.split(";")
-    if any(not _IDENTIFIER.fullmatch(name) for name in names) or len(set(names)) != len(names):
-        raise ValueError("--compilers expects all, none, or unique semicolon-separated compiler IDs")
-    unknown = set(names) - set(catalog)
-    if unknown:
-        raise ValueError("ASK does not register these compilers: " + ", ".join(sorted(unknown)))
-    return tuple(sorted(names))
 
 
 def executable_path(value):
@@ -72,7 +49,7 @@ def compiler_overrides(values, selected):
     for item in values:
         name, separator, path = item.partition("=")
         if not separator or not path or name not in selected:
-            raise ValueError("--compiler-python expects SELECTED_ID=/path/to/python")
+            raise ValueError("--compiler-python expects an installed ASK compiler ID followed by =/path/to/python")
         if name in result:
             raise ValueError(f"compiler Python was provided twice: {name}")
         result[name] = executable_path(path)
@@ -95,7 +72,8 @@ def missing_build_tools(environment):
     if cmake is None:
         requirements.append("cmake>=3.28")
     else:
-        result = subprocess.run([cmake, "--version"], text=True, capture_output=True, check=True)
+        result = subprocess.run([cmake, "--version"], text=True, capture_output=True,
+                                check=True, env=environment)
         version = re.search(r"cmake version (\d+)\.(\d+)", result.stdout)
         if version is None or tuple(map(int, version.groups())) < (3, 28):
             requirements.append("cmake>=3.28")
@@ -104,23 +82,60 @@ def missing_build_tools(environment):
     return requirements
 
 
-def ask_install_command(python, ask_root, llvm_root, build_dir, selection, environments):
-    command = [
-        str(python), "-m", "pip", "install", str(ask_root),
-        "--no-deps", "--no-build-isolation", "--force-reinstall",
-        "-Ccmake.define.ASK_THIRD_PARTY_COMPILERS=" + selection,
-        "-Ccmake.define.ASK_TARGET_BACKENDS=host",
-        "-Ccmake.define.LLVM_DIR=" + str(llvm_root / "lib/cmake/llvm"),
-        "-Ccmake.define.MLIR_DIR=" + str(llvm_root / "lib/cmake/mlir"),
-        "-Cbuild-dir=" + str(build_dir / "{wheel_tag}"),
-    ]
-    for compiler_id, python_path in sorted(environments.items()):
-        if Path(python_path) != Path(python):
-            command.append(f"-Ccmake.define.ASK_{compiler_id.upper()}_PYTHON_EXECUTABLE={python_path}")
-    return command
+def ask_requirement(root=None):
+    root = ROOT if root is None else root
+    if tomllib is None:
+        raise RuntimeError("bootstrap requires Python 3.11 or newer to read project metadata")
+    with (root / "pyproject.toml").open("rb") as stream:
+        dependencies = tomllib.load(stream)["project"]["dependencies"]
+    matches = [re.fullmatch(r"ask-compiler==([0-9]+\.[0-9]+\.[0-9]+)", item)
+               for item in dependencies]
+    versions = [match.group(1) for match in matches if match is not None]
+    if len(versions) != 1:
+        raise ValueError("FugaTensor must declare one exact ask-compiler version in pyproject.toml")
+    return versions[0]
 
 
-def engine_config(llvm_root, ptxas, environments, package_root, registrations, selection):
+def require_ask_version(python, expected):
+    actual = installed_version(python, "ask-compiler")
+    if actual != expected:
+        raise ValueError(f"FugaTensor requires ask-compiler=={expected}; selected environment has {actual!r}. "
+                         "Build ASK separately in its own project, then pass --ask-wheel PATH "
+                         "or install that wheel into --venv first.")
+
+
+def check_ask_wheel(wheel, expected):
+    with zipfile.ZipFile(wheel) as archive:
+        records = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+        if len(records) != 1:
+            raise ValueError("--ask-wheel must contain exactly one distribution metadata record")
+        metadata = BytesParser().parsebytes(archive.read(records[0]))
+    name = re.sub(r"[-_.]+", "-", metadata.get("Name", "")).lower()
+    if name != "ask-compiler" or metadata.get("Version") != expected:
+        raise ValueError(f"--ask-wheel must contain ask-compiler=={expected}")
+
+
+def inspect_ask(python, expected):
+    require_ask_version(python, expected)
+    installed = python_json(
+        python,
+        "import json,sys,ask; from pathlib import Path; from ask import Compiler; "
+        "from ask.adapters import AdapterRegistry; "
+        "c=Compiler(); c._check_companion(); caps=c.capabilities(); "
+        "registry=AdapterRegistry(caps); package=Path(ask.__file__).resolve().parent; "
+        "assert package.is_relative_to(Path(sys.prefix).resolve()), 'ASK must be installed in the target venv'; "
+        "print(json.dumps({'capabilities':caps,'version':ask.__version__,'package':str(package),"
+        "'registrations':{name:registry.registration(name) for name in caps['third_party_compilers']}}))",
+    )
+    capabilities = installed["capabilities"]
+    if installed["version"] != expected or capabilities.get("ask_version") != expected:
+        raise RuntimeError("installed ASK metadata, Python package and native compiler versions differ")
+    if not capabilities.get("host_codegen") or not capabilities.get("cuda_graph_codegen"):
+        raise RuntimeError("installed ASK engine lacks native CPU/CUDA graph compilation")
+    return installed
+
+
+def engine_config(llvm_root, ptxas, environments, package_root, registrations):
     compilers = {}
     for compiler_id, python_path in sorted(environments.items()):
         worker_name = registrations[compiler_id].get("worker")
@@ -132,8 +147,7 @@ def engine_config(llvm_root, ptxas, environments, package_root, registrations, s
         compilers[compiler_id] = {"python": str(python_path), "worker": str(worker)}
     return {
         "schema_version": 1,
-        "engine_selection": selection,
-        "llc": str(llvm_root / "bin/llc"),
+        "llc": str(llvm_root / "bin/llc") if llvm_root is not None else None,
         "ptxas": str(ptxas) if ptxas is not None else None,
         "compilers": compilers,
     }
@@ -154,6 +168,33 @@ def write_config(venv_root, configuration):
         if temporary is not None:
             temporary.unlink(missing_ok=True)
     return destination
+
+
+def read_existing_config(path, package_root, registrations):
+    configuration = read_json(path)
+    if (not isinstance(configuration, dict) or type(configuration.get("schema_version")) is not int
+            or configuration["schema_version"] != 1):
+        raise ValueError("existing engine configuration is invalid; use --reset-config to replace it")
+    for key in ("llc", "ptxas"):
+        value = configuration.get(key)
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ValueError(f"existing {key} configuration is invalid; use --reset-config to replace it")
+    compilers = configuration.get("compilers", {})
+    if not isinstance(compilers, dict):
+        raise ValueError("existing compiler configuration is invalid; use --reset-config to replace it")
+    for compiler_id, fields in compilers.items():
+        if compiler_id not in registrations:
+            raise ValueError(f"existing configuration uses compiler {compiler_id!r}, which installed ASK "
+                             "does not enable; use --reset-config or configure its replacement explicitly")
+        if (not isinstance(fields, dict) or set(fields) != {"python", "worker"}
+                or any(not isinstance(value, str) or not value for value in fields.values())):
+            raise ValueError(f"existing compiler {compiler_id} configuration is invalid; use --reset-config")
+        expected = engine_config(None, None, {compiler_id: fields["python"]},
+                                 package_root, registrations)["compilers"][compiler_id]["worker"]
+        if Path(fields["worker"]).resolve() != Path(expected).resolve():
+            raise ValueError(f"existing compiler {compiler_id} worker differs from installed ASK; "
+                             "use --reset-config or configure its replacement explicitly")
+    return configuration
 
 
 def run(command, *, env=None):
@@ -197,31 +238,6 @@ def unsatisfied_requirements(python, requirements):
     return pending
 
 
-def discover_ptxas(explicit, packages, *, fallback_python=None, env=None):
-    if explicit is not None:
-        return executable_path(explicit)
-    found = shutil.which("ptxas", path=(env or os.environ).get("PATH"))
-    if found:
-        return Path(found).absolute()
-    program = ("import importlib.metadata,json,sys; from pathlib import Path; "
-               "d=importlib.metadata.distribution(sys.argv[1]); "
-               "print(json.dumps([str(Path(d.locate_file(p)).absolute()) for p in (d.files or ()) "
-               "if p.name == 'ptxas' and Path(d.locate_file(p)).is_file()]))")
-    for python, package in packages:
-        for candidate in python_json(python, program, package):
-            if os.access(candidate, os.X_OK):
-                return Path(candidate)
-    if fallback_python is not None:
-        program = ("import importlib.metadata,json; from pathlib import Path; "
-                   "print(json.dumps([str(Path(d.locate_file(p)).absolute()) "
-                   "for d in importlib.metadata.distributions() for p in (d.files or ()) "
-                   "if p.name == 'ptxas' and Path(d.locate_file(p)).is_file()]))")
-        for candidate in python_json(fallback_python, program):
-            if os.access(candidate, os.X_OK):
-                return Path(candidate)
-    return None
-
-
 def ensure_venv(directory):
     if directory.exists() and not (directory / "pyvenv.cfg").is_file():
         raise ValueError(f"--venv exists but is not a Python virtual environment: {directory}")
@@ -240,101 +256,99 @@ def ensure_venv(directory):
 
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--ask-root", type=Path, default=ROOT.parent / "ask")
+    result.add_argument("--ask-wheel", type=Path, help="install an independently built local ASK wheel")
     result.add_argument("--venv", type=Path, default=ROOT / ".venv")
-    result.add_argument("--compilers", default="all", help="all (default), none, or quoted semicolon-separated IDs")
     result.add_argument("--compiler-python", action="append", default=[], metavar="ID=PYTHON",
-                        help="reuse an existing compiler environment instead of installing its pinned package")
-    result.add_argument("--llvm-root", type=Path, help="existing SDK matching ASK's LLVM lock")
-    result.add_argument("--ptxas", help="CUDA assembler; otherwise discover PATH or installed compiler wheel files")
-    result.add_argument("--skip-ask", action="store_true",
-                        help="skip rebuilding ASK when it is already installed in --venv")
+                        help="configure an installed ASK adapter with an existing compiler environment")
+    result.add_argument("--llvm-root", type=Path, help="optional CUDA codegen SDK matching installed ASK")
+    result.add_argument("--ptxas", help="optional CUDA assembler executable")
+    result.add_argument("--reset-config", action="store_true",
+                        help="replace saved GPU configuration; otherwise reuse it when no paths are supplied")
     result.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
+    # Diagnose old combined-build commands instead of silently reinterpreting them.
+    result.add_argument("--ask-root", type=Path, help=argparse.SUPPRESS)
+    result.add_argument("--compilers", help=argparse.SUPPRESS)
+    result.add_argument("--skip-ask", action="store_true", help=argparse.SUPPRESS)
     return result
 
 
 def bootstrap(args):
+    if args.ask_root is not None or args.compilers is not None or args.skip_ask:
+        raise ValueError("--ask-root, --compilers and --skip-ask belonged to the removed combined build. "
+                         "Build ASK and select its adapters in the ASK project separately; "
+                         "use --ask-wheel PATH or an ASK wheel already installed in --venv.")
     if args.jobs < 1:
         raise ValueError("--jobs must be positive")
-    ask_root, environment_root = args.ask_root.expanduser().resolve(), args.venv.expanduser().resolve()
-    catalog = compiler_catalog(ask_root)
-    selected = select_compilers(args.compilers, catalog)
-    overrides = compiler_overrides(args.compiler_python, selected)
-    if args.ptxas is not None:
-        executable_path(args.ptxas)
-    llvm_lock = read_json(ask_root / "cmake/llvm.lock.json")
-    llvm_root = (args.llvm_root.expanduser().resolve() if args.llvm_root is not None
-                 else ask_root / ".deps" / llvm_lock["directory"])
-    if args.llvm_root is None:
-        run([sys.executable, ask_root / "tools/fetch_deps.py", "--only", "llvm"])
-    elif not llvm_root.is_dir():
-        raise ValueError(f"explicit LLVM SDK does not exist: {llvm_root}")
-    for relative in ("bin/llc", "lib/cmake/llvm/LLVMConfig.cmake", "lib/cmake/mlir/MLIRConfig.cmake"):
-        if not (llvm_root / relative).is_file():
-            raise ValueError(f"LLVM SDK is missing {relative}")
-
+    expected_version = ask_requirement()
+    wheel = args.ask_wheel.expanduser().resolve() if args.ask_wheel is not None else None
+    if wheel is not None and (wheel.suffix != ".whl" or not wheel.is_file()):
+        raise ValueError("--ask-wheel must name an existing local .whl file; build ASK separately first")
+    if wheel is not None:
+        check_ask_wheel(wheel, expected_version)
+    llvm_root = args.llvm_root.expanduser().resolve() if args.llvm_root is not None else None
+    if llvm_root is not None:
+        executable_path(llvm_root / "bin/llc")
+    ptxas = executable_path(args.ptxas) if args.ptxas is not None else None
+    environment_root = args.venv.expanduser().resolve()
     python = ensure_venv(environment_root)
+    if wheel is None:
+        require_ask_version(python, expected_version)
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment.pop("PYTHONHOME", None)
     environment["PATH"] = str(python.parent) + os.pathsep + environment.get("PATH", "")
     environment["CMAKE_BUILD_PARALLEL_LEVEL"] = str(args.jobs)
-    requirements = list(dict.fromkeys(["pip", *build_requirements(ask_root), *build_requirements(ROOT)]))
+    requirements = list(dict.fromkeys(["pip", *build_requirements(ROOT)]))
     requirements.extend(missing_build_tools(environment))
     pip_ready = subprocess.run([str(python), "-m", "pip", "--version"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               env=environment).returncode == 0
     pending_reqs = requirements if not pip_ready else unsatisfied_requirements(python, requirements)
     if pending_reqs:
         install = ([str(python), "-m", "pip"] if pip_ready else
                    [sys.executable, "-m", "pip", "--python", str(python)])
         run([*install, "install", *pending_reqs], env=environment)
-
-    environments, packages, registrations = {}, [], {}
-    for compiler_id in selected:
-        directory = ask_root / "adapters" / catalog[compiler_id]
-        registration = read_json(directory / "registration.json")
-        registrations[compiler_id] = registration
-        if registration.get("requires_python") is not True:
-            raise ValueError(f"bootstrap needs an explicit installer for non-Python compiler {compiler_id}")
-        lock = read_json(directory / "dependencies.lock.json")["compiler"]
-        package, version = lock["name"], lock["version"]
-        compiler_python = overrides.get(compiler_id, python)
+    if wheel is not None:
+        run([python, "-m", "pip", "install", "--no-deps", "--force-reinstall", wheel], env=environment)
+    installed = inspect_ask(python, expected_version)
+    capabilities = installed["capabilities"]
+    if llvm_root is not None:
+        header = llvm_root / "include/llvm/Support/VCSRevision.h"
+        revision = capabilities.get("llvm_revision")
+        if not revision or not header.is_file() or revision not in header.read_text(encoding="utf-8"):
+            raise ValueError("--llvm-root must match the LLVM revision of the installed ASK package")
+    registrations = installed["registrations"]
+    environments = compiler_overrides(args.compiler_python, registrations)
+    package_root = Path(installed["package"])
+    config_path = environment_root / "share/fugatensor/engine.json"
+    preserve_config = (config_path.is_file() and not args.reset_config and llvm_root is None
+                       and ptxas is None and not args.compiler_python)
+    configuration = (read_existing_config(config_path, package_root, registrations) if preserve_config else
+                     engine_config(llvm_root, ptxas, environments, package_root, registrations))
+    for compiler_id, fields in configuration.get("compilers", {}).items():
+        compiler_python = fields["python"]
+        if registrations[compiler_id].get("requires_python") is not True:
+            raise ValueError(f"compiler {compiler_id} does not register a Python worker")
+        worker = Path(fields["worker"])
+        dependency = read_json(worker.parent / "dependencies.lock.json")["compiler"]
+        package, version = dependency["name"], dependency["version"]
         actual = installed_version(compiler_python, package)
-        if compiler_id not in overrides and actual != version:
-            run([python, "-m", "pip", "install", package + "==" + version], env=environment)
-            actual = installed_version(compiler_python, package)
         if actual != version:
-            raise ValueError(f"compiler {compiler_id} needs {package}=={version}; selected Python has {actual}")
-        environments[compiler_id] = compiler_python
-        packages.append((compiler_python, package))
-
-    if not args.skip_ask:
-        mode = args.compilers if args.compilers in ("all", "none") else "selected-" + "-".join(selected)
-        run(ask_install_command(python, ask_root, llvm_root, ROOT / "build/ask" / mode,
-                                args.compilers, environments), env=environment)
+            raise ValueError(f"compiler {compiler_id} needs {package}=={version}; selected Python has {actual!r}. "
+                             "Install that dependency in the compiler environment separately.")
     run([python, "-m", "pip", "install", "--no-deps", "--no-build-isolation", "--editable", ROOT],
         env=environment)
-    installed = python_json(
-        python,
-        "import json,ask; from pathlib import Path; from ask import Compiler; "
-        "c=Compiler(); c._check_companion(); "
-        "print(json.dumps({'capabilities':c.capabilities(),'package':str(Path(ask.__file__).resolve().parent)}))",
-    )
-    capabilities = installed["capabilities"]
-    if sorted(capabilities.get("third_party_compilers", [])) != list(selected):
-        raise RuntimeError("installed ASK compiler selection differs from the requested build")
-    if not capabilities.get("host_codegen") or not capabilities.get("cuda_graph_codegen"):
-        raise RuntimeError("installed ASK engine lacks native CPU/CUDA graph compilation")
-    ptxas = discover_ptxas(args.ptxas, packages, fallback_python=python, env=environment)
-    configuration = engine_config(llvm_root, ptxas, environments, Path(installed["package"]),
-                                  registrations, args.compilers)
-    config_path = write_config(environment_root, configuration)
+    run([python, "-m", "pip", "check"], env=environment)
+    if not preserve_config:
+        config_path = write_config(environment_root, configuration)
     summary = {
         "python": str(python),
         "engine_config": str(config_path),
-        "third_party_compilers": list(selected),
-        "llc": configuration["llc"],
-        "ptxas": configuration["ptxas"],
+        "ask_version": expected_version,
+        "third_party_compilers": capabilities["third_party_compilers"],
+        "configured_compilers": sorted(configuration.get("compilers", {})),
+        "llc": configuration.get("llc"),
+        "ptxas": configuration.get("ptxas"),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     print(f"Ready: {shlex.quote(str(python))} {shlex.quote(str(ROOT / 'examples/jit_demo.py'))} --device cpu",
@@ -346,7 +360,7 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         bootstrap(args)
-    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
         print(f"bootstrap failed: {error}", file=sys.stderr)
         return 1
     return 0

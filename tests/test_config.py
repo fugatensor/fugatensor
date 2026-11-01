@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import importlib.util
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
+from types import SimpleNamespace
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from fugatensor._config import runtime_defaults
@@ -85,89 +90,207 @@ class EngineConfigTests(unittest.TestCase):
 
 
 class BootstrapTests(unittest.TestCase):
-    def test_compiler_selection_and_flags(self):
-        args = bootstrap.parser().parse_args([])
-        self.assertEqual(args.compilers, "all")
-        self.assertFalse(args.skip_ask)
-        self.assertTrue(bootstrap.parser().parse_args(["--skip-ask"]).skip_ask)
-        self.assertEqual(bootstrap.select_compilers("all", {"other": "other_dir", "triton": "triton"}),
-                         ("other", "triton"))
-        self.assertEqual(bootstrap.select_compilers("none", {"triton": "triton"}), ())
-        self.assertEqual(bootstrap.select_compilers("triton", {"triton": "triton"}), ("triton",))
-        for invalid in ("all;triton", "none;triton", "triton;triton", "missing", "triton;", "../triton"):
-            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
-                bootstrap.select_compilers(invalid, {"triton": "triton"})
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        self.root = self.directory / "fuga"
+        self.root.mkdir()
+        (self.root / "pyproject.toml").write_text(
+            '[project]\nversion = "9.8.7"\ndependencies = ["ask-compiler==0.1.0"]\n'
+            '[build-system]\nrequires = ["scikit-build-core==1.1.1", "nanobind==3.1.0"]\n')
+        self.venv = self.directory / "venv"
+        self.python = self.venv / "bin/python"
+        self.package = self.venv / "lib/site-packages/ask"
+        self.config = self.venv / "share/fugatensor/engine.json"
+        self.installed = {
+            "version": "0.1.0", "package": str(self.package), "registrations": {},
+            "capabilities": {"ask_version": "0.1.0", "host_codegen": True,
+                             "cuda_graph_codegen": True, "third_party_compilers": [],
+                             "llvm_revision": "locked-revision"},
+        }
+        self.original_inspect = bootstrap.inspect_ask
+        self.original_missing_tools = bootstrap.missing_build_tools
+        for name, values in (
+            ("ROOT", {"new": self.root}),
+            ("ensure_venv", {"return_value": self.python}),
+            ("installed_version", {"return_value": "0.1.0"}),
+            ("missing_build_tools", {"return_value": []}),
+            ("unsatisfied_requirements", {"return_value": []}),
+            ("inspect_ask", {"return_value": self.installed}),
+            ("run", {}),
+        ):
+            patcher = patch.object(bootstrap, name, **values)
+            value = patcher.start()
+            self.addCleanup(patcher.stop)
+            setattr(self, "mock_" + name, value)
+        patcher = patch.object(bootstrap.subprocess, "run", return_value=SimpleNamespace(returncode=0))
+        self.mock_subprocess = patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def test_ask_install_command_passes_defines_and_only_nondefault_worker_pythons(self):
-        venv_py = Path("/a venv/bin/python")
-        cmd = bootstrap.ask_install_command(
-            venv_py,
-            Path("/source ask"),
-            Path("/sdk llvm"),
-            Path("/build area/all"),
-            "triton;other",
-            {"triton": Path("/worker env/bin/python"), "other": venv_py},
-        )
-        self.assertEqual(cmd[:4], ["/a venv/bin/python", "-m", "pip", "install"])
-        self.assertIn("/source ask", cmd)
-        self.assertIn("--no-build-isolation", cmd)
-        self.assertIn("--no-deps", cmd)
-        self.assertIn("-Ccmake.define.ASK_THIRD_PARTY_COMPILERS=triton;other", cmd)
-        self.assertIn("-Ccmake.define.ASK_TRITON_PYTHON_EXECUTABLE=/worker env/bin/python", cmd)
-        self.assertFalse(any("ASK_OTHER_PYTHON_EXECUTABLE" in arg for arg in cmd))
-        self.assertIn("-Ccmake.define.LLVM_DIR=/sdk llvm/lib/cmake/llvm", cmd)
-        self.assertIn("-Cbuild-dir=/build area/all/{wheel_tag}", cmd)
+    def args(self, *extra):
+        return bootstrap.parser().parse_args(["--venv", str(self.venv), *extra])
+
+    def execute(self, *extra):
+        with redirect_stdout(io.StringIO()):
+            return bootstrap.bootstrap(self.args(*extra))
+
+    def wheel(self, name="ask-compiler", version="0.1.0"):
+        path = self.directory / "ask_compiler-0.1.0-py3-none-any.whl"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("ask_compiler-0.1.0.dist-info/METADATA",
+                             f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+        return path
+
+    def test_default_reuses_installed_ask_and_builds_only_fuga_without_sdk(self):
+        # This fixture deliberately has no neighboring ASK checkout or SDK.
+        with patch.object(bootstrap, "read_json", side_effect=AssertionError("unexpected source metadata read")):
+            summary = self.execute()
+        self.assertEqual(summary["ask_version"], "0.1.0")
+        self.assertIsNone(summary["llc"])
+        self.assertIsNone(summary["ptxas"])
+        calls = [list(map(str, call.args[0])) for call in self.mock_run.call_args_list]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], [str(self.python), "-m", "pip", "install", "--no-deps",
+                                   "--no-build-isolation", "--editable", str(self.root)])
+        self.assertEqual(calls[1], [str(self.python), "-m", "pip", "check"])
+        self.assertEqual(json.loads(self.config.read_text()),
+                         {"schema_version": 1, "llc": None, "ptxas": None, "compilers": {}})
+        self.mock_inspect_ask.assert_called_once_with(self.python, "0.1.0")
+
+    def test_missing_or_wrong_ask_stops_before_building_fuga(self):
+        for actual in (None, "0.0.1", "9.8.7"):
+            with self.subTest(actual=actual):
+                self.mock_installed_version.return_value = actual
+                with self.assertRaisesRegex(ValueError, "ask-compiler==0.1.0.*Build ASK separately"):
+                    self.execute()
+        self.mock_run.assert_not_called()
+        self.mock_inspect_ask.assert_not_called()
+        self.assertFalse(self.config.exists())
+
+    def test_old_combined_build_options_are_rejected(self):
+        for values in (("--ask-root", "/other/ask"), ("--compilers", "none"), ("--skip-ask",)):
+            with self.subTest(values=values), self.assertRaisesRegex(ValueError, "removed combined build"):
+                self.execute(*values)
+        self.mock_ensure_venv.assert_not_called()
+        self.mock_run.assert_not_called()
+
+    def test_local_wheel_is_installed_before_checking_and_building_fuga(self):
+        wheel = self.wheel()
+        self.mock_installed_version.return_value = "0.0.1"  # A provided wheel can replace an old ASK.
+        self.execute("--ask-wheel", str(wheel))
+        commands = [list(map(str, call.args[0])) for call in self.mock_run.call_args_list]
+        self.assertEqual(commands[0], [str(self.python), "-m", "pip", "install", "--no-deps",
+                                      "--force-reinstall", str(wheel)])
+        self.assertIn("--editable", commands[1])
+        self.mock_inspect_ask.assert_called_once_with(self.python, "0.1.0")
+
+    def test_wheel_install_failure_stops_without_fuga_or_configuration(self):
+        wheel = self.wheel()
+        self.mock_run.side_effect = subprocess.CalledProcessError(1, ["pip", "install", str(wheel)])
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.execute("--ask-wheel", str(wheel))
+        self.assertEqual(self.mock_run.call_count, 1)
+        self.mock_inspect_ask.assert_not_called()
+        self.assertFalse(self.config.exists())
+
+    def test_ask_wheel_metadata_and_local_file_are_required(self):
+        for name, version in (("other-package", "0.1.0"), ("ask-compiler", "0.2.0")):
+            with self.subTest(name=name, version=version), self.assertRaisesRegex(ValueError, "ask-compiler==0.1.0"):
+                self.execute("--ask-wheel", str(self.wheel(name, version)))
+        for path in (self.directory / "missing.whl", self.root):
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "existing local .whl"):
+                self.execute("--ask-wheel", str(path))
+        self.mock_run.assert_not_called()
+        self.mock_ensure_venv.assert_not_called()
+
+    def test_installed_python_native_and_metadata_versions_must_match(self):
+        with patch.object(bootstrap, "python_json", return_value=self.installed):
+            self.assertEqual(self.original_inspect(self.python, "0.1.0"), self.installed)
+            self.installed["capabilities"]["ask_version"] = "0.0.1"
+            with self.assertRaisesRegex(RuntimeError, "versions differ"):
+                self.original_inspect(self.python, "0.1.0")
+
+    def test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit(self):
+        original = {"schema_version": 1, "llc": "/saved/llc", "ptxas": "/saved/ptxas", "compilers": {}}
+        bootstrap.write_config(self.venv, original)
+        before = self.config.read_bytes()
+        summary = self.execute()
+        self.assertEqual(summary["llc"], "/saved/llc")
+        self.assertEqual(self.config.read_bytes(), before)
+        self.execute("--reset-config")
+        self.assertIsNone(json.loads(self.config.read_text())["llc"])
+
+    def test_changed_ask_selection_cannot_silently_keep_incompatible_workers(self):
+        bootstrap.write_config(self.venv, {"schema_version": 1, "compilers": {
+            "triton": {"python": "/saved/python", "worker": "/saved/worker.py"}}})
+        before = self.config.read_bytes()
+        with self.assertRaisesRegex(ValueError, "does not enable.*reset-config"):
+            self.execute()
+        self.assertEqual(self.config.read_bytes(), before)
+        self.mock_run.assert_not_called()
+
+    def test_explicit_worker_uses_installed_registry_and_lock_without_installing_compiler(self):
+        worker = self.package / "share/ask/adapters/example/exporter.py"
+        worker.parent.mkdir(parents=True)
+        worker.write_text("# installed fixture\n")
+        (worker.parent / "dependencies.lock.json").write_text(json.dumps({
+            "compiler": {"name": "example-compiler", "version": "1.2.3"}}))
+        self.installed["registrations"] = {"example": {"worker": "exporter.py", "requires_python": True}}
+        self.installed["capabilities"]["third_party_compilers"] = ["example"]
+        with patch.object(bootstrap, "executable_path", return_value=self.python):
+            self.mock_installed_version.side_effect = ["0.1.0", "1.2.3"]
+            self.execute("--compiler-python", "example=python")
+            self.assertEqual(json.loads(self.config.read_text())["compilers"]["example"]["worker"], str(worker))
+            self.mock_run.reset_mock()
+            for extra in ((), ("--compiler-python", "example=python")):
+                self.mock_installed_version.side_effect = ["0.1.0", None]
+                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "example-compiler==1.2.3.*separately"):
+                    self.execute(*extra)
+            self.mock_run.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "executable fixtures need POSIX")
+    def test_missing_and_old_build_tools_are_detected(self):
+        tools = self.directory / "tools"
+        tools.mkdir()
+        self.assertEqual(self.original_missing_tools({"PATH": str(tools)}), ["cmake>=3.28", "ninja"])
+        cmake = tools / "cmake"
+        cmake.write_text("#!/bin/sh\n")
+        cmake.chmod(0o700)
+        self.mock_subprocess.return_value.stdout = "cmake version 3.20.0"
+        self.assertEqual(self.original_missing_tools({"PATH": str(tools)}), ["cmake>=3.28", "ninja"])
+        self.mock_subprocess.return_value.stdout = "cmake version 3.28.2"
+        self.assertEqual(self.original_missing_tools({"PATH": str(tools)}), ["ninja"])
 
     @unittest.skipUnless(os.name == "posix", "executable symlinks need POSIX")
-    def test_worker_python_symlink_and_build_tool_detection(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            executable = root / "base-python"
-            executable.write_bytes(b"fixture")
-            executable.chmod(0o700)
-            link = root / "venv-python"
-            link.symlink_to(executable)
-            self.assertEqual(bootstrap.compiler_overrides([f"triton={link}"], ("triton",)), {"triton": link})
-            with self.assertRaisesRegex(ValueError, "twice"):
-                bootstrap.compiler_overrides([f"triton={link}", f"triton={link}"], ("triton",))
-            with self.assertRaises(ValueError):
-                bootstrap.compiler_overrides([f"other={link}"], ("triton",))
+    def test_worker_python_symlink_is_not_resolved_into_base_environment(self):
+        executable = self.directory / "base-python"
+        executable.write_bytes(b"fixture")
+        executable.chmod(0o700)
+        link = self.directory / "venv-python"
+        link.symlink_to(executable)
+        self.assertEqual(bootstrap.compiler_overrides([f"triton={link}"], ("triton",)), {"triton": link})
+        with self.assertRaisesRegex(ValueError, "twice"):
+            bootstrap.compiler_overrides([f"triton={link}", f"triton={link}"], ("triton",))
+        with self.assertRaises(ValueError):
+            bootstrap.compiler_overrides([f"other={link}"], ("triton",))
 
-            tools_dir = root / "tools"
-            tools_dir.mkdir()
-            self.assertEqual(bootstrap.missing_build_tools({"PATH": str(tools_dir)}), ["cmake>=3.28", "ninja"])
-            cmake = tools_dir / "cmake"
-            cmake.write_text("#!/bin/sh\necho 'cmake version 3.20.0'\n")
-            cmake.chmod(0o700)
-            self.assertEqual(bootstrap.missing_build_tools({"PATH": str(tools_dir)}), ["cmake>=3.28", "ninja"])
-            cmake.write_text("#!/bin/sh\necho 'cmake version 3.28.2'\n")
-            self.assertEqual(bootstrap.missing_build_tools({"PATH": str(tools_dir)}), ["ninja"])
-
-    def test_engine_config_and_atomic_write(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            worker = root / "site/ask/share/ask/adapters/triton/exporter.py"
-            worker.parent.mkdir(parents=True)
-            worker.write_text("# installed fixture\n")
-            config = bootstrap.engine_config(
-                root / "sdk", root / "ptxas",
-                {"triton": root / "worker-env/bin/python"}, root / "site/ask",
-                {"triton": {"worker": "exporter.py"}}, "all",
-            )
-            self.assertNotIn("ask_opt", config)
-            self.assertEqual(config["compilers"]["triton"]["worker"], str(worker))
-            target = bootstrap.write_config(root / "venv", config)
-            self.assertEqual(target, root / "venv/share/fugatensor/engine.json")
-            self.assertEqual(json.loads(target.read_text()), config)
-            worker.unlink()
-            with self.assertRaisesRegex(ValueError, "worker is missing"):
-                bootstrap.engine_config(root / "sdk", None, {"triton": root / "python"},
-                                        root / "site/ask", {"triton": {"worker": "exporter.py"}}, "all")
-
-        none_cfg = bootstrap.engine_config(Path("/sdk"), None, {}, Path("/site/ask"), {}, "none")
-        self.assertEqual(none_cfg["compilers"], {})
-        self.assertIsNone(none_cfg["ptxas"])
-        self.assertEqual(none_cfg["llc"], "/sdk/bin/llc")
+    def test_engine_config_uses_installed_worker_and_writes_atomically(self):
+        worker = self.package / "share/ask/adapters/triton/exporter.py"
+        worker.parent.mkdir(parents=True)
+        worker.write_text("# installed fixture\n")
+        config = bootstrap.engine_config(
+            self.directory / "sdk", self.directory / "ptxas", {"triton": self.python}, self.package,
+            {"triton": {"worker": "exporter.py"}})
+        self.assertNotIn("ask_opt", config)
+        self.assertEqual(config["compilers"]["triton"]["worker"], str(worker))
+        target = bootstrap.write_config(self.venv, config)
+        self.assertEqual(json.loads(target.read_text()), config)
+        self.assertEqual(list(target.parent.iterdir()), [target])
+        worker.unlink()
+        with self.assertRaisesRegex(ValueError, "worker is missing"):
+            bootstrap.engine_config(None, None, {"triton": self.python}, self.package,
+                                    {"triton": {"worker": "exporter.py"}})
 
 
 if __name__ == "__main__":
