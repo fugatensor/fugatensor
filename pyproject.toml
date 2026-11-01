@@ -1,13 +1,16 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core==1.1.1", "nanobind==3.1.0"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "fugatensor"
 version = "0.1.0"
-description = "A small tensor and tracing JIT frontend for ASK"
+description = "Fuga tensor IR and native graph analysis with ASK execution"
 requires-python = ">=3.10"
 dependencies = ["ask-compiler==0.1.0"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.scikit-build]
+minimum-version = "1.1"
+build-dir = "build/native/{wheel_tag}"
+wheel.packages = ["src/fugatensor"]
+cmake.version = ">=3.28"
