@@ -47,6 +47,8 @@ ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/d
 
 多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。当前外部算子只有一个输出，完整图可以联合求值多个结果。
 
+当前 FlashAttention-2 的实际计划也体现了这两种边界：前向为 `owned(q*0.5) -> external(attention) -> owned(*2)`，attention 因三输入而不参与逐元素融合；反向由四个单输出反向 kernel（统计量、dQ、dK、dV）组成，且当前 `ft.fun` 的保存值仍是 `fuga.call` 结果，执行计划会额外重算一次前向 attention 以取得保存的 `O`。因此反向计划包含前向重算、统计量、dQ、dK、dV 五个外部步骤，而不是一个融合 kernel。
+
 <a id="cache-hierarchy"></a>
 
 ## 4. 图编译与 ASK 缓存分工
@@ -80,4 +82,4 @@ CPU 引擎直接使用 ASK 包内的原生扩展和伴生 `ask-opt`，并通过 
 
 只使用两个 wheel 的安装无需执行 `tools/bootstrap.py`。该脚本以 `--ask-wheel` 或目标虚拟环境中已安装的 ASK 为输入，只构建、可编辑安装 FugaTensor。默认保留有效的已有工具配置，新环境写入 CPU 空工具配置；显式工具参数或 `--reset-config` 控制重写，详见[可选开发引导](../安装.md#source-bootstrap)。文档中的跨仓相对链接仅供浏览源码，不参与配置解析。
 
-复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)：前向由分块在线 softmax 计算，反向通过 `ft.fun` 的显式规则拆成统计量、dQ、dK、dV 四个独立 Triton kernel，并由 ASK 执行计划在同一 stream 上调度。它不是 FlashAttention-2 的完整训练接口：不含 dropout、bias、变长序列、任意 stride 或性能承诺，含外部算子的路径仍只支持一阶手写反向。
+复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)：前向由分块在线 softmax 计算，反向通过 `ft.fun` 的显式规则拆成统计量、dQ、dK、dV 四个独立 Triton kernel；加上当前保存值机制带来的前向重算，实际由 ASK 执行计划在同一 stream 上调度五个外部 kernel。它不是 FlashAttention-2 的完整训练接口：不含 dropout、bias、变长序列、任意 stride 或性能承诺，含外部算子的路径仍只支持一阶手写反向。

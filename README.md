@@ -145,3 +145,5 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [01. 对象模型与验证](docs/ir/01-对象模型与验证.md) · [02. 控制流与可组合变换](docs/ir/02-控制流与可组合变换.md) · [03. 降级到 ASK](docs/ir/03-降级到ASK.md)
 
 [多 kernel 计划契约](../ask/docs/08-图切分与多Kernel执行计划.md) · [Flash Attention 2 前向/反向示例](examples/flash_attention2.py)
+
+FlashAttention-2 前向是单个 `external` attention 步骤加自有前后计算；反向为统计量、dQ、dK、dV 四个单输出外部 kernel，当前执行计划还会重算一次前向 attention 以取得保存的 `O`，因此不是单 kernel 融合。
