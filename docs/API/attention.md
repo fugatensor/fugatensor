@@ -2,8 +2,7 @@
 
 # attention
 
-`ft.nn.functional.scaled_dot_product_attention` 计算缩放点积注意力。FlashAttention 的 kernel、启动配置和反向规则随 FugaTensor 包提供，调用方直接传入 Tensor，无需自行注册 Triton kernel。
-
+`ft.nn.functional.scaled_dot_product_attention` 计算缩放点积注意力。这是fugatensor内置的一个基于Triton的kernel示例
 <a id="scaled-dot-product-attention"></a>
 
 ## 1. 参数与结果
