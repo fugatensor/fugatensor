@@ -9,6 +9,9 @@
 
 namespace nb = nanobind;
 using namespace nb::literals;
+void bindCompiler(nb::module_ &module);
+void bindAskRuntime(nb::module_ &module);
+void bindExecution(nb::module_ &module);
 
 namespace {
 std::size_t integer(PyObject *value, const std::string &name) {
@@ -83,7 +86,10 @@ nb::dict analyze(nb::handle inputCount, nb::handle operands, nb::handle resultCo
 } // namespace
 
 NB_MODULE(_native, module) {
-  module.doc() = "Fuga's hardware-independent SSA dependency and liveness planner";
+  module.doc() = "Fuga's SSA analysis and thin ASK native execution bridge";
+  bindCompiler(module);
+  bindAskRuntime(module);
+  bindExecution(module);
   module.attr("__version__") = FUGA_VERSION;
   module.attr("graph_api_version") = 1;
   module.def("analyze", &analyze, "input_count"_a, "operands"_a, "result_counts"_a,

@@ -13,10 +13,11 @@ import math
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
-from ask import Compiler, CompilerError, Module, TensorType
-from ask.numerics import decode_float, encode_float
+from fugatensor._ask import Compiler, CompilerError, Module, TensorType
+from fugatensor._ask.numerics import decode_float, encode_float
 
 _STORAGE = {
     "bool": ctypes.c_uint8,
@@ -71,6 +72,65 @@ class HostStorage:
                 # encoder rounds directly to the declared storage precision.
                 result._buffer[index] = int.from_bytes(encode_float(value, result.dtype), "little")
         return result
+
+    @classmethod
+    def from_buffer(cls, data, *, shape, dtype, copy=True):
+        """Import native contiguous elements, or raw bytes with an explicit dtype.
+
+        The default owns a bulk copy. A borrowed buffer must be writable and
+        aligned; the ctypes view retains its exporter for the storage lifetime.
+        """
+        if type(copy) is not bool:
+            raise TypeError("copy must be bool")
+        view = memoryview(data)
+        if not view.c_contiguous:
+            raise ValueError("tensor buffers must be C-contiguous")
+        tensor = TensorType(tuple(shape), dtype)
+        if any(dim is None for dim in tensor.shape):
+            raise ValueError("host storage needs a concrete shape")
+        width = ctypes.sizeof(_STORAGE[tensor.dtype])
+        count = math.prod(tensor.shape)
+        nbytes = count * width
+        if nbytes > 2**63 - 1 or view.nbytes != nbytes:
+            raise ValueError("buffer byte count does not match the tensor shape and dtype")
+        format_ = view.format
+        prefix = format_[0] if format_ and format_[0] in "@=<>!" else "@"
+        format_ = format_[1:] if format_ and format_[0] in "@=<>!" else format_
+        raw = format_ in ("B", "b", "c") and view.itemsize == 1
+        formats = {"bool": ("?",), "i32": ("i", "l"), "i64": ("q", "l"),
+                   "f32": ("f",), "f16": ("e",), "bf16": ()}
+        native_endian = prefix in ("@", "=") or prefix == ("<" if sys.byteorder == "little" else ">")
+        if not raw and (format_ not in formats[tensor.dtype] or view.itemsize != width or not native_endian):
+            raise TypeError("typed buffer format must match the tensor dtype and native byte order; use bytes for raw bits")
+        raw_view = view.cast("B")
+        if copy:
+            result = cls(tensor.shape, tensor.dtype)
+            # Bulk copies preserve NaN payloads and low-precision bits. A
+            # writable exporter exposes its pointer without a staging copy.
+            if nbytes:
+                source = ((ctypes.c_char * nbytes).from_buffer(raw_view) if not view.readonly
+                          else data if type(data) is bytes else raw_view.tobytes())
+                ctypes.memmove(result.data_ptr, source, nbytes)
+            return result
+        if view.readonly:
+            raise ValueError("copy=False requires a writable buffer")
+        if not nbytes:
+            return cls(tensor.shape, tensor.dtype)
+        borrowed = (_STORAGE[tensor.dtype] * count).from_buffer(raw_view)
+        if ctypes.addressof(borrowed) % width:
+            raise ValueError("borrowed buffer is not aligned for its tensor dtype")
+        result = cls.__new__(cls)
+        object.__setattr__(result, "shape", tensor.shape)
+        object.__setattr__(result, "dtype", tensor.dtype)
+        object.__setattr__(result, "_buffer", borrowed)
+        return result
+
+    def to_buffer(self, *, copy=True):
+        """Return a read-only byte view, preserving the exact element bits."""
+        if type(copy) is not bool:
+            raise TypeError("copy must be bool")
+        view = memoryview(self._buffer).cast("B")[:self.nbytes]
+        return memoryview(view.tobytes()) if copy else view.toreadonly()
 
     @property
     def size(self):
@@ -190,7 +250,6 @@ class HostBackend:
         capabilities = self.compiler.capabilities()
         if not capabilities.get("host_codegen"):
             raise CompilerError("this ASK build has no host code generation")
-        self.compiler._check_companion()
         cc = shutil.which(self.cc)
         if cc is None:
             raise CompilerError(f"host shared-library linker not found: {self.cc}")
@@ -199,13 +258,7 @@ class HostBackend:
         source_path, obj = directory / "graph.mlir", directory / "graph.o"
         report_path, library = directory / "report.json", directory / "graph.so"
         source_path.write_text(source, encoding="utf-8")
-        self._run([self.compiler.executable, str(source_path), "--optimize", "--emit-object",
-                   "-o", str(obj), "--report-json", str(report_path)])
-        try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
-            raise CompilerError("ASK did not produce a valid host ABI report") from error
-        if not isinstance(report, dict):
-            raise CompilerError("ASK host ABI report must be an object")
+        report = self.compiler.emit_host_object(source, obj).report
+        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         self._run([cc, "-shared", str(obj), "-o", str(library)])
         return HostExecutable(library, report, source, directory)

@@ -33,7 +33,7 @@ def runtime_defaults(device):
     environments = config.get('compilers', {})
     if not isinstance(environments, dict):
         raise ValueError('configured compilers must be an object keyed by compiler ID')
-    from ask import CompilerEnvironment
+    from fugatensor._ask import CompilerEnvironment
     compilers = {}
     for name, environment in environments.items():
         if not isinstance(environment, dict) or set(environment) - {'python', 'worker'}:

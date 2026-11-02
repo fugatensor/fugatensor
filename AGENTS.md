@@ -13,7 +13,7 @@
 
 - **Fuga IR 独立性与算术执行边界**：
   - Tensor 自动组图生成独立于 ASK 的 Fuga IR（`src/fugatensor/ir/`），框架层的控制流化简、C++ 活跃性分析与 JVP/VJP 自动微分均作用于 Fuga IR，最后通过 `lowering.py` 降级为高层 ASK IR。
-  - Fuga IR 不包装或依赖 `ask.Value`、`ask.Type` 或 MLIR 字符串。
+  - Fuga IR 不包装或依赖后端的 Value、Type 或 MLIR 字符串；`fugatensor._ask` 仅作为图降级与产物协议的内部桥接层。
   - 实际张量算术统一编译后交由 ASK 执行，不在 Python 中实现张量数值计算回退。
 - **自动组图、执行边界与 `ft.fun` 契约**：
   - 用户无需 JIT 装饰器；普通 Python 函数每次正常执行，Tensor 运算返回待计算图节点。读取数据、0-D 标量条件判断、反向传播与 `ft.evaluate(...)` 触发所需依赖图的 JIT 编译和执行。
@@ -34,22 +34,25 @@
 - **外部编译器与 C++ 扩展**：
   - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 保存用户源码，不在宿主进程导入 Triton；`from_jit` 可快照调用方已加载的 JIT 函数和依赖。worker 执行可信 Python 源码并追踪加载的依赖文件，不用预置模板替代用户 kernel。
   - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。固定版本 ABI 与依赖记录在 `triton.dependencies.lock.json`。
-  - C++ 扩展 `fugatensor._native`（`cpp/`）负责无全局状态、释放 GIL 的 SSA 可达性与反向边界分析；`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs` 供全仓复用。
+  - C++ 扩展 `fugatensor._native`（`cpp/`）负责 SSA 图分析和 ASK 原生绑定，实际编译、整段计划提交、缓冲区、事件与 CUDA Graph 管理由 ASK C++ 实现。`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs`；Fuga 不复制运行时调度器。
 
 ---
 
 ## 构建与测试
 
 - **构建指令**：
-  - ASK 是必需的运行依赖，但两个项目分别构建：先在 ASK 自身工程中按其依赖锁生成 `ask-compiler==0.1.0` wheel，再独立构建 FugaTensor，最后将两个兼容 wheel 安装到运行环境。
-  - FugaTensor 独立构建：`python3 -m pip wheel --no-deps . --wheel-dir dist`，不要求安装 ASK、检出 ASK 源码或准备 LLVM SDK；本项目 C++ 扩展只依赖自身源码与构建依赖。
-  - 已安装兼容 ASK 时，仅修改 FugaTensor 可运行 `python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`。安装详情及可选开发引导见 [`docs/安装.md`](docs/安装.md)。
+  - 两个项目分别构建：先安装 ASK 0.1.0 的 C++ SDK，再用它构建 FugaTensor；ASK 不发布 Python 包，FugaTensor wheel 自带配套 ASK 共享库。
+  - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
+  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK。安装详情见 [`docs/安装.md`](docs/安装.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试运行**：
-  - 测试收敛在 `tests/` 下 11 个模块（共用 `tests/_helpers.py` 中的 `EngineTestCase`）：
+  - 前端测试位于 `tests/test_*.py`，共用 `tests/_helpers.py` 的 `EngineTestCase`：
     - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`
     - 启用自有 CUDA 硬件测试：`FUGATENSOR_TEST_CUDA=1 .venv/bin/python -m unittest -v`
     - 启用自有 CUDA + 用户 Triton 调度测试：`FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v`
+  - 后端桥接与产物协议测试位于 `tests/backend/`：`ASK_SOURCE_ROOT=/path/to/ask ASK_OPT=/path/to/ask-sdk/bin/ask-opt .venv/bin/python -m unittest discover -s tests/backend -p 'test_*.py' -v`。
+  - 后端物理 GPU 测试独立运行：`.venv/bin/python -m unittest discover -s tests/backend/gpu -p 'test_gpu_*.py' -v`，同时配置 `ASK_SOURCE_ROOT`、`ASK_OPT`、`ASK_LLVM_TOOLS_DIR` 与 `ASK_PTXAS`；设置 `ASK_REQUIRE_CUDA_DEVICE=1` 可要求驱动和工具缺失时失败。
+  - `ASK_SOURCE_ROOT` 仅供集成测试读取 ASK 的 IR fixture、依赖锁与工具路径，不是 FugaTensor 的构建或运行依赖。依赖缺失导致 skipped 不能视作相关功能通过验证。
   - 始终使用已安装 `_native` 扩展的 `.venv/bin/python` 运行测试，不使用脱离原生扩展的 `PYTHONPATH=$PWD/src`。
 
 ---

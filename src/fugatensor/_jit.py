@@ -14,7 +14,7 @@ from .tensor import Tensor
 from .tracing import TraceContext, TraceTensor
 
 
-@dataclass
+@dataclass(frozen=True)
 class _Traced:
     module: object
     is_tuple: bool
@@ -97,7 +97,13 @@ class JITFunction:
                 record = _Traced(context.module, context.output_is_tuple, tuple(context.dependencies.items()))
                 if self._cache_enabled:
                     self._cache.setdefault(engine, {})[signature] = record
-                    engine._register_jit(self)
+                else:
+                    # Configuration callbacks still run on every invocation.
+                    # Intern their resulting graph, not the Python call itself.
+                    key = ('snapshot', signature, context.output_is_tuple,
+                           context.module._structural_key(), frozenset(record.dependencies))
+                    record = self._cache.setdefault(engine, {}).setdefault(key, record)
+                engine._register_jit(self)
             from ._lazy import defer_module
             outputs = defer_module(record.module, inputs, engine=engine, dependencies=record.dependencies)
             return outputs if record.is_tuple else outputs[0]

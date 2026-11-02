@@ -8,10 +8,15 @@ FugaTensor 负责 Python 张量接口、自动组图与按需执行、结构化�
 flowchart TD
     User["普通 Python / Tensor 运算 / ft.fun / ft.triton.kernel"] --> Pending["待计算 Tensor 与梯度历史"]
     Pending --> Boundary["读取数据 / 标量条件 / backward / ft.evaluate"]
-    Boundary --> FugaIR["合并所需依赖为 Fuga IR"]
+    Boundary --> Cache["查询不可变模板与结构缓存"]
+    Cache -->|"未命中"| FugaIR["合并所需依赖为 Fuga IR"]
     FugaIR <-->|"可达性、活跃性与反向边界"| NativeCPP["C++ 图分析"]
     FugaIR -->|"静态化简 + JVP / VJP"| Lower["降级桥接与溯源"]
-    Lower --> ASK["ASK 编译执行：CPU / 自有 CUDA / 独立 Triton kernel 调度"]
+    Lower --> ASK["ASK C++ 编译与执行计划"]
+    Cache -->|"命中"| Execute["绑定本次张量"]
+    ASK --> Execute
+    Execute -->|"CPU"| Host["调用已加载的原生函数"]
+    Execute -->|"CUDA 薄原生桥"| Runtime["ASK Runtime / CUDA Graph replay"]
 ```
 
 <a id="arch-positioning"></a>
@@ -20,8 +25,8 @@ flowchart TD
 
 静态编译后端接收的是形状确定、无动态分支的单基本块数据流，而上层框架还需要表达未展开的 `if`/`for`/`while` 区域、`ft.fun` 自定义求导边界（`fuga.call`）以及高阶导数变换。因此系统划分为两层：
 
-- **FugaTensor（框架层）**：管理 `Tensor` 存储与梯度历史、待计算表达式合并、Python 标量条件执行边界及自定义函数隔离追踪、基于独立 Fuga IR 的前向/反向自动微分（JVP/VJP）、C++ 反向路径预检与无用输入端口剪枝。
-- **ASK（编译与运行时层）**：校验 `ask` dialect 静态图、执行常量折叠与自有逐元素融合、将自有算子降级为目标机器码；通过通用 worker 接口接收外部编译器产物，使用执行计划、常驻 `ExecutionSession` 与磁盘缓存统一调度。
+- **FugaTensor（框架层）**：管理 `Tensor` 引用与梯度历史、待计算表达式、Python 标量条件执行边界及自定义函数隔离追踪、基于独立 Fuga IR 的前向/反向自动微分（JVP/VJP）、C++ 反向路径预检与无用输入端口剪枝；维护薄绑定、第三方 worker 编排和磁盘缓存。
+- **ASK（C++ 编译与运行时层）**：校验 `ask` dialect 静态图、执行常量折叠与自有逐元素融合、将自有算子降级为目标机器码；接收已验证的二进制和计划描述，负责参数绑定、整段提交、缓冲区与事件复用及 CUDA Graph replay。
 
 工程细节：[Fuga IR 总览](../ir/README.md) · [ASK 与 FugaTensor 协同分工](../../../ask/docs/07-FugaTensor协同与演进路线.md#division-of-labor)
 
@@ -31,7 +36,7 @@ flowchart TD
 
 Tensor 持有 CPU/CUDA 存储，或记录尚未计算的表达式及已知形状、类型和设备。`x + y`、`x.astype("f16")` 等运算自动组图；普通 Python 函数每次正常运行，无需装饰器。跨函数调用仍保留同一数据流与融合机会。
 
-读取数据、0-D 标量条件判断、`.backward()` 或 `ft.evaluate(...)` 触发 JIT。引擎回溯所需输出，把依赖表达式合并为 Fuga IR，再查询图编译缓存并执行。`ft.evaluate(a, b)` 可以一起计算多个输出；已计算 Tensor 的重复读取不再执行。
+读取数据、0-D 标量条件判断、`.backward()` 或 `ft.evaluate(...)` 触发 JIT。引擎回溯所需输出，先用不可变模板及连接关系查询结构缓存，未命中才合并 Fuga IR 并编译。`ft.evaluate(a, b)` 可以一起计算多个输出；已计算 Tensor 的重复读取不再执行。已有连续内存可通过 `from_buffer` / `to_buffer` 批量传递，避免逐元素转换。
 
 Python `if` / `while` 通过条件 Tensor 的实际真值选择路径，后续运算继续组图。数据依赖控制流可写在普通 Python 中；`ft.fun` 方法仍在隔离追踪中形成完整子函数，不支持读取张量条件。
 
@@ -67,12 +72,12 @@ Python `if` / `while` 通过条件 Tensor 的实际真值选择路径，后续�
 
 ## 5. 降级到 ASK、多后端执行与多级缓存
 
-完成控制流化简、微分与无用输入端口裁剪后，`lower_to_ask` 将 Fuga IR 转换为 ASK `Module`，写出 `fuga.ir`、`frontend.mlir` 与逐值映射表 `fuga-to-ask.json`，再由 `Engine` 分派执行：
+图缓存未命中时，完成控制流化简、微分与无用输入端口裁剪后，`lower_to_ask` 通过内部 `_ask` 图桥接层生成 ASK IR。`Engine` 保存 `fuga.ir`、`frontend.mlir` 与逐值映射表 `fuga-to-ask.json`，再分派执行：
 
-- **CPU（`HostBackend`）**：核对进程内 SDK 与伴生 `ask-opt` 声明的构建身份匹配后，调用 `ask-opt --optimize --emit-object` 生成目标文件并由 `cc -shared` 链接为动态库，通过 `ctypes` 按报告中的端口 ABI 调用函数指针。
-- **自有 CUDA**：从常驻 `ExecutionSession` 查询当前 GPU 的 `sm_xx` 架构，调用 ASK 自有 CUDA 降级生成 `cubin` 并异步 `submit_many`。
-- **用户 Triton 算子与多 kernel 调度**：`ft.triton.kernel` 读取并保存 `@triton.jit` 源码文本，在确定目标 GPU 后填入架构号生成 `ask.external`。FugaTensor worker 独立编译为 `cubin`，ASK 按[执行计划 v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)将外部节点与自有计算区域切成多个 kernel，在同一 stream 顺序调度。
-- **安装与缓存**：ASK 是必需的运行依赖，两个项目各自构建 wheel 后安装到同一环境；FugaTensor 自身的构建不读取 ASK 源码。CPU 包安装无需配置文件，CUDA 工具可通过引擎参数或环境变量指定，见[独立安装](../安装.md)。执行时结合 FugaTensor 引擎图缓存与 ASK 磁盘级 LLVM IR / `cubin` 缓存复用编译结果。
+- **CPU（`HostBackend`）**：默认直接调用 ASK C++ 编译入口生成目标文件，由 `cc -shared` 链接为动态库，通过 `ctypes` 按报告中的端口 ABI 调用函数指针。只有显式选择 CLI 兼容入口时才调用 `ask-opt`。
+- **自有 CUDA**：查询当前 GPU 架构，通过原生编译入口生成 LLVM IR，再由配置的 `llc` / `ptxas` 生成 `cubin`。薄原生桥一次调用 ASK `PreparedProgram::run`，默认使用 CUDA Graph；重复执行不经过 Python 逐 kernel 提交。
+- **用户 Triton 算子与多 kernel 调度**：`ft.triton.kernel` 保存源码，在降级阶段绑定目标架构并生成 `ask.external`。FugaTensor worker 独立编译为 `cubin`，ASK 按[执行计划 v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)保留各外部节点与自有区域。FugaTensor 校验产物并安装原生计划，ASK 在同一 stream 上提交整个 Graph。
+- **安装与缓存**：独立安装 ASK C++ SDK 后构建 FugaTensor，只有 FugaTensor 交付 Python wheel，并携带对应共享库，见[独立安装](../安装.md)。引擎结构缓存先于图组合与文本生成；FugaTensor 内部编排维护 LLVM IR / `cubin` 磁盘缓存。普通 Python 逻辑始终按次执行。
 
 工程细节：[04. ASK 桥接与多后端执行](04-ASK桥接与多后端执行.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [多 kernel 执行计划](../../../ask/docs/08-图切分与多Kernel执行计划.md)
 

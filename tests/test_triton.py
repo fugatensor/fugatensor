@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from ask.cuda import CUDAError
+from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tracing import TraceContext
@@ -391,9 +391,9 @@ class TritonGPUExecutionTests(EngineTestCase):
             self.assertNotEqual(first, second)
             self.assertEqual(new['producer'], second['producer'])
             self.assertIn('import:fuga_import_leaf', second['producer']['dependencies'])
-            from ask.adapters import normalize_artifact
-            from ask.cuda import install_external
-            from ask.gpu import CUDAKernel
+            from fugatensor._ask.adapters import normalize_artifact
+            from fugatensor._ask.cuda import install_external
+            from fugatensor._ask.gpu import CUDAKernel
             session = self.engine.session
             x, y = session.from_host(list(range(10)), dtype='f32'), session.tensor((10,), 'f32')
             for version, artifact, gain in (('old', old, 2), ('new', new, 4)):

@@ -2,7 +2,7 @@
 
 目录导航：[文档目录](../README.md) · 系统架构：[架构总览](../architecture/README.md) · 底层引擎：[ASK IR 与数值语义](../../../ask/docs/01-ASK-IR与数值语义.md)
 
-Fuga IR（`src/fugatensor/ir/`）是 FugaTensor 内部的中间表示，使用独立的类型、SSA 值、操作和嵌套区域对象承载框架层的图分析与变换，不依赖 `ask.Value` 或 MLIR 字符串。
+Fuga IR（`src/fugatensor/ir/`）是 FugaTensor 内部的中间表示，使用独立的类型、SSA 值、操作和嵌套区域对象承载框架层的图分析与变换，不依赖后端桥接层的值对象或 MLIR 字符串。
 
 <a id="ir-design"></a>
 
@@ -26,7 +26,7 @@ Tensor 自动组图 (_lazy.py) / 自定义函数隔离追踪 (tracing.py)
 
 ## 2. 对象模型与验证
 
-Fuga IR 由 `TensorType`、SSA `Value`、`Operation`、`Block`、`Region`、`Function` 和 `Module` 组成，所有图变换直接在内存对象结构上执行；`module.to_text()` 输出可读调试文本（如编译目录中的 `fuga.ir`），也参与引擎图缓存键。模块在进入变换与降级前均经过 `verify_module` 检查支配关系、类型匹配与区域终结符。
+Fuga IR 由 `ScalarType`、`TensorType`、SSA `Value`、`Operation`、`Block`、`Region`、`Function` 和 `Module` 组成，所有图变换直接在内存对象结构上执行。`Module.verify()` 检查支配关系、类型匹配与区域终结符，内部缓存模板在校验后冻结。引擎按模板结构与连接关系查询缓存，未命中才组合整图并调用 `module.to_text()` 保存调试文本，命中不重新打印完整 IR。
 
 工程细节：[01. 对象模型与验证](01-对象模型与验证.md) · [原生图分析与 C++ 边界](../architecture/02-原生图分析与C++边界.md)
 

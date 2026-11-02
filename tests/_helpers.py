@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from ask import Compiler, CompilerError, ExecutionSession
+from fugatensor._ask import Compiler, CompilerError, ExecutionSession
 import fugatensor as ft
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -13,7 +13,7 @@ import textwrap
 import symtable
 import types
 
-from ask import CompilerEnvironment
+from fugatensor._ask import CompilerEnvironment
 
 from ._jit import jit
 from .ir import ExternalSpec, TensorType

@@ -11,9 +11,16 @@ if(NOT FUGA_NANOBIND_STATUS EQUAL 0)
 endif()
 find_package(nanobind 3.1.0 EXACT CONFIG REQUIRED PATHS "${FUGA_NANOBIND_CMAKE_DIR}" NO_DEFAULT_PATH)
 
-# This core handles SSA dependency and liveness only. Tensor execution remains
-# in ASK, and building this extension needs no LLVM, CUDA or DSL compiler SDK.
-nanobind_add_module(_native NB_STATIC cpp/bindings.cpp cpp/graph.cpp)
+# The installed C++ facade hides LLVM and owns the execution runtime.
+find_package(ASK 0.1.0 EXACT CONFIG REQUIRED COMPONENTS Compiler Runtime)
+nanobind_add_module(_native NB_STATIC cpp/bindings.cpp cpp/graph.cpp cpp/runtime.cpp
+  cpp/compiler.cpp cpp/ask_runtime.cpp)
+target_link_libraries(_native PRIVATE ASK::Compiler ASK::Runtime)
+set_target_properties(_native PROPERTIES INSTALL_RPATH "$ORIGIN/_lib")
+foreach(component Compiler Runtime)
+  install(FILES $<TARGET_FILE:ASK::${component}> DESTINATION fugatensor/_lib
+    RENAME $<TARGET_SONAME_FILE_NAME:ASK::${component}>)
+endforeach()
 target_compile_features(_native PRIVATE cxx_std_17)
 target_include_directories(_native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/cpp")
 target_compile_definitions(_native PRIVATE FUGA_VERSION="${PROJECT_VERSION}")

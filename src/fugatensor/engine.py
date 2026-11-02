@@ -9,7 +9,7 @@ import tempfile
 import threading
 import weakref
 
-from ask import Compiler, ExecutionSession
+from fugatensor._ask import Compiler, ExecutionSession
 
 from ._state import require_not_tracing
 from ._config import runtime_defaults
@@ -179,6 +179,18 @@ class Engine:
             self._check_tensor(tensor)
             return tensor.storage.to_flat() if self._ordinal is None else tensor.storage.to_host()
 
+    def from_buffer(self, data, *, dtype, shape, copy=True, requires_grad=False):
+        """Import contiguous elements or raw bytes without Python element conversion."""
+        require_not_tracing()
+        with self._lock:
+            self._check_open()
+            if self._ordinal is not None and copy is False:
+                raise ValueError('CUDA from_buffer requires copy=True for host-to-device transfer')
+            host = HostStorage.from_buffer(data, shape=shape, dtype=normalize_dtype(dtype), copy=copy)
+            storage = host if self._ordinal is None else self.session.tensor(host.shape, host.dtype).copy_from_buffer(
+                host.to_buffer(copy=False))
+            return Tensor(self, storage, requires_grad=requires_grad)
+
     def _check_tensor(self, tensor):
         self._check_open()
         if not isinstance(tensor, Tensor) or tensor.engine is not self:
@@ -277,13 +289,13 @@ class Engine:
             if self._ordinal is None:
                 if external_count:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
-                executable = self._host.compile(module)
+                executable = self._host.compile(source)
             else:
                 artifacts = self.cache_dir / 'artifacts'
                 artifacts.mkdir(exist_ok=True)
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
                 options = {'target': target}
-                kernel = self.compiler.compile_cuda(module, compilers=self.compilers,
+                kernel = self.compiler.compile_cuda(source, compilers=self.compilers,
                     llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
                     **options)
                 executable = _CUDAExecutable(kernel, self.session, directory, source)
@@ -347,26 +359,34 @@ class Engine:
 class _CUDAExecutable:
     def __init__(self, kernel, session, directory, source):
         self.kernel = kernel
-        self.prepared = kernel.prepare(session)
+        self.prepared = kernel.prepare(session, graph=True)
+        self._inputs, self._outputs = self.prepared.inputs, self.prepared.outputs
         self.session = session
         self.source, self.report, self.artifact_dir = source, kernel.report, directory
 
     def run(self, inputs):
-        if len(inputs) != len(self.prepared.inputs):
+        from . import _native
+        from fugatensor._ask.runtime import DeviceTensor
+        if len(inputs) != len(self._inputs):
             raise ValueError('CUDA input count differs from the compiled graph')
-        plan = getattr(self.prepared, 'plan', None)
-        if plan is None:
-            outputs = [self.session.tensor(port['shape'], port['element_type'])
-                       for port in self.prepared.outputs]
-        else:
-            buffers = dict(zip(plan['inputs'], inputs))
+        with self.session._lock:
+            self.session._check_open()
+            for tensor, port in zip(inputs, self._inputs):
+                if tuple(tensor.shape) != tuple(port['shape']) or tensor.dtype != port['element_type']:
+                    raise ValueError('CUDA input shape/dtype differs from the compiled graph')
+                tensor._prepare_access(self.session)
+            self.session.reap()
+            buffers, event = _native.run_program(self.prepared._native, [value._buffer for value in inputs])
+            self.session._retain(event, tuple(inputs))
+            # Preserve logical aliases and external owners without copying any
+            # device data. ASK allocated the remaining outputs inside run().
+            bound = {value._buffer: value for value in inputs}
             outputs = []
-            for identifier, port in zip(plan['outputs'], self.prepared.outputs):
-                if identifier not in buffers:
-                    buffers[identifier] = self.session.tensor(port['shape'], port['element_type'])
-                outputs.append(buffers[identifier])
-        self.prepared.submit_many(inputs, outputs)
-        return outputs
+            for buffer, port in zip(buffers, self._outputs):
+                if buffer not in bound:
+                    bound[buffer] = DeviceTensor(self.session, buffer, tuple(port['shape']), port['element_type'])
+                outputs.append(bound[buffer])
+            return outputs
 
 
 class _InputProjection:
@@ -397,3 +417,11 @@ def tensor(values, *, dtype='f32', shape=None, engine=None, device=None, require
     if device is not None and _device_name(device) != selected.device:
         raise ValueError('device differs from the selected Engine; create an Engine for that device')
     return selected.tensor(values, dtype=dtype, shape=shape, requires_grad=requires_grad)
+
+
+def from_buffer(data, *, dtype, shape, copy=True, engine=None, device=None, requires_grad=False):
+    require_not_tracing()
+    selected = engine if engine is not None else current_engine(device)
+    if device is not None and _device_name(device) != selected.device:
+        raise ValueError('device differs from the selected Engine; create an Engine for that device')
+    return selected.from_buffer(data, dtype=dtype, shape=shape, copy=copy, requires_grad=requires_grad)

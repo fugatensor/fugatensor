@@ -4,8 +4,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from ask import CompilerError
-from ask.cuda import CUDAError
+from fugatensor._ask import CompilerError
+from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from tests._helpers import EXAMPLES_DIR, EngineTestCase, requires_cuda, requires_triton
 

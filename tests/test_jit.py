@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gc
+from array import array
 import json
 import math
 from pathlib import Path
@@ -10,14 +11,52 @@ import unittest
 from unittest import mock
 import weakref
 
-from ask import CompilerError
-from ask.cuda import CUDAError
+from fugatensor._ask import CompilerError
+from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from fugatensor.backends.host import HostStorage
 from tests._helpers import EngineTestCase, requires_cuda
 
 
 class HostStorageTests(unittest.TestCase):
+    def test_contiguous_buffers_preserve_bits_and_ownership(self):
+        bit_patterns = {
+            'bool': b'\x00\x01',
+            'i32': b'\x00\x00\x00\x80\xff\xff\xff\x7f',
+            'i64': b'\x00\x00\x00\x00\x00\x00\x00\x80' + b'\xff' * 7 + b'\x7f',
+            'f32': b'\x01\x00\xc0\x7f\x00\x00\x00\x80',
+            'f16': b'\x01\x7e\x00\x80',
+            'bf16': b'\xc1\x7f\x00\x80',
+        }
+        for dtype, bits in bit_patterns.items():
+            with self.subTest(dtype=dtype):
+                source = bytearray(bits)
+                owned = HostStorage.from_buffer(source, shape=(2,), dtype=dtype)
+                borrowed = HostStorage.from_buffer(source, shape=(2,), dtype=dtype, copy=False)
+                self.assertEqual(bytes(owned.to_buffer()), bits)
+                view = borrowed.to_buffer(copy=False)
+                self.assertTrue(view.readonly)
+                self.assertEqual(bytes(view), bits)
+                source[0] ^= 1
+                self.assertEqual(bytes(owned.to_buffer()), bits)
+                self.assertEqual(bytes(view), bytes(source))
+                del source, borrowed
+                gc.collect()
+                self.assertEqual(view[0], bits[0] ^ 1)
+        typed = array('i', [3, -4])
+        self.assertEqual(HostStorage.from_buffer(typed, shape=(1, 2), dtype='i32').to_flat(), [3, -4])
+        self.assertEqual(bytes(HostStorage.from_buffer(b'', shape=(0,), dtype='f32').to_buffer()), b'')
+        with self.assertRaisesRegex(ValueError, 'writable'):
+            HostStorage.from_buffer(bytes(8), shape=(2,), dtype='i32', copy=False)
+        with self.assertRaisesRegex(ValueError, 'C-contiguous'):
+            HostStorage.from_buffer(memoryview(bytearray(16))[::2], shape=(2,), dtype='i32')
+        with self.assertRaisesRegex(ValueError, 'byte count'):
+            HostStorage.from_buffer(bytes(7), shape=(2,), dtype='i32')
+        with self.assertRaisesRegex(TypeError, 'format'):
+            HostStorage.from_buffer(array('f', [1, 2]), shape=(2,), dtype='i32')
+        with self.assertRaisesRegex(ValueError, 'aligned'):
+            HostStorage.from_buffer(memoryview(bytearray(9))[1:], shape=(2,), dtype='i32', copy=False)
+
     def test_storage_roundtrips_and_bounds(self):
         for dtype, values in (
             ("bool", [True, False]),
@@ -44,6 +83,73 @@ class HostStorageTests(unittest.TestCase):
 
 
 class SharedJITExecutionMixin:
+    def test_public_buffer_import_and_export(self):
+        source = array('f', [1.5, -0.0])
+        x = ft.from_buffer(source, shape=(2,), dtype='f32', engine=self.engine, requires_grad=True)
+        source[0] = 9
+        raw = (x * 2).to_buffer()
+        self.assertTrue(raw.readonly)
+        self.assertEqual(list(raw.cast('f')), [3.0, -0.0])
+        self.assertEqual(math.copysign(1, raw.cast('f')[1]), -1)
+        if self.device == 'cpu':
+            borrowed = self.engine.from_buffer(source, shape=(2,), dtype='f32', copy=False)
+            view = borrowed.to_buffer(copy=False)
+            source[0] = 7
+            self.assertEqual(view.cast('f')[0], 7)
+            self.assertEqual(borrowed.tolist(), [7.0, -0.0])
+        else:
+            with self.assertRaisesRegex(ValueError, 'copy=True'):
+                self.engine.from_buffer(source, shape=(2,), dtype='f32', copy=False)
+            with self.assertRaisesRegex(ValueError, 'copy=True'):
+                x.to_buffer(copy=False)
+
+    def test_cache_hit_skips_projection_composition_and_ir_printing(self):
+        from fugatensor import _lazy
+        from fugatensor.ir import Module
+        calls = []
+
+        def expression(x, y):
+            calls.append(True)
+            shared = x + y
+            return shared * shared + 3
+
+        self.engine.clear_cache()
+        x, y = ft.tensor([1, 2], dtype='i32'), ft.tensor([3, 4], dtype='i32')
+        self.assertEqual(expression(x, y).tolist(), [19, 39])
+        changed = ft.tensor([5, 6], dtype='i32')
+        hits = self.engine.stats['cache_hits']
+        with mock.patch.object(_lazy, '_compose', side_effect=AssertionError('recomposed cached graph')), \
+             mock.patch.object(_lazy, '_project', side_effect=AssertionError('reprojected cached template')), \
+             mock.patch.object(Module, 'to_text', side_effect=AssertionError('printed cached graph')):
+            self.assertEqual(expression(changed, x).tolist(), [39, 67])
+        self.assertEqual(calls, [True, True])
+        self.assertEqual(self.engine.stats['cache_hits'], hits + 1)
+
+        # Distinct and shared leaves require different physical binding tables.
+        self.assertEqual(expression(x, x).tolist(), [7, 19])
+        self.assertEqual(expression(y, y).tolist(), [39, 67])
+        pending = x + y
+        template = pending._pending.expression.module
+        with self.assertRaisesRegex(ValueError, 'immutable'):
+            template.functions[0].name = 'changed'
+        with self.assertRaisesRegex(ValueError, 'immutable'):
+            template.functions[0].block._operations = ()
+
+        traces = []
+
+        class Scale(ft.fun):
+            def forward(self, ctx, value):
+                traces.append(True)
+                return value * 7
+
+        scale = Scale()
+        self.assertEqual(scale(x).tolist(), [7, 14])
+        with mock.patch.object(_lazy, '_compose', side_effect=AssertionError('recomposed cached custom graph')), \
+             mock.patch.object(_lazy, '_project', side_effect=AssertionError('reprojected cached custom template')), \
+             mock.patch.object(Module, 'to_text', side_effect=AssertionError('printed cached custom graph')):
+            self.assertEqual(scale(y).tolist(), [21, 28])
+        self.assertEqual(traces, [True, True])
+
     def test_lazy_fusion_cache_hits_and_artifacts(self):
         self.engine.clear_cache()
         calls = []
@@ -334,6 +440,36 @@ class HostJITTests(SharedJITExecutionMixin, EngineTestCase):
 @requires_cuda
 class OwnedCUDAJITTests(SharedJITExecutionMixin, EngineTestCase):
     device, phase, artifact_pattern = "cuda", "cuda_llvm", "*.cubin"
+
+    def test_cached_jit_replays_graph_through_native_bridge(self):
+        from fugatensor._ask.executable import PreparedCUDAKernel, PreparedCUDAProgram
+        from fugatensor._ask.runtime import ExecutionSession
+
+        def pair(value):
+            return value * 3 + 1, value * value
+
+        self.engine.clear_cache()
+        first_input = ft.tensor([1, 2, 3], dtype="i32")
+        first = ft.evaluate(*pair(first_input))
+        self.assertEqual([output.tolist() for output in first], [[4, 7, 10], [1, 4, 9]])
+        second_input = ft.tensor([5, 6, 7], dtype="i32")
+        before = self.engine.stats
+        self.assertGreater(before["runtime"]["graph_launches"], 0)
+        with mock.patch.object(PreparedCUDAKernel, "submit_many", side_effect=AssertionError("Python kernel submission")), \
+             mock.patch.object(PreparedCUDAProgram, "submit_many", side_effect=AssertionError("Python plan submission")), \
+             mock.patch.object(ExecutionSession, "submit", side_effect=AssertionError("Python launch dispatch")), \
+             mock.patch.object(ExecutionSession, "tensor", side_effect=AssertionError("Python output allocation")), \
+             mock.patch.object(self.engine, "_compile", side_effect=AssertionError("recompiled cached graph")):
+            second = ft.evaluate(*pair(second_input))
+            self.assertEqual([output.tolist() for output in second], [[16, 19, 22], [25, 36, 49]])
+            # Keep both result sets live: replay must not overwrite the prior outputs.
+            self.assertEqual([output.tolist() for output in first], [[4, 7, 10], [1, 4, 9]])
+        after = self.engine.stats
+        self.assertEqual(after["cache_hits"], before["cache_hits"] + 1)
+        self.assertEqual(after["compilations"], before["compilations"])
+        self.assertEqual(after["runtime"]["graph_launches"], before["runtime"]["graph_launches"] + 1)
+        self.assertEqual(after["runtime"]["graph_instantiations"], before["runtime"]["graph_instantiations"])
+        self.assertEqual(len({value.storage.data_ptr for value in (*first, *second, first_input, second_input)}), 6)
 
     def test_ask_ir_and_executable_caches_survive_engine_clear_cache(self):
         def linear(x):

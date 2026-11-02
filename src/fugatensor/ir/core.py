@@ -10,12 +10,25 @@ from dataclasses import dataclass, field
 import json
 import math
 import re
+import struct
 from types import MappingProxyType
 
 from .types import ScalarType, TensorType, Type, as_type, constant_value
 
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z", re.ASCII)
 _TERMINATORS = {"return", "yield"}
+
+
+@dataclass(frozen=True)
+class _StructuralKey:
+    value: tuple
+    _hash: int = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        object.__setattr__(self, '_hash', hash(self.value))
+
+    def __hash__(self):
+        return self._hash
 
 
 def _identifier(value):
@@ -105,7 +118,7 @@ class CallSpec:
     input_types: tuple = field(init=False)
     result_types: tuple = field(init=False)
     effects: tuple = field(init=False)
-    _forward_text: str = field(init=False, repr=False)
+    _forward_key: _StructuralKey = field(init=False, repr=False)
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name:
@@ -125,7 +138,7 @@ class CallSpec:
         object.__setattr__(self, "input_types", tuple(value.type for value in function.inputs.values()))
         object.__setattr__(self, "result_types", tuple(value.type for value in function.outputs))
         object.__setattr__(self, "effects", tuple(sorted({effect for op in function.operations for effect in op.effects})))
-        object.__setattr__(self, "_forward_text", self.forward.to_text())
+        object.__setattr__(self, "_forward_key", self.forward._structural_key())
 
     @property
     def saved_count(self):
@@ -136,7 +149,7 @@ class CallSpec:
         return self.backward_rule is not None
 
     def verify(self):
-        if self.forward.to_text() != self._forward_text:
+        if self.forward._structural_key() != self._forward_key:
             raise ValueError("custom call forward graph changed after its definition was captured")
 
     def build_backward(self, target_graph, operands, forward_results, cotangents, *, engine=None):
@@ -202,9 +215,18 @@ class Region:
         object.__setattr__(self, "blocks", tuple(self.blocks))
 
 
-class Block:
+class _Sealable:
+    __slots__ = ()
+
+    def __setattr__(self, name, value):
+        if getattr(self, "_sealed", False):
+            raise ValueError("a cached Fuga graph template is immutable")
+        object.__setattr__(self, name, value)
+
+
+class Block(_Sealable):
     """An ordered SSA scope; mutation goes through its builder until terminated."""
-    __slots__ = ("arguments", "region", "_operations", "_available", "_terminated")
+    __slots__ = ("arguments", "region", "_operations", "_available", "_terminated", "_sealed")
 
     def __init__(self):
         self.arguments = ()
@@ -414,7 +436,7 @@ class BlockBuilder:
         self.operation("yield", values)
 
 
-class Function(BlockBuilder):
+class Function(_Sealable, BlockBuilder):
     def __init__(self, module, name, inputs, results):
         self._module = module
         self.name = _identifier(name)
@@ -467,7 +489,7 @@ class Function(BlockBuilder):
         self.result_types = types
 
 
-class Module:
+class Module(_Sealable):
     def __init__(self):
         self._functions = []
 
@@ -476,6 +498,8 @@ class Module:
         return tuple(self._functions)
 
     def graph(self, name, *, inputs, results=None):
+        if getattr(self, "_sealed", False):
+            raise ValueError("a cached Fuga graph template is immutable")
         if not isinstance(inputs, Mapping):
             raise TypeError("Fuga graph inputs must map argument names to types")
         if any(function.name == name for function in self._functions):
@@ -485,6 +509,8 @@ class Module:
         return function
 
     def verify(self):
+        if getattr(self, "_sealed", False):
+            return self
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("duplicate Fuga function symbol")
         for function in self.functions:
@@ -495,7 +521,77 @@ class Module:
             _verify_region(function.body, "return", function.result_types, set(), set(), set(), set())
         return self
 
+    def _seal(self):
+        """Verify and freeze an internal execution template exactly once."""
+        if getattr(self, "_sealed", False):
+            return self
+        self.verify()
+
+        def seal_block(block):
+            for operation in block.operations:
+                if operation.opcode == "call":
+                    operation.attrs["spec"].forward._seal()
+                for region in operation.regions:
+                    for child in region.blocks:
+                        seal_block(child)
+            block._operations = tuple(block._operations)
+            block._available = frozenset(block._available)
+            block._sealed = True
+
+        for function in self.functions:
+            seal_block(function.block)
+            function._ids = frozenset(function._ids)
+            function._names = frozenset(function._names)
+            function._sealed = True
+        self._functions = tuple(self._functions)
+        self._key = self._structural_key()
+        self._sealed = True
+        return self
+
+    def _structural_key(self):
+        """Exact immutable structure, with scalar types and float bits preserved."""
+        if getattr(self, "_sealed", False):
+            return self._key
+
+        def attribute(value):
+            if isinstance(value, Mapping):
+                return 'mapping', tuple(sorted((key, attribute(item)) for key, item in value.items()))
+            if isinstance(value, tuple):
+                return 'tuple', tuple(attribute(item) for item in value)
+            if isinstance(value, ExternalSpec):
+                return 'external', tuple((name, attribute(getattr(value, name))) for name in (
+                    'compiler', 'source', 'entry', 'signature', 'source_bindings', 'constants',
+                    'options', 'target', 'grid', 'shape_rule', 'shape_operand', 'effects'))
+            if isinstance(value, CallSpec):
+                return ('call', value.name, value.forward._structural_key(), value.output_count,
+                        value.backward_name, value.definition_key)
+            if type(value) is float:
+                return 'float', struct.pack('!d', value)
+            return type(value).__name__, value
+
+        def value_key(value):
+            return value.name, value.value_id, value.type
+
+        def block_key(block):
+            indices = {value: index for index, value in enumerate(block.arguments)}
+            operations = []
+            for operation in block.operations:
+                operands = tuple(indices[value] for value in operation.operands)
+                for value in operation.results:
+                    indices[value] = len(indices)
+                regions = tuple(tuple(block_key(child) for child in region.blocks) for region in operation.regions)
+                operations.append((operation.opcode, operation.id, operation.origin_id, operands,
+                                   tuple(value_key(value) for value in operation.results),
+                                   attribute(operation.attrs), operation.effects, regions))
+            return tuple(value_key(value) for value in block.arguments), tuple(operations)
+
+        self.verify()
+        return _StructuralKey(tuple((function.name, tuple(function.inputs), function.result_types,
+                                     block_key(function.block)) for function in self.functions))
+
     def to_text(self):
+        if getattr(self, "_sealed", False) and hasattr(self, '_text'):
+            return self._text
         self.verify()
         lines = ["fuga.module {"]
         for function in self.functions:
@@ -505,7 +601,10 @@ class Module:
             _print_block(function.block, lines, 4)
             lines.append("  }")
         lines.append("}")
-        return "\n".join(lines) + "\n"
+        text = "\n".join(lines) + "\n"
+        if getattr(self, "_sealed", False):
+            object.__setattr__(self, '_text', text)
+        return text
 
     def __str__(self):
         return self.to_text()
@@ -653,7 +752,7 @@ def _format_attr(value):
         value = {"name": value.name, "definition_key": value.definition_key,
                  "input_types": value.input_types, "result_types": value.result_types,
                  "output_count": value.output_count, "saved_count": value.saved_count,
-                 "backward": value.backward_name, "forward": value._forward_text}
+                 "backward": value.backward_name, "forward": value.forward.to_text()}
     if isinstance(value, Mapping):
         return "{" + ", ".join(f"{name if _IDENTIFIER.fullmatch(name) else json.dumps(name, ensure_ascii=False)}={_format_attr(value[name])}"
                                for name in sorted(value)) + "}"

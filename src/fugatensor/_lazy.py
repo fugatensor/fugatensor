@@ -1,7 +1,7 @@
 """Join pending Tensor expressions into one ASK compilation at a value boundary."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .ir import Module, project_outputs, prune, specialize
 from .ir.transforms import _clone_operation
@@ -9,7 +9,7 @@ from .tensor import Tensor
 from .tracing import TraceContext
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True, eq=False)
 class Expression:
     module: Module
     inputs: tuple
@@ -27,7 +27,7 @@ class Alias:
     source: Tensor
 
 
-@dataclass
+@dataclass(frozen=True)
 class Program:
     executable: object
     fuga_text: str
@@ -46,6 +46,7 @@ def defer_module(module, inputs, *, engine, dependencies=()):
         engine._check_tensor(value)
         if (spec.type.shape, spec.type.dtype) != (value.shape, value.dtype):
             raise ValueError('deferred graph input type differs from tensor binding')
+    _template(module)
     expression = Expression(module, inputs, tuple(dependencies))
     outputs = tuple(Tensor._from_pending(engine, value.type.shape, value.type.dtype,
                                          Result(expression, index))
@@ -60,12 +61,51 @@ def _source(tensor):
     return tensor
 
 
-@dataclass
+@dataclass(frozen=True)
 class _Slice:
     module: Module
     indices: tuple
     inputs: tuple
     definitions: frozenset
+    key: object
+
+
+@dataclass(frozen=True)
+class _Template:
+    module: Module
+    definitions: frozenset
+    slices: dict = field(default_factory=dict, compare=False)
+    dependencies: dict = field(default_factory=dict, compare=False)
+
+    def project(self, indices):
+        if indices not in self.slices:
+            self.slices[indices] = _project(self.module, indices)
+        return self.slices[indices]
+
+    def live_dependencies(self, selected, dependencies):
+        key = selected.indices, dependencies
+        if key not in self.dependencies:
+            from .function import fun, _fingerprint
+            kept = []
+            for definition, version in dependencies:
+                # Expanded backward graphs retain dependencies even when no
+                # explicit call remains. Only discard proven dead call ports.
+                if isinstance(definition, fun):
+                    identity = _fingerprint(version)
+                    if identity in self.definitions and identity not in selected.definitions:
+                        continue
+                kept.append((definition, version))
+            self.dependencies[key] = tuple(kept)
+        return self.dependencies[key]
+
+
+def _template(module):
+    result = getattr(module, '_execution_template', None)
+    if result is None:
+        module._seal()
+        result = _Template(module, frozenset(_call_definitions(module)))
+        object.__setattr__(module, '_execution_template', result)
+    return result
 
 
 def _call_definitions(module):
@@ -108,7 +148,8 @@ def _project(module, indices):
     function = numerical.functions[0]
     used = {value for operation in function.operations for value in operation.operands}
     inputs = tuple(index for index, value in enumerate(function.inputs.values()) if value in used)
-    return _Slice(numerical, tuple(indices), inputs, frozenset(definitions))
+    numerical._seal()
+    return _Slice(numerical, tuple(indices), inputs, frozenset(definitions), numerical._structural_key())
 
 
 def _carrier(roots):
@@ -148,7 +189,7 @@ def _collect(roots):
         if result.index in required:
             continue
         required.add(result.index)
-        selected = _project(expression.module, tuple(sorted(required)))
+        selected = _template(expression.module).project(tuple(sorted(required)))
         slices[expression] = selected
         stack.extend(expression.inputs[index] for index in reversed(selected.inputs))
 
@@ -179,12 +220,45 @@ def _collect(roots):
     return leaves, expressions, slices
 
 
-def _compose(roots, engine):
-    leaves, expressions, slices = _collect(roots)
+def _dependencies(expressions, slices):
+    dependencies = {}
+    for expression in expressions:
+        selected = slices[expression]
+        template = _template(expression.module)
+        for definition, version in template.live_dependencies(selected, expression.dependencies):
+            if definition in dependencies and dependencies[definition] != version:
+                raise RuntimeError('a function definition changed after this Tensor was constructed')
+            dependencies[definition] = version
+    if any(definition._definition_key() != version for definition, version in dependencies.items()):
+        raise RuntimeError('a function definition changed after this Tensor was constructed')
+    return tuple(dependencies.items())
+
+
+def _structure_key(roots, collected, dependencies):
+    """Flat topology with canonical leaf indices; values and addresses are not keys."""
+    leaves, expressions, slices = collected
+    leaf_indices = {id(value): index for index, value in enumerate(leaves)}
+    expression_indices = {value: index for index, value in enumerate(expressions)}
+
+    def binding(tensor):
+        tensor = _source(tensor)
+        if tensor._storage is not None:
+            return 'input', leaf_indices[id(tensor)]
+        pending = tensor._pending
+        return 'result', expression_indices[pending.expression], pending.index
+
+    nodes = tuple((slices[expression].key,
+                   tuple(binding(expression.inputs[index]) for index in slices[expression].inputs))
+                  for expression in expressions)
+    return (tuple((value.shape, value.dtype) for value in leaves), nodes,
+            tuple(binding(value) for value in roots), frozenset(dependencies))
+
+
+def _compose(roots, engine, collected=None):
+    leaves, expressions, slices = _collect(roots) if collected is None else collected
     context = TraceContext([(value.shape, value.dtype) for value in leaves], engine=engine)
     values = {id(value): arg.value for value, arg in zip(leaves, context.inputs)}
     results = {}
-    dependencies = {}
 
     def value_for(tensor):
         source = _source(tensor)
@@ -193,20 +267,8 @@ def _compose(roots, engine):
         pending = source._pending
         return results[pending.expression][pending.index]
 
-    from .function import fun, _fingerprint
     for expression in expressions:
         selected = slices[expression]
-        represented = _call_definitions(expression.module)
-        for definition, version in expression.dependencies:
-            # Backward templates also record dependencies after their calls
-            # have expanded. Keep those; filter only explicit dead boundaries.
-            if isinstance(definition, fun):
-                identity = _fingerprint(version)
-                if identity in represented and identity not in selected.definitions:
-                    continue
-            if definition._definition_key() != version:
-                raise RuntimeError('a function definition changed after this Tensor was constructed')
-            dependencies[definition] = version
         function = selected.module.functions[0]
         arguments = tuple(function.inputs.values())
         mapping = {arguments[index]: value_for(expression.inputs[index]) for index in selected.inputs}
@@ -218,7 +280,7 @@ def _compose(roots, engine):
                                       tuple(mapping[value] for value in operation.operands))
             mapping.update(zip(operation.results, copied.results))
     context.finish(tuple(context.wrap(value_for(value)) for value in roots))
-    return context, tuple(leaves), tuple(dependencies.items())
+    return context
 
 
 def materialize(engine, tensors):
@@ -232,11 +294,14 @@ def materialize(engine, tensors):
             roots.append(source)
             seen.add(id(source))
     if roots:
-        context, inputs, dependencies = _compose(roots, engine)
-        fuga_text = context.module.to_text()
-        key = fuga_text, frozenset(dependencies)
+        collected = _collect(roots)
+        inputs, expressions, slices = collected
+        dependencies = _dependencies(expressions, slices)
+        key = _structure_key(roots, collected, dependencies)
         program = engine._graph_cache.get(key)
         if program is None:
+            context = _compose(roots, engine, collected)
+            fuga_text = context.module.to_text()
             program = Program(engine._compile(context), fuga_text)
             engine._graph_cache[key] = program
         else:

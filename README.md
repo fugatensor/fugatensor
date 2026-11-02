@@ -25,24 +25,16 @@ print(arithmetic(x, y).tolist())
 
 ## 独立构建与安装
 
-ASK 是必需的运行依赖，负责实际图编译与算术执行；两个项目分别构建，再安装到同一运行环境。当前 FugaTensor 包要求 Python 3.10+、`ask-compiler==0.1.0`。运行不要求 ASK 源码树，也不要求两个仓库位于同级目录。
-
-1. **构建 ASK**：在 ASK 自身的构建环境中准备其锁定 LLVM/MLIR SDK，生成兼容的 `ask-compiler` wheel；已有该产物时可复用。
-2. **构建 FugaTensor**：在独立构建环境中执行 `python3 -m pip wheel --no-deps /absolute/path/to/fugatensor --wheel-dir /absolute/path/to/fuga-wheel-output`。该步骤需要 C++17 工具链、Python 开发头文件与 CMake 3.28+，不需要安装 ASK 或 LLVM SDK。
-3. **安装并运行**：准备与 Python ABI、系统及架构匹配的两个 wheel，在运行环境中安装：
+ASK 独立构建 C++ SDK，FugaTensor 是唯一的 Python 包。构建 FugaTensor 时通过 `CMAKE_PREFIX_PATH` 指定安装好的 ASK SDK；wheel 携带编译器和运行时共享库，运行时无需安装 ASK Python 包，也无需保留 SDK 或源码树。
 
 ```bash
-python3 -m venv .venv
-# 填入两个实际产物的完整文件名
-ask_wheel='/absolute/path/to/ask_compiler-0.1.0-<python>-<abi>-<platform>.whl'
-fuga_wheel='/absolute/path/to/fugatensor-0.1.0-<python>-<abi>-<platform>.whl'
-.venv/bin/python -m pip install --no-index "$ask_wheel" "$fuga_wheel"
-.venv/bin/python -m pip check
+CMAKE_PREFIX_PATH=/absolute/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist
+python3 -m pip install /absolute/path/to/fugatensor.whl
 ```
 
-CPU JIT 还需要 `cc` 链接器，运行时使用 ASK 包内的原生扩展和伴生 CLI，无需 LLVM SDK 或 `engine.json`。自有 CUDA 编译另需配置 `llc`、`ptxas`，执行需要 NVIDIA 驱动；用户 Triton 算子通过 FugaTensor 自带 worker 接入，编译环境需安装 Triton 3.7.1。
+构建需要 C++17、Python 3.10+ 开发环境、CMake 3.28+ 和 nanobind；消费 ASK 的 `Compiler` / `Runtime` 不需要 LLVM SDK。CPU JIT 仍需要 `cc` 链接器，自有 CUDA 代码生成需配置 `llc` / `ptxas`。Triton worker 使用独立的 Triton 3.7.1 环境。
 
-完整命令、源码目录之外的 CPU 验收、GPU 配置与可选开发引导见[安装文档](docs/安装.md)。这里从本地产物安装，不假定项目已发布到 PyPI。文档中的 `../ask/...` 跨仓链接只供并列检出源码时浏览，不构成构建或运行路径要求。
+安装、配置和开发引导命令见[安装文档](docs/安装.md)。跨仓文档链接仅供源码浏览。
 
 ## 基本用法
 
@@ -113,6 +105,8 @@ with ft.Engine(device="cpu") as engine:
 ```
 
 `ft.evaluate(a, b)` 合并两个待计算输出的依赖图，并返回原 Tensor；已计算结果不会重复执行。`shape`、`dtype`、`device` 与 `repr` 只读取元信息。普通 Python 的 `if`/`while` 在读取 0-D Tensor 真值时执行条件所需的图，再按实际条件继续组图；`ft.fun` 内部的隔离追踪仍不支持数据依赖控制流。
+
+引擎在拼接完整图之前，用不可变模板及其连接关系查询缓存；重复图跳过组合、IR 文本生成和编译，普通 Python 函数仍照常执行。已有连续数组可用 `ft.from_buffer(data, shape=..., dtype=...)` 批量导入，用 `tensor.to_buffer()` 导出原始字节；CPU 支持显式借用存储，详见 [buffer 接口与寿命规则](docs/architecture/01-张量模型与追踪机制.md#buffer-io)。
 
 ## 当前支持范围
 

@@ -7,7 +7,7 @@ name = "fugatensor"
 version = "0.1.0"
 description = "Fuga tensor IR and native graph analysis with ASK execution"
 requires-python = ">=3.10"
-dependencies = ["ask-compiler==0.1.0"]
+dependencies = []
 
 [tool.scikit-build]
 minimum-version = "1.1"

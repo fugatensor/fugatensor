@@ -18,7 +18,7 @@ import shutil
 import struct
 import tempfile
 
-from ask.numerics import decode_float, encode_float
+from fugatensor._ask.numerics import decode_float, encode_float
 
 from .tensor import Tensor
 

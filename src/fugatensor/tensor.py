@@ -145,6 +145,18 @@ class Tensor:
         """Wait for computation as needed and return nested Python values."""
         return _nested(self._engine.to_flat(self), self.shape)
 
+    def to_buffer(self, *, copy=True):
+        """Return a read-only host byte buffer without converting its elements."""
+        require_not_tracing()
+        self.engine._check_tensor(self)
+        if type(copy) is not bool:
+            raise TypeError("copy must be bool")
+        if self.device == 'cpu':
+            return self.storage.to_buffer(copy=copy)
+        if not copy:
+            raise ValueError("CUDA to_buffer requires copy=True for device-to-host transfer")
+        return memoryview(self.storage.to_host_bytes())
+
     def astype(self, dtype: str) -> Tensor:
         return self._engine.elementwise("cast", (self,), dtype=normalize_dtype(dtype))
 

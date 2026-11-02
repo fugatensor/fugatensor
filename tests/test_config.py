@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import os
@@ -11,7 +11,6 @@ import tempfile
 import subprocess
 from types import SimpleNamespace
 import unittest
-import zipfile
 from unittest.mock import patch
 
 from fugatensor._config import runtime_defaults
@@ -97,14 +96,22 @@ class BootstrapTests(unittest.TestCase):
         self.root = self.directory / "fuga"
         self.root.mkdir()
         (self.root / "pyproject.toml").write_text(
-            '[project]\nversion = "9.8.7"\ndependencies = ["ask-compiler==0.1.0"]\n'
+            '[project]\nversion = "9.8.7"\ndependencies = []\n'
             '[build-system]\nrequires = ["scikit-build-core==1.1.1", "nanobind==3.1.0"]\n')
+        self.sdk = self.directory / "ask-sdk"
+        for relative in ("lib/cmake/ASK/ASKConfig.cmake", "include/ask/Frontend/CompilerAPI.h",
+                         "include/ask/Runtime/CUDA.h", "bin/ask-opt"):
+            path = self.sdk / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        self.version_file = self.sdk / "lib/cmake/ASK/ASKConfigVersion.cmake"
+        self.version_file.write_text('set(PACKAGE_VERSION "0.1.0")\n')
+        (self.sdk / "bin/ask-opt").chmod(0o700)
         self.venv = self.directory / "venv"
         self.python = self.venv / "bin/python"
-        self.package = self.venv / "lib/site-packages/ask"
         self.config = self.venv / "share/fugatensor/engine.json"
         self.installed = {
-            "version": "0.1.0", "package": str(self.package),
+            "version": "0.1.0", "prefix": str(self.sdk), "cmake_dir": str(self.sdk / "lib/cmake/ASK"),
             "capabilities": {"ask_version": "0.1.0", "host_codegen": True,
                              "cuda_graph_codegen": True,
                              "llvm_revision": "locked-revision"},
@@ -129,87 +136,70 @@ class BootstrapTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def args(self, *extra):
-        return bootstrap.parser().parse_args(["--venv", str(self.venv), *extra])
+        return bootstrap.parser().parse_args(["--venv", str(self.venv), "--ask-prefix", str(self.sdk), *extra])
 
     def execute(self, *extra):
         with redirect_stdout(io.StringIO()):
             return bootstrap.bootstrap(self.args(*extra))
 
-    def wheel(self, name="ask-compiler", version="0.1.0"):
-        path = self.directory / "ask_compiler-0.1.0-py3-none-any.whl"
-        with zipfile.ZipFile(path, "w") as archive:
-            archive.writestr("ask_compiler-0.1.0.dist-info/METADATA",
-                             f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
-        return path
-
-    def test_default_reuses_installed_ask_and_builds_only_fuga_without_sdk(self):
-        # This fixture deliberately has no neighboring ASK checkout or SDK.
-        with patch.object(bootstrap, "read_json", side_effect=AssertionError("unexpected source metadata read")):
+    def test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk(self):
+        # Only an installed SDK is supplied; neither project's build reads an ASK checkout.
+        with patch.object(bootstrap, "read_json", side_effect=AssertionError("unexpected source metadata read")), \
+                patch.dict(os.environ, {"CMAKE_PREFIX_PATH": "/other-sdk"}):
             summary = self.execute()
         self.assertEqual(summary["ask_version"], "0.1.0")
+        self.assertEqual(summary["ask_prefix"], str(self.sdk))
         self.assertIsNone(summary["llc"])
         self.assertIsNone(summary["ptxas"])
         calls = [list(map(str, call.args[0])) for call in self.mock_run.call_args_list]
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0], [str(self.python), "-m", "pip", "install", "--no-deps",
-                                   "--no-build-isolation", "--editable", str(self.root)])
+                                   "--no-build-isolation",
+                                   "--config-settings=cmake.define.ASK_DIR=" + self.installed["cmake_dir"],
+                                   "--editable", str(self.root)])
         self.assertEqual(calls[1], [str(self.python), "-m", "pip", "check"])
         self.assertEqual(json.loads(self.config.read_text()),
                          {"schema_version": 1, "llc": None, "ptxas": None, "compilers": {}})
-        self.mock_inspect_ask.assert_called_once_with(self.python, "0.1.0")
+        self.mock_inspect_ask.assert_called_once_with(self.sdk)
+        self.mock_installed_version.assert_not_called()
+        environment = self.mock_run.call_args_list[0].kwargs["env"]
+        self.assertEqual(environment["CMAKE_PREFIX_PATH"], str(self.sdk) + os.pathsep + "/other-sdk")
 
-    def test_missing_or_wrong_ask_stops_before_building_fuga(self):
-        for actual in (None, "0.0.1", "9.8.7"):
-            with self.subTest(actual=actual):
-                self.mock_installed_version.return_value = actual
-                with self.assertRaisesRegex(ValueError, "ask-compiler==0.1.0.*Build ASK separately"):
-                    self.execute()
+    def test_missing_sdk_stops_before_creating_environment(self):
+        self.mock_inspect_ask.side_effect = self.original_inspect
+        for prefix in (self.directory / "missing", self.root):
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, "installed ASK SDK"):
+                self.execute("--ask-prefix", str(prefix))
         self.mock_run.assert_not_called()
-        self.mock_inspect_ask.assert_not_called()
+        self.mock_ensure_venv.assert_not_called()
         self.assertFalse(self.config.exists())
 
-    def test_old_combined_build_options_are_rejected(self):
-        for values in (("--ask-root", "/other/ask"), ("--compilers", "none"), ("--skip-ask",)):
-            with self.subTest(values=values), self.assertRaisesRegex(ValueError, "removed combined build"):
-                self.execute(*values)
+    def test_sdk_prefix_is_required_and_old_package_options_are_rejected(self):
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            bootstrap.parser().parse_args([])
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.args("--ask-wheel", "/removed.whl")
         self.mock_ensure_venv.assert_not_called()
         self.mock_run.assert_not_called()
 
-    def test_local_wheel_is_installed_before_checking_and_building_fuga(self):
-        wheel = self.wheel()
-        self.mock_installed_version.return_value = "0.0.1"  # A provided wheel can replace an old ASK.
-        self.execute("--ask-wheel", str(wheel))
-        commands = [list(map(str, call.args[0])) for call in self.mock_run.call_args_list]
-        self.assertEqual(commands[0], [str(self.python), "-m", "pip", "install", "--no-deps",
-                                      "--force-reinstall", str(wheel)])
-        self.assertIn("--editable", commands[1])
-        self.mock_inspect_ask.assert_called_once_with(self.python, "0.1.0")
-
-    def test_wheel_install_failure_stops_without_fuga_or_configuration(self):
-        wheel = self.wheel()
-        self.mock_run.side_effect = subprocess.CalledProcessError(1, ["pip", "install", str(wheel)])
+    def test_fuga_build_failure_does_not_write_configuration(self):
+        self.mock_run.side_effect = subprocess.CalledProcessError(1, ["pip", "install", "--editable"])
         with self.assertRaises(subprocess.CalledProcessError):
-            self.execute("--ask-wheel", str(wheel))
+            self.execute()
         self.assertEqual(self.mock_run.call_count, 1)
-        self.mock_inspect_ask.assert_not_called()
         self.assertFalse(self.config.exists())
 
-    def test_ask_wheel_metadata_and_local_file_are_required(self):
-        for name, version in (("other-package", "0.1.0"), ("ask-compiler", "0.2.0")):
-            with self.subTest(name=name, version=version), self.assertRaisesRegex(ValueError, "ask-compiler==0.1.0"):
-                self.execute("--ask-wheel", str(self.wheel(name, version)))
-        for path in (self.directory / "missing.whl", self.root):
-            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "existing local .whl"):
-                self.execute("--ask-wheel", str(path))
-        self.mock_run.assert_not_called()
-        self.mock_ensure_venv.assert_not_called()
-
-    def test_installed_python_native_and_metadata_versions_must_match(self):
-        with patch.object(bootstrap, "python_json", return_value=self.installed):
-            self.assertEqual(self.original_inspect(self.python, "0.1.0"), self.installed)
-            self.installed["capabilities"]["ask_version"] = "0.0.1"
-            with self.assertRaisesRegex(RuntimeError, "versions differ"):
-                self.original_inspect(self.python, "0.1.0")
+    def test_sdk_cli_and_cmake_metadata_versions_must_match(self):
+        self.mock_subprocess.return_value.stdout = json.dumps(self.installed["capabilities"])
+        self.assertEqual(self.original_inspect(self.sdk), self.installed)
+        self.mock_subprocess.assert_called_once_with(
+            [str(self.sdk / "bin/ask-opt"), "--capabilities"], capture_output=True, text=True, check=True)
+        self.version_file.write_text('set(PACKAGE_VERSION "0.2.0")\n')
+        with self.assertRaisesRegex(RuntimeError, "versions differ"):
+            self.original_inspect(self.sdk)
+        self.version_file.unlink()
+        with self.assertRaisesRegex(ValueError, "version metadata"):
+            self.original_inspect(self.sdk)
 
     def test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit(self):
         original = {"schema_version": 1, "llc": "/saved/llc", "ptxas": "/saved/ptxas", "compilers": {}}
@@ -237,12 +227,12 @@ class BootstrapTests(unittest.TestCase):
         (worker.parent / "triton.dependencies.lock.json").write_text(json.dumps({
             "compiler": {"name": "triton", "version": "3.7.1"}}))
         with patch.object(bootstrap, "executable_path", return_value=self.python):
-            self.mock_installed_version.side_effect = ["0.1.0", "3.7.1"]
+            self.mock_installed_version.return_value = "3.7.1"
             self.execute("--compiler-python", "triton=python")
             self.assertEqual(json.loads(self.config.read_text())["compilers"]["triton"]["worker"], str(worker))
             self.mock_run.reset_mock()
             for extra in ((), ("--compiler-python", "triton=python")):
-                self.mock_installed_version.side_effect = ["0.1.0", None]
+                self.mock_installed_version.return_value = None
                 with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "triton==3.7.1.*separately"):
                     self.execute(*extra)
             self.mock_run.assert_not_called()

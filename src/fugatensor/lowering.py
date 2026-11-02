@@ -11,7 +11,7 @@ class LoweringError(ValueError):
 
 
 def _ask_type(type_):
-    from ask import ScalarType as ASKScalar, TensorType as ASKTensor
+    from fugatensor._ask import ScalarType as ASKScalar, TensorType as ASKTensor
     if isinstance(type_, TensorType):
         if None in type_.shape:
             raise LoweringError('ASK lowering requires concrete shapes; specialize symbolic Fuga dimensions first')
@@ -52,7 +52,7 @@ def lower_to_ask(module, *, target=None, max_unroll=10000, source_map=None):
     if target is not None and (not isinstance(target, Mapping)
                                or target.get('backend') not in ('host', 'cuda')):
         raise LoweringError('target must specify backend host or cuda')
-    from ask import Module as ASKModule
+    from fugatensor._ask import Module as ASKModule
     flat = specialize(module, max_unroll=max_unroll)
     output = ASKModule()
     external_count = 0
