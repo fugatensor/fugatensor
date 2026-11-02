@@ -22,17 +22,11 @@ from fugatensor._ask import Compiler, CompilerError, Module, ScalarType, TensorT
 from fugatensor._ask.ir import mlir_string
 from fugatensor._ask.numerics import decode_float, encode_f32, encode_float, round_f32, round_float
 from support.host_runner import ask_opt_path
+from support.graphs import external_module
 
 NATIVE_AVAILABLE = importlib.util.find_spec("fugatensor._native") is not None
 if os.environ.get("ASK_NATIVE_REQUIRED") and not NATIVE_AVAILABLE:
     raise RuntimeError("fugatensor._native extension is required when ASK_NATIVE_REQUIRED=1")
-
-
-def example_module() -> Module:
-    spec = importlib.util.spec_from_file_location("ask_framework_example", Path(__file__).resolve().parent / "examples/framework_frontend.py")
-    example = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(example)
-    return example.build_module()
 
 
 def self_owned_module() -> Module:
@@ -163,7 +157,7 @@ class BuilderAndCodecTests(unittest.TestCase):
             graph.constant(3)
 
         was_imported = "triton" in sys.modules
-        external_mlir = example_module().to_mlir()
+        external_mlir = external_module().to_mlir()
         self.assertIn('compiler = "triton"', external_mlir)
         self.assertEqual("triton" in sys.modules, was_imported)
 
@@ -201,7 +195,7 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
         self.assertNotIn('"ask.mark"', owned.ir)
         self.assertIn("after_P", json.dumps(owned.report))
 
-        ext = compiler.prepare(example_module())
+        ext = compiler.prepare(external_module())
         self.assertIn('"ask.external"', ext.ir)
         self.assertEqual(len(ext.report["external_requests"]), 1)
 

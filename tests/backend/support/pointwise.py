@@ -1,6 +1,6 @@
 """One typed pointwise graph and an independent arithmetic oracle.
 
-Tests and the GPU example share this builder. A new dtype selects types and
+Backend CPU and GPU tests share this builder. A new dtype selects types and
 numeric data; it does not duplicate graph topology, operators or fusion steps.
 The reference uses exact rational arithmetic, not ASK's codecs or LLVM output.
 """

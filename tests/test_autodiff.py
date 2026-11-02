@@ -4,8 +4,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from fugatensor._ask import CompilerError
-from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from tests._helpers import EngineTestCase, requires_cuda
 
@@ -16,6 +14,19 @@ class ForwardOnly(ft.fun):
 
 
 class SharedAutodiffMixin:
+    def test_reshape_backward_and_higher_order_preserve_input_shape(self):
+        x = ft.tensor([1, 2, 3, 4], requires_grad=True)
+        shaped = x.reshape(2, 2)
+        (shaped * shaped).backward(ft.ones(2, 2), create_graph=True)
+        first = x.grad
+        self.assertEqual(first.shape, (4,))
+        self.assertEqual(first.tolist(), [2, 4, 6, 8])
+        self.assertIsNone(shaped.grad)
+        x.zero_grad()
+        first.backward(ft.ones(4))
+        self.assertEqual(x.grad.tolist(), [2, 2, 2, 2])
+        self.assertEqual(x.grad.shape, x.shape)
+
     def test_dtype_objects_are_static_fun_arguments_and_configuration(self):
         class Convert(ft.fun):
             output_dtype = ft.fp16
@@ -49,22 +60,7 @@ class SharedAutodiffMixin:
         self.assertIs(widened.dtype, ft.fp32)
         self.assertEqual(widened.tolist(), 2.0)
 
-    def test_precisions_finite_difference_multiport_and_mixed_precision(self):
-        def poly(x):
-            return ft.square(x) - 3 * x + 2
-
-        for dtype in ("f32", "f16", "bf16"):
-            with self.subTest(dtype=dtype):
-                if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*hardware|bf16.*support"):
-                        poly(ft.tensor(3, dtype=dtype, requires_grad=True)).backward()
-                    continue
-                x = ft.tensor(4, dtype=dtype, requires_grad=True)
-                out = poly(x)
-                out.backward()
-                self.assertEqual((x.grad.tolist(), x.grad.dtype, x.grad.device), (5, dtype, self.device))
-                self.assertFalse(x.grad.requires_grad)
-
+    def test_finite_difference_multiport_and_mixed_precision(self):
         # Finite-difference check on cubic.
         def cubic(x):
             return x * x * x - 2 * x

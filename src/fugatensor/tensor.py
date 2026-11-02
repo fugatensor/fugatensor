@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from .dtypes import DType
+from .devices import device as Device, resolve_device
 from .ir import ScalarType, TensorType
 
 from ._state import require_not_tracing
@@ -139,8 +140,8 @@ class Tensor:
         return self._dtype
 
     @property
-    def device(self) -> str:
-        return self._engine.device
+    def device(self) -> Device:
+        return resolve_device(self._engine.device)
 
     def tolist(self):
         """Wait for computation as needed and return nested Python values."""
@@ -152,7 +153,7 @@ class Tensor:
         self.engine._check_tensor(self)
         if type(copy) is not bool:
             raise TypeError("copy must be bool")
-        if self.device == 'cpu':
+        if self.device.type == 'cpu':
             return self.storage.to_buffer(copy=copy)
         if not copy:
             raise ValueError("CUDA to_buffer requires copy=True for device-to-host transfer")
@@ -161,10 +162,15 @@ class Tensor:
     def astype(self, dtype: DType | str) -> Tensor:
         return self._engine.elementwise("cast", (self,), dtype=normalize_dtype(dtype))
 
+    def reshape(self, *shape) -> Tensor:
+        """Return a deferred tensor with the same elements and a new shape."""
+        from ._shape import infer_reshape
+        from .ops import _reshape
+        return _reshape(self, infer_reshape(shape, math.prod(self.shape)))
+
     def _binary(self, operation, other, *, reverse=False):
         if isinstance(other, Tensor):
-            if other.engine is not self.engine:
-                raise ValueError("tensor operands must belong to the same Engine")
+            self.engine._check_tensor(other)
             if other.shape != self.shape:
                 raise ValueError("tensor operands require equal shapes; broadcasting is not supported")
             if other.dtype != self.dtype:

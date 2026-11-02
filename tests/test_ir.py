@@ -17,6 +17,25 @@ class FugaIRCoreTests(unittest.TestCase):
         module = Module()
         return module, module.graph("calculate", inputs=inputs)
 
+    def test_reshape_typing_lowering_and_composable_derivatives(self):
+        module, graph = self.graph(x=TensorType((4,), ft.fp32))
+        shaped = graph.reshape(graph.inputs['x'], (2, 2))
+        graph.return_(shaped)
+        module.verify()
+        lowered = ft.lower_to_ask(module).to_mlir()
+        self.assertIn('ask.reshape', lowered)
+        self.assertIn('shape = array<i64: 2, 2>', lowered)
+        forward = ft.ir.jvp(module).verify().functions[0]
+        reverse = ft.ir.vjp(module).verify().functions[0]
+        self.assertEqual([value.type.shape for value in forward.outputs], [(2, 2), (2, 2)])
+        self.assertEqual([value.type.shape for value in reverse.outputs], [(4,)])
+        for source, target in ((TensorType((None,), ft.fp32), (2,)),
+                               (TensorType((4,), ft.fp32), (3,)),
+                               (ScalarType(ft.fp32), (1,))):
+            _, invalid = self.graph(x=source)
+            with self.subTest(source=source), self.assertRaises((TypeError, ValueError)):
+                invalid.reshape(invalid.inputs['x'], target)
+
     def test_public_dtype_objects_normalize_to_canonical_ir_types(self):
         tensor_type = TensorType((2,), ft.fp32)
         scalar_type = ScalarType(ft.int64)

@@ -327,6 +327,12 @@ class BlockBuilder:
         types = infer_result_types("cast", (value.type,), dtype=dtype)
         return self.operation("cast", (value,), types, id=id).results[0]
 
+    def reshape(self, value, shape, *, id=None):
+        from .primitives import infer_result_types
+        self._check_values((value,))
+        result, = infer_result_types("reshape", (value.type,), {"shape": tuple(shape)})
+        return self.operation("reshape", (value,), (result,), attrs={"shape": result.shape}, id=id).results[0]
+
     def _binary(self, opcode, lhs, rhs, *, id=None):
         from .primitives import infer_result_types
         self._check_values((lhs, rhs))
@@ -661,12 +667,12 @@ def _verify_region(region, terminator, result_types, seen_values, seen_ids, seen
 
 def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
     operands, results, attrs = op.operands, op.results, op.attrs
-    kinds = {"constant", "splat", "cast", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
+    kinds = {"constant", "splat", "cast", "reshape", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
     if op.opcode not in kinds:
         raise ValueError(f"unknown Fuga operation: {op.opcode}")
     if op.opcode not in ("if", "for", "while") and op.regions:
         raise ValueError(f"{op.opcode} cannot own regions")
-    if op.opcode in ("constant", "splat", "cast", "add", "mul") and len(results) != 1:
+    if op.opcode in ("constant", "splat", "cast", "reshape", "add", "mul") and len(results) != 1:
         raise TypeError(f"{op.opcode} requires one result")
     if op.opcode not in ("external", "call", "if", "for", "while") and op.effects:
         raise ValueError(f"{op.opcode} must be pure")
@@ -681,7 +687,7 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             equal = (type(raw) is float and math.isnan(raw)) if math.isnan(canonical) else raw == canonical
             if not equal or (canonical == 0 and math.copysign(1.0, raw) != math.copysign(1.0, canonical)):
                 raise ValueError("Fuga floating constants must already be rounded to their declared dtype")
-    elif op.opcode in ("splat", "cast", "add", "mul"):
+    elif op.opcode in ("splat", "cast", "reshape", "add", "mul"):
         from .primitives import validate_primitive
         validate_primitive(op)
     elif op.opcode == "external":

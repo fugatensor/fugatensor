@@ -2,7 +2,7 @@
 
 返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](01-张量模型与追踪机制.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/05-常驻运行时与多级缓存.md)
 
-API：[设备与执行](../API/03-设备与执行.md) · [Triton 算子接入](../API/05-Triton算子接入.md)
+API：[设备与执行](../API/03-设备与执行.md) · [Triton 算子接入](../API/05-Triton算子接入.md) · [注意力](../API/08-注意力.md)
 
 读取结果或反向传播触发待计算表达式合并为 Fuga IR `Module` 后，`Engine` 负责裁剪未使用的物理输入端口、降级为 ASK IR、写出跨层溯源产物，并调用 CPU 动态库或 GPU 常驻会话执行。
 
@@ -12,7 +12,7 @@ API：[设备与执行](../API/03-设备与执行.md) · [Triton 算子接入](.
 
 `Engine` 管理 FugaTensor 与 [ASK 编译器及运行时](../../../ask/docs/02-前端接入与构建配置.md#python-sdk) 的连接状态：
 
-- **延迟初始化与上下文隔离**：普通 `ft.tensor(...)` 默认使用 CPU，按设备惰性创建并复用引擎；正常进程退出或调用 `ft.shutdown()` 时关闭。`ft.set_default_device` 使用 `ContextVar` 保存后续创建的默认设备，切换不关闭引擎或移动已有张量；显式 `device=` 优先。需要独立资源时仍可创建 `Engine`，其上下文临时覆盖默认设备。`Tensor` 绑定创建它的引擎，关闭后读取数据、继续运算或跨引擎混用张量均会报错。`ft.synchronize` 只等待选定引擎已提交的任务，不会求值待计算表达式。
+- **延迟初始化与上下文隔离**：普通张量创建默认使用 CPU，按设备惰性创建并复用引擎；正常进程退出或调用 `ft.shutdown()` 时关闭。设备参数接受 `ft.device` 对象或字符串，未指定 CUDA 编号时解析为 0。`ft.set_default_device` 使用 `ContextVar` 保存后续创建的默认设备，切换不关闭引擎或移动已有张量；显式 `device=` 优先。需要独立资源时仍可创建 `Engine`，其上下文临时覆盖默认设备。Tensor 绑定创建它的引擎，关闭后读取或运算会报错；不同设备算术报 `RuntimeError`，同设备但不同独立引擎报 `ValueError`。`ft.synchronize` 只等待已提交的任务，不会求值待计算表达式。
 - **无用物理输入端口裁剪**：
   反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine._compile` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_InputProjection` 在调用时按索引筛选实参。这样手写 Triton 反向不会因签名中的未用参数而被前端拒绝。
 - **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/03-降级到ASK.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。
@@ -42,7 +42,7 @@ GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine
 2. **含 `ft.triton.kernel` 的混合图 → 自有与外部 kernel 顺序调度**：
    - 通过 `ft.triton.kernel("kernels.py", entry=..., input=... 或 inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - **源码快照**：注册时按 UTF-8 读取源码文本并复制配置字典，不在宿主进程导入用户模块或 Triton；后续修改原文件不影响已注册的算子对象。
-   - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants`、`scalars` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
+   - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants`、`scalars` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`；其中 dtype 和 device 为公开类型、设备对象，shape 保留 reshape 后的真实维度。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
    - 本包 [`_triton_worker.py`](../../src/fugatensor/_triton_worker.py) 在选定的解释器中调用 Triton，直接返回 `asm["cubin"]` 与启动元数据。通过 [ASK 通用 worker 接口](../../../ask/docs/04-外部产物与执行接口.md#worker-interface) 接入[执行计划调度](../../../ask/docs/08-图切分与多Kernel执行计划.md#program-runtime)，不经过 LLVM 导出或跨编译器融合。
 
 ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)保留自有计算区域的融合，每个外部节点成为独立步骤。各步骤通过设备中间缓冲区传递数据，在同一会话 stream 上顺序提交。用户仍直接写普通函数；`ft.evaluate(...)` 触发求值，所有计算均编译后交给 ASK 执行。非法图、坏导出及编译失败直接报错。
@@ -57,13 +57,13 @@ worker 的 `required_element_types` 记录端口存储类型，不反向解析�
 
 多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。多个输出使用 `outputs={"Y": {"shape": ..., "dtype": ...}, "Z": {...}}`，按声明顺序返回 tuple；每项的 shape/dtype 可省略，默认沿用首个输入。即使图中只使用一个结果，也会保留 kernel 其他输出所需的物理缓冲区。输入与输出不能原地别名。
 
-`scalars={"N": ("i32", 1024), "scale": ("fp32", 0.5)}` 或对应回调声明普通运行时参数；它们按每次图调用冻结，并在 CUDA 启动时按值传参，不改成 `constexpr`，也不从 GPU 张量读取数据。改变这些值会产生新的图配置和缓存键。普通 Python bool/int/float 字面量默认参数可自动推断标量类型；其他默认表达式需显式传入 scalars。整数、浮点标量的类型与范围由宿主 ABI 契约校验，ASK 原生运行时核对参数布局。
+`scalars={"N": (ft.int32, 1024), "scale": (ft.fp32, 0.5)}` 或对应回调声明普通运行时参数；它们按每次图调用冻结，并在 CUDA 启动时按值传参，不改成 `constexpr`，也不从 GPU 张量读取数据。改变这些值会产生新的图配置和缓存键。普通 Python bool/int/float 字面量默认参数可自动推断标量类型；其他默认表达式需显式传入 scalars。整数、浮点标量的类型与范围由宿主 ABI 契约校验，ASK 原生运行时核对参数布局。
 
-`constants` 可传递有限浮点数、整数、bool、字符串、None、列表/tuple 与 JSON 配置字典；序列在 worker 中变为 tuple，字典可承载 dtype 标签。kernel 内可使用的类型和操作仍遵循 Triton 本身的 constexpr 规则，例如不把任意 Python 字典自动转换成可索引的 Triton 值。dtype 可写 `{"__triton_dtype__": "float16"}`，也可在调用方已导入 Triton 时传 `tl.float16`。constexpr 默认值由 Triton 函数签名补齐。`@triton.heuristics` 在 worker 中使用标量、constexpr 与张量静态元数据（shape、dtype、ndim、numel()、stride()）求值；`@triton.autotune` 需要显式 `config=索引` 选择其配置列表的一项，不执行 benchmark。配置中的 constexpr 和编译选项可由显式注册参数覆盖；涉及输入修改或自定义调优 hook 的配置仍报错。
+`constants` 可传递有限浮点数、整数、bool、字符串、None、列表/tuple 与 JSON 配置字典；序列在 worker 中变为 tuple。kernel 内可使用的类型和操作仍遵循 Triton 本身的 constexpr 规则，例如不把任意 Python 字典自动转换成可索引的 Triton 值。dtype 直接传 `ft.fp16` 等类型对象，也可在调用方已导入 Triton 时传 `tl.float16`。constexpr 默认值由 Triton 函数签名补齐。`@triton.heuristics` 在 worker 中使用标量、constexpr 与张量静态元数据（shape、dtype、ndim、numel()、stride()）求值；`@triton.autotune` 需要显式 `config=索引` 选择其配置列表的一项，不执行 benchmark。配置中的 constexpr 和编译选项可由显式注册参数覆盖；涉及输入修改或自定义调优 hook 的配置仍报错。
 
-最小的标量与双输出示例见 [`examples/triton_multi_output.py`](../../examples/triton_multi_output.py)。
+标量与双输出的完整用法见 [Triton 接入示例](../API/05-Triton算子接入.md#example)。
 
-当前 FlashAttention-2 前向计划为 `owned(q*0.5) -> external(attention) -> owned(*2)`；反向由四个单输出反向 kernel（统计量、dQ、dK、dV）组成，且当前 `ft.fun` 的保存值仍是 `fuga.call` 结果，执行计划会额外重算一次前向 attention 以取得保存的 `O`。因此反向计划包含前向重算、统计量、dQ、dK、dV 五个外部步骤。
+`ft.nn.functional.scaled_dot_product_attention` 在包内维护 FlashAttention 的源码、注册配置与 `ft.fun` 梯度规则。前向生成一个外部 attention 节点，可与前后自有计算组成同一张图。反向由统计量、dQ、dK、dV 四个独立 kernel 组成；当前保存值仍是 `fuga.call` 结果，反向计划会重算一次前向以取得保存的 `O`，因此含五个外部步骤。数值参考与执行计划断言位于测试目录，不参与 API 运行。
 
 <a id="native-plan-replay"></a>
 
@@ -110,5 +110,3 @@ ASK 独立安装 C++ SDK，FugaTensor 构建时链接 `ASK::Compiler` 与 `ASK::
 `cc` 仅通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 指定，没有 `FUGATENSOR_CC` 环境变量入口。当通过代码或环境变量显式指定另一套 `ask_opt` 路径时，不会混读默认 `engine.json` 中保存的 SDK 与 worker 路径。
 
 安装已有 FugaTensor wheel 无需开发引导。`tools/bootstrap.py --ask-prefix SDK目录` 使用已安装 C++ SDK 构建 FugaTensor；工具配置的保留和重置规则见[开发引导](../安装.md#source-bootstrap)。
-
-复杂外部算子的实算示例见 [`examples/flash_attention2.py`](../../examples/flash_attention2.py)：前向由分块在线 softmax 计算，反向通过 `ft.fun` 的显式规则拆成统计量、dQ、dK、dV 四个独立 Triton kernel；加上当前保存值机制带来的前向重算，实际由 ASK 执行计划在同一 stream 上调度五个外部 kernel。它不是 FlashAttention-2 的完整训练接口：不含 dropout、bias、变长序列、任意 stride 或性能承诺，含外部算子的路径仍只支持一阶手写反向。

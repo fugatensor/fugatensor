@@ -82,7 +82,101 @@ class HostStorageTests(unittest.TestCase):
             HostStorage.from_flat([1e30], shape=(1,), dtype="f16")
 
 
+class TensorCreationTests(EngineTestCase):
+    def test_size_factories_create_leaf_buffers_without_compiling(self):
+        before = self.engine.cache_info()['compilations']
+        self.assertEqual(ft.tensor(data=[[1, 2], [3, 4]]).shape, (2, 2))
+        for dtype in (ft.bool, ft.int32, ft.int64, ft.fp32, ft.fp16, ft.bf16):
+            with self.subTest(dtype=dtype):
+                zero = ft.zeros(2, 3, dtype=dtype)
+                one = ft.ones((2, 3), dtype=dtype)
+                self.assertIs(zero.dtype, dtype)
+                self.assertEqual(zero.tolist(), [[0, 0, 0], [0, 0, 0]])
+                self.assertEqual(one.tolist(), [[1, 1, 1], [1, 1, 1]])
+                self.assertTrue(zero.is_leaf and one.is_leaf)
+                self.assertIs(zero.engine, self.engine)
+        self.assertIs(ft.full((2,), 3).dtype, ft.fp32)
+        self.assertEqual(ft.full((2, 3), -(2**63), dtype=ft.int64).tolist(),
+                         [[-(2**63)] * 3] * 2)
+        self.assertEqual(ft.full((3,), True, dtype=ft.bool).tolist(), [True] * 3)
+        negative_zero = ft.full((3,), -0.0, dtype=ft.fp16).tolist()
+        self.assertTrue(all(math.copysign(1, value) == -1 for value in negative_zero))
+        self.assertEqual(ft.zeros(()).shape, ())
+        self.assertEqual(ft.ones(()).tolist(), 1.0)
+        self.assertEqual(ft.full((), 2).tolist(), 2.0)
+        self.assertEqual(ft.zeros([0, 3]).tolist(), [])
+        self.assertEqual(ft.ones(2, device=ft.device('cpu')).device, ft.device('cpu'))
+        allocated = ft.empty(2, 3)
+        self.assertEqual(allocated.shape, (2, 3))
+        self.assertEqual(allocated.to_buffer().nbytes, 24)
+        self.assertTrue(allocated.is_leaf)
+        self.assertEqual(self.engine.cache_info()['compilations'], before)
+
+    def test_factory_gradients_and_rejected_sizes(self):
+        x = ft.full((3,), 2, requires_grad=True)
+        (x * x).backward(ft.ones(3))
+        self.assertEqual(x.grad.tolist(), [4.0, 4.0, 4.0])
+        self.assertTrue(x.is_leaf)
+        for size in ((), (True,), (-1,), (1.5,), ((2,), 3), (2**63,), (2**61,)):
+            with self.subTest(size=size), self.assertRaises((TypeError, ValueError)):
+                ft.zeros(*size)
+        for create in (ft.empty, ft.zeros, ft.ones):
+            with self.subTest(create=create), self.assertRaises(TypeError):
+                create(2, dtype=ft.int32, requires_grad=True)
+            with self.subTest(create=create, requires_grad=1), self.assertRaises(TypeError):
+                create(2, requires_grad=1)
+        with self.assertRaises(TypeError):
+            ft.full((2,), 1, dtype=ft.bool)
+        with self.assertRaises(TypeError):
+            ft.full(2, 1)
+        with self.assertRaises(TypeError):
+            ft.reshape(ft.ones(2), 2)
+        with self.assertRaises(ValueError):
+            ft.full((0,), 2**31, dtype=ft.int32)
+
+    def test_shape_helpers_validate_inference_and_integer_dimensions(self):
+        from fugatensor._shape import infer_reshape, normalize_size
+
+        class Dimension:
+            def __index__(self):
+                return 3
+
+        self.assertEqual(normalize_size((2, Dimension())), (2, 3))
+        self.assertEqual(infer_reshape((2, -1), 6), (2, 3))
+        self.assertEqual(infer_reshape(([-1, 3],), 6), (2, 3))
+        self.assertEqual(infer_reshape((-1, 3), 0), (0, 3))
+        self.assertEqual(infer_reshape(((),), 1), ())
+        self.assertEqual(infer_reshape((0, 3), 0), (0, 3))
+        for shape, count in (((), 1), ((0, -1), 0), ((-1, -1), 6), ((2, -1), 5),
+                             ((2, 3), 5), ((-2,), 2), ((True,), 1), ((-1,), 2**63)):
+            with self.subTest(shape=shape, count=count), self.assertRaises((TypeError, ValueError)):
+                infer_reshape(shape, count)
+
+
 class SharedJITExecutionMixin:
+    def test_reshape_is_lazy_fuses_and_preserves_values(self):
+        x = ft.tensor([1, 2, 3, 4, 5, 6])
+        before = self.engine.stats
+        with mock.patch.object(self.engine, "_compile", side_effect=AssertionError("eager reshape")):
+            y = (x + 1).reshape(2, -1) * ft.ones(2, 3)
+            self.assertEqual(y.shape, (2, 3))
+        self.assertEqual(y.tolist(), [[2, 3, 4], [5, 6, 7]])
+        self.assertEqual(self.engine.stats['executions'] - before['executions'], 1)
+        self.assertIn('fuga.reshape', self.engine.last_fuga_ir)
+        self.assertEqual(ft.reshape(y, [-1]).tolist(), [2, 3, 4, 5, 6, 7])
+        for dtype, values in ((ft.bool, [True, False]), (ft.int64, [2**62 + 1, -(2**62)])):
+            shaped = ft.tensor(values, dtype=dtype).reshape(1, 2)
+            self.assertIs(shaped.dtype, dtype)
+            self.assertEqual(shaped.tolist(), [values])
+        self.assertEqual(ft.tensor(2).reshape(1, 1).tolist(), [[2]])
+        self.assertEqual(ft.tensor([2]).reshape(()).tolist(), 2)
+        self.assertEqual(ft.empty(0, 3).reshape(-1).tolist(), [])
+        for shape in ((), (4,), (-1, -1), (True, 6), (0, -1)):
+            with self.subTest(shape=shape), self.assertRaises((TypeError, ValueError)):
+                x.reshape(*shape)
+        with self.assertRaises(TypeError):
+            ft.tensor([1, 2], shape=(1, 2))
+
     def test_public_dtype_objects_survive_deferred_execution(self):
         x = ft.tensor([1, 2])
         self.assertIs(x.dtype, ft.fp32)
@@ -184,7 +278,8 @@ class SharedJITExecutionMixin:
         with mock.patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before demand")), \
              mock.patch.object(self.engine, "_execute", side_effect=AssertionError("executed before demand")):
             pending = arithmetic(x, y)
-            self.assertEqual((pending.shape, pending.dtype, pending.device), ((2, 2), "f32", self.device))
+            self.assertEqual((pending.shape, pending.dtype, pending.device),
+                             ((2, 2), ft.fp32, ft.get_default_device()))
             self.assertIn("shape=(2, 2)", repr(pending))
         self.assertEqual(pending.tolist(), [[22.0, 44.0], [66.0, 88.0]])
         self.assertEqual(self.engine.stats["compilations"] - before["compilations"], 1)
@@ -324,7 +419,7 @@ class SharedJITExecutionMixin:
                 conv = bool if dtype == "bool" else (lambda v: v)
                 self.assertEqual(s.tolist(), [conv(a + b) for a, b in zip(vals, other)])
                 self.assertEqual(m.tolist(), [conv(a * b) for a, b in zip(vals, other)])
-                self.assertEqual(s.device, self.device)
+                self.assertEqual(s.device, ft.get_default_device())
                 self.assertNotEqual(s.storage.data_ptr, m.storage.data_ptr)
 
         # Rank-0, empty, partial-block, full-width i64, and ordinary Python aliases.
@@ -338,7 +433,7 @@ class SharedJITExecutionMixin:
             ((129,), list(range(129)), list(range(2, 260, 2))),
         ):
             with self.subTest(shape=shape):
-                res = affine(ft.tensor(vals, shape=shape, dtype="i32"))
+                res = affine(ft.tensor(vals, dtype=ft.int32).reshape(shape))
                 self.assertEqual((res.shape, self.engine.to_flat(res)), (shape, exp))
 
         def aliases(x, y):
@@ -439,7 +534,7 @@ class HostJITTests(SharedJITExecutionMixin, EngineTestCase):
         with mock.patch("fugatensor.engine.ExecutionSession", _MetadataSession):
             with ft.Engine("cuda:0", cache_dir=self.cache_dir / "meta-cuda") as ceng:
                 cx = ft.tensor([1, 2], dtype="f32", device="cuda:0")
-                self.assertEqual((cx.device, ceng.session.ordinal), ("cuda", 0))
+                self.assertEqual((cx.device, ceng.session.ordinal), (ft.device("cuda:0"), 0))
                 with self.assertRaisesRegex(ValueError, "device differs"):
                     ft.tensor([1], engine=ceng, device="cuda:1")
 
@@ -456,6 +551,19 @@ class HostJITTests(SharedJITExecutionMixin, EngineTestCase):
 
 @requires_cuda
 class OwnedCUDAJITTests(SharedJITExecutionMixin, EngineTestCase):
+    def test_device_objects_factories_and_cross_device_errors(self):
+        gpu = ft.ones(2, 2, device=ft.device('cuda', 0))
+        cpu = ft.zeros(2, 2, device=ft.device('cpu'))
+        self.assertEqual(gpu.device, ft.device('cuda:0'))
+        self.assertEqual((gpu.device.type, gpu.device.index), ('cuda', 0))
+        self.assertEqual(gpu.tolist(), [[1, 1], [1, 1]])
+        self.assertEqual(ft.full((2,), -0.0, device='cuda').to_buffer().tobytes(), b'\x00\x00\x00\x80' * 2)
+        self.assertEqual(ft.empty(0, 3, device='cuda').shape, (0, 3))
+        for operation in (lambda: cpu + gpu, lambda: gpu * cpu,
+                          lambda: ft.add(cpu, gpu), lambda: ft.multiply(gpu, cpu)):
+            with self.assertRaisesRegex(RuntimeError, 'same device'):
+                operation()
+
     device, phase, artifact_pattern = "cuda", "cuda_llvm", "*.cubin"
 
     def test_cached_jit_replays_graph_through_native_bridge(self):

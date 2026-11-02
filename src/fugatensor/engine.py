@@ -15,6 +15,7 @@ from fugatensor._ask import Compiler, ExecutionSession
 from ._state import require_not_tracing
 from ._config import runtime_defaults
 from .dtypes import fp32
+from .devices import normalize_device as _device_name, resolve_device
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
 from .lowering import lower_to_ask
@@ -24,15 +25,6 @@ _current = contextvars.ContextVar('fugatensor_engine', default=None)
 _default_device = contextvars.ContextVar('fugatensor_default_device', default='cpu')
 _defaults = {}
 _default_lock = threading.Lock()
-
-
-def _device_name(device):
-    if device in ('cpu', 'cuda'):
-        return device
-    if isinstance(device, str) and device.startswith('cuda:') and device[5:].isdigit():
-        ordinal = int(device[5:])
-        return 'cuda' if ordinal == 0 else f'cuda:{ordinal}'
-    raise ValueError("device must be 'cpu', 'cuda', or 'cuda:<ordinal>'")
 
 
 def _environment_options(device, *, include_compilers=True, use_config=True):
@@ -62,14 +54,15 @@ def set_default_device(device):
 
 
 def get_default_device():
-    """Return the effective device, including any active Engine context."""
+    """Return the resolved device object, including any active Engine context."""
     active = _current.get()
-    return active.device if active is not None else _default_device.get()
+    return resolve_device(active.device if active is not None else _default_device.get())
 
 
 def current_engine(device=None):
     active = _current.get()
-    selected = _device_name(device) if device is not None else get_default_device()
+    selected = (_device_name(device) if device is not None
+                else active.device if active is not None else _default_device.get())
     if active is not None and active.device == selected:
         active._check_open()
         return active
@@ -225,7 +218,12 @@ class Engine:
 
     def _check_tensor(self, tensor):
         self._check_open()
-        if not isinstance(tensor, Tensor) or tensor.engine is not self:
+        if not isinstance(tensor, Tensor):
+            raise ValueError('tensor belongs to a different FugaTensor Engine')
+        if tensor.engine.device != self.device:
+            raise RuntimeError('expected all tensors on the same device, got '
+                               f'{resolve_device(self.device)} and {resolve_device(tensor.engine.device)}')
+        if tensor.engine is not self:
             raise ValueError('tensor belongs to a different FugaTensor Engine')
 
     def elementwise(self, operation, operands, *, dtype=None):
@@ -443,17 +441,19 @@ def evaluate(*tensors):
     return results[0] if len(results) == 1 else results
 
 
-def tensor(values, *, dtype=fp32, shape=None, engine=None, device=None, requires_grad=False):
+def _select_engine(engine, device):
     require_not_tracing()
     selected = engine if engine is not None else current_engine(device)
     if device is not None and _device_name(device) != selected.device:
         raise ValueError('device differs from the selected Engine; create an Engine for that device')
-    return selected.tensor(values, dtype=dtype, shape=shape, requires_grad=requires_grad)
+    return selected
+
+
+def tensor(data, *, dtype=fp32, engine=None, device=None, requires_grad=False):
+    selected = _select_engine(engine, device)
+    return selected.tensor(data, dtype=dtype, requires_grad=requires_grad)
 
 
 def from_buffer(data, *, dtype, shape, copy=True, engine=None, device=None, requires_grad=False):
-    require_not_tracing()
-    selected = engine if engine is not None else current_engine(device)
-    if device is not None and _device_name(device) != selected.device:
-        raise ValueError('device differs from the selected Engine; create an Engine for that device')
+    selected = _select_engine(engine, device)
     return selected.from_buffer(data, dtype=dtype, shape=shape, copy=copy, requires_grad=requires_grad)

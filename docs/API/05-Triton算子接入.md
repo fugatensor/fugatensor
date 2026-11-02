@@ -44,7 +44,7 @@
 
 ## 3. 配置回调、constexpr 与启动标量
 
-使用 `input=` 时，回调接收一个 `TensorSpec`；使用 `inputs=` 时，回调接收按声明顺序排列的 `TensorSpec` tuple，包括 `inputs=("X",)` 的情况。`TensorSpec` 是不可变元信息：`shape` 为整数 tuple，`dtype` 为类型对象（如 `ft.fp32`），`device` 为字符串，`numel` 为元素总数；没有张量数据或设备指针。
+使用 `input=` 时，回调接收一个 `TensorSpec`；使用 `inputs=` 时，回调接收按声明顺序排列的 `TensorSpec` tuple，包括 `inputs=("X",)` 的情况。`TensorSpec` 是不可变元信息：`shape` 为整数 tuple，`dtype` 为类型对象（如 `ft.fp32`），`device` 为实际设备对象（如 `ft.device("cuda", 0)`），`numel` 为元素总数；没有张量数据或设备指针。输入经过 `reshape` 时，回调收到改变后的形状。
 
 `constants`、`scalars`、`grid` 以及输出 shape/dtype 回调在每次算子调用时执行，结果冻结到本次表达式。修改闭包配置会影响后续调用，不会修改已经生成的待计算 Tensor。改变配置可生成新的编译缓存项。
 
@@ -109,8 +109,8 @@ ft.configure("cuda", compilers={"triton": environment})
 x = ft.tensor([1.0, 2.0, 3.0], device="cuda")
 y, z = operation(x)
 ft.evaluate(y, z)
-assert y.tolist() == [2.0, 4.0, 6.0]
-assert z.tolist() == [2.0, 3.0, 4.0]
+print(y.tolist())  # [2.0, 4.0, 6.0]
+print(z.tolist())  # [2.0, 3.0, 4.0]
 ```
 
 <a id="support-boundaries"></a>
@@ -124,4 +124,4 @@ assert z.tolist() == [2.0, 3.0, 4.0]
 - `from_jit` 可保存引用的 Python/JIT helper、全局常量和模块导入；依赖同名冲突或无法重建的程序式调优包装会报错。自定义 JIT repr、launch metadata 和 pre-run hook 也不能快照；这些情况需要调整源码或接口，不能假定会自动导出。
 - 裸 Triton 算子没有自动梯度规则。需要梯度时用 [`ft.fun`](04-自动微分与自定义函数.md) 提供显式反向；含不透明外部算子的路径不支持二阶及以上微分。不同编译器产物作为独立 kernel 调度，不进行第三方代码融合。
 
-实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/04-ASK桥接与多后端执行.md#cuda-and-triton)，多 kernel 前反向例子见 [FlashAttention 示例](../../examples/flash_attention2.py)。
+实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/04-ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[注意力 API](08-注意力.md)。

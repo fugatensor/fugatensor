@@ -18,7 +18,7 @@ from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tracing import TraceContext
-from tests._helpers import EXAMPLES_DIR, EngineTestCase, make_ask_compiler, requires_triton
+from tests._helpers import TRITON_KERNELS, EngineTestCase, make_ask_compiler, requires_triton
 
 AFFINE_SRC = """import triton
 import triton.language as tl
@@ -360,13 +360,33 @@ class TritonWorkerContractTests(unittest.TestCase):
 
 @requires_triton
 class TritonGPUExecutionTests(EngineTestCase):
+    def test_reshape_preserves_external_tensor_metadata(self):
+        source = '''
+import triton
+import triton.language as tl
+@triton.heuristics({'ROWS': lambda args: args['X'].shape[0]})
+@triton.jit
+def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
+    tl.static_assert(ROWS == 2)
+    offsets = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
+    values = tl.load(X + offsets, mask=offsets < N, other=0)
+    tl.store(Y + offsets, values + ROWS, mask=offsets < N)
+'''
+        operation = ft.triton.from_source(source, entry='shaped', input='X', output='Y',
+            constants=lambda spec: {'N': spec.numel, 'BLOCK': 128}, grid=(1,))
+        x = ft.tensor([0, 1, 2, 3, 4, 5])
+        y = operation((x + 1).reshape(2, 3)).reshape(3, 2) + 1
+        self.assertEqual(y.tolist(), [[4, 5], [6, 7], [8, 9]])
+        self.assertEqual([step['kind'] for step in self.engine.last_report['execution_plan']['steps']],
+                         ['owned', 'external', 'owned'])
+
     device = "cuda"
     enable_triton = True
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.scale_path = EXAMPLES_DIR / "kernels.py"
+        cls.scale_path = TRITON_KERNELS
         cls.scale = ft.triton.kernel(
             cls.scale_path, entry="scale_kernel", input="inp", output="out",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
@@ -581,44 +601,6 @@ def subtract(out, N: tl.constexpr, rhs, lhs, BLOCK: tl.constexpr):
             self.assertEqual(engine.session.stats["launches"], before + 1)
             self.assertEqual([step["kind"] for step in engine.last_report["execution_plan"]["steps"]], ["external"])
 
-    def test_flash_attention_backward_uses_multiple_external_kernels(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location('fuga_attention_example_bwd', EXAMPLES_DIR / 'flash_attention2.py')
-        example = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(example)
-        for dtype in ('f16', 'bf16'):
-            if dtype == 'bf16' and not self.supports_bf16:
-                continue
-            for causal in (False, True):
-                with self.subTest(dtype=dtype, causal=causal):
-                    receipt = example.validate(dtype=dtype, causal=causal, backward=True,
-                                               m=9, n=11, d=32, dv=32)
-                    self.assertEqual(receipt['steps'], ['owned', 'external', 'owned'])
-                    self.assertGreaterEqual(
-                        sum(step == 'external' for step in receipt['backward_plan_steps']), 4)
-                    self.assertTrue(receipt['verified'])
-                    self.assertLess(receipt['dq_error'], 0.02)
-                    self.assertLess(receipt['dk_error'], 0.02)
-                    self.assertLess(receipt['dv_error'], 0.02)
-        # Backward also covers a different head/value width, not just D == DV.
-        receipt = example.validate(dtype='f16', causal=False, backward=True,
-                                   m=7, n=8, d=64, dv=32)
-        self.assertTrue(receipt['verified'])
-        self.assertEqual(receipt['backward_plan_steps'].count('external'), 5)
-
-    def test_flash_attention_forward_and_owned_surroundings(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location('fuga_attention_example', EXAMPLES_DIR / 'flash_attention2.py')
-        example = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(example)
-        for dtype in ('f16', 'bf16'):
-            if dtype == 'bf16' and not self.supports_bf16:
-                continue
-            for causal in (False, True):
-                with self.subTest(dtype=dtype, causal=causal):
-                    receipt = example.validate(dtype=dtype, causal=causal)
-                    self.assertEqual(receipt['steps'], ['owned', 'external', 'owned'])
-                    self.assertTrue(receipt['verified'])
 
 
 if __name__ == "__main__":

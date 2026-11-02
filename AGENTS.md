@@ -5,7 +5,8 @@
 1. 完成一组代码或文档修改并通过相关验证后，创建本地 Git 提交（使用仓库已配置的 Git 身份），便于回退。未完成的检查点需在提交说明中标明状态。
 2. 第三方 SDK、构建产物（`build/`、`dist/`、`*.egg-info/`）、Python 虚拟环境（`.venv/`）和缓存（`.cache/`、`__pycache__/`）不纳入 Git；保留依赖锁记录及引导脚本（`tools/bootstrap.py`）。
 3. 文档使用自然直接的中文说明设计动机、模块配合与能力边界，避免 AI 式套话、过渡废话，不把未实现的规划写成现有能力。
-4. 修改接口、IR 规则、构建参数或测试结构时，同步更新 `README.md`、`docs/API/`、`docs/architecture/`、`docs/ir/` 及相关示例，并保持双向链接锚点有效。
+4. 修改接口、IR 规则、构建参数或测试结构时，同步更新 `README.md`、`docs/API/`、`docs/architecture/`、`docs/ir/` 中的示例，并保持双向链接锚点有效。
+5. 示例只写在文档中，提供合法、简洁的 API 用法，可用 `print` 展示结果；不另外维护演示脚本。测试位于 `tests/`，必须使用断言验证行为，不能依赖示例脚本或以打印结果代替验证。可复用算子实现属于 `src/fugatensor/`，测试参考与输入生成属于测试支持模块。第三方 kernel 源码中的算法约束保留。
 
 ---
 
@@ -17,6 +18,8 @@
   - 实际张量算术统一编译后交由 ASK 执行，不在 Python 中实现张量数值计算回退。
 - **自动组图、执行边界与 `ft.fun` 契约**：
   - 常规 API 直接使用 `ft.tensor(...)`，默认 CPU 与 `ft.fp32`，不要求显式 `Engine` 或上下文。`ft.set_default_device` 只改变当前上下文后续创建的设备，默认引擎按设备复用并在正常退出时清理；独立 Engine 属于高级资源管理接口。
+  - `tensor(data)` 从规则嵌套数据推断形状；`zeros`、`ones`、`empty` 按尺寸创建，`full(size, value)` 按值填充。改变形状使用延迟原语 `reshape`，保持元素次序，JVP/VJP 保留对应形状；不承诺共享存储，也不提供 `view`。
+  - 设备参数接受 `ft.device` 对象或字符串，Tensor、TraceTensor、TensorSpec 暴露实际设备对象；默认 CUDA 解析为 0。不同设备张量算术报 `RuntimeError`，同设备但属于不同独立 Engine 报 `ValueError`。
   - 用户精度参数和示例使用 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16` 类型对象；Tensor 与追踪元信息返回相同单例，IR、产物和权重清单保留原有字符串编码。
   - 用户无需 JIT 装饰器；普通 Python 函数每次正常执行，Tensor 运算返回待计算图节点。读取数据、0-D 标量条件判断、反向传播与 `ft.evaluate(...)` 触发所需依赖图的 JIT 编译和执行。
   - 跨算子与普通函数调用保留图连接和融合机会；执行缓存属于 `Engine`，按图结构和自定义函数定义身份复用，不能跳过用户 Python 逻辑。
@@ -25,7 +28,7 @@
 - **多 Kernel 执行**：
   - FugaTensor 向 ASK 提交完整静态图，自有计算区域保留融合，外部算子统一作为独立 kernel 调度；前端不限制整图只有一个外部节点。
   - Triton 通过 `inputs=` / `outputs=` 注册多输入与多输出，`scalars=` 绑定按值启动参数，输出形状/类型和配置回调只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
-  - 复杂算子（如 FlashAttention）的反向由 `ft.fun` 的显式 `backward` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
+  - 内置 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 实现，支持 CUDA fp16/bf16 前向与一阶反向。复杂算子的反向由 `ft.fun` 的显式 `backward` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
 - **自动微分与原语闭合**：
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
@@ -47,6 +50,10 @@
   - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
   - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK。安装详情见 [`docs/安装.md`](docs/安装.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
+- **测试组织**：
+  - 基础数值测试从算子注册表生成组合，再与精度、求导阶数和设备正交交叉；新增算子扩展同一注册表，不逐个手写所有组合。独立参考给出预期数值，统一断言校验形状、类型、结果和梯度；环境变量可缩小覆盖用于定位。
+  - 状态寿命、缓存、异常契约和不透明外部算法保留独立测试；FlashAttention 测试直接调用用户 API，按精度、因果模式、形状与前后运算生成覆盖。
+  - 测试命令、矩阵筛选与新增覆盖方式见 [`docs/测试.md`](docs/测试.md)。
 - **测试运行**：
   - 前端测试位于 `tests/test_*.py`，共用 `tests/_helpers.py` 的 `EngineTestCase`：
     - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`

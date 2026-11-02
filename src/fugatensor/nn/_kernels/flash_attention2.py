@@ -10,7 +10,7 @@ Upstream license: LICENSE.triton in this directory (MIT).
 One program owns BLOCK_M query rows and streams BLOCK_N key/value rows.
 The accumulator, online maximum and normalization sum use FP32; both dot
 products use Tensor Cores with FP16/BF16 operands. No quadratic score buffer,
-autotuning, dropout, bias, variable lengths, backward or performance claim.
+autotuning, dropout, bias, variable lengths or performance claim.
 Contiguous Q[B,H,M,D], K[B,H,N,D], V[B,H,N,DV] -> O[B,H,M,DV].
 CAUSAL uses top-left alignment: key position <= query position, including M!=N.
 """

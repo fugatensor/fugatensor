@@ -91,6 +91,8 @@ def lower_to_ask(module, *, target=None, max_unroll=10000, source_map=None):
                 result = graph.splat(operands[0], op.results[0].type.shape, **kwargs)
             elif op.opcode == 'cast':
                 result = graph.cast(operands[0], dtype=op.results[0].type.dtype, **kwargs)
+            elif op.opcode == 'reshape':
+                result = graph.reshape(operands[0], op.results[0].type.shape, **kwargs)
             elif op.opcode in ('add', 'mul'):
                 result = getattr(graph, op.opcode)(*operands, **kwargs)
             elif op.opcode == 'external':

@@ -1,19 +1,7 @@
-"""A framework constructs P -> external Triton F -> Q through the ASK SDK.
-
-Run from an installed package, or use PYTHONPATH=python from the repository:
-  python3 examples/framework_frontend.py --emit-only
-  python3 examples/framework_frontend.py --ask-opt build/bin/ask-opt
-
-Preparing this graph verifies the declaration of F; it does not execute its DSL.
-"""
-
+"""Reusable graph fixtures for native compiler and protocol tests."""
 from __future__ import annotations
 
-import argparse
-import json
-import os
-
-from fugatensor._ask import Compiler, Module, TensorType
+from fugatensor._ask import Module, TensorType
 
 
 TRITON_SCALE2 = '''import triton
@@ -27,7 +15,7 @@ def scale2(t, u, N: tl.constexpr, BLOCK: tl.constexpr):
 '''
 
 
-def build_module() -> Module:
+def external_module() -> Module:
     """Describe y = (x + 1) * 2 + 3 with i32 wrapping arithmetic."""
     module = Module()
     tensor = TensorType((10,), "i32")
@@ -54,24 +42,3 @@ def build_module() -> Module:
     y = graph.add(marked_u, three, id="Q", value_id="v_y")
     graph.return_(y)
     return module
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ask-opt", default=os.environ.get("ASK_OPT"),
-                        help="optional ask-opt path (defaults to in-process native bindings)")
-    parser.add_argument("--emit-only", action="store_true", help="print input MLIR without preparing it")
-    arguments = parser.parse_args()
-    module = build_module()
-    if arguments.emit_only:
-        print(module.to_mlir(), end="")
-        return
-    prepared = Compiler(arguments.ask_opt).prepare(module)
-    print("Prepared ASK IR (external DSL has not been compiled or executed):")
-    print(prepared.ir, end="")
-    print("Preparation report:")
-    print(json.dumps(prepared.report, ensure_ascii=False, indent=2))
-
-
-if __name__ == "__main__":
-    main()

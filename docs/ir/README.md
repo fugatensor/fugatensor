@@ -36,7 +36,7 @@ Fuga IR 由 `ScalarType`、`TensorType`、SSA `Value`、`Operation`、`Block`、
 
 `ir/primitives.py` 集中定义各基础算子的抽象类型推导（`abstract_eval`）、前向切线规则（`jvp`）与反向余切规则（`vjp`）：
 
-- 算术与类型转换建立在 `constant`、`splat`、`add`、`mul`、`cast` 五种基础算子之上，`subtract`、`negative`、`square` 在追踪期由它们组合展开；
+- 算术、类型转换和形状变换建立在 `constant`、`splat`、`add`、`mul`、`cast`、`reshape` 六种基础算子之上，`subtract`、`negative`、`square` 在追踪期由它们组合展开；
 - `ir.jvp(module)` 与 `ir.vjp(module)` 输出合法的 Fuga IR `Module`，支持 `vjp(vjp(module))`、`jvp(vjp(module))`、`vjp(jvp(module))` 嵌套组合，支撑运行时 `create_graph=True` 的高阶求导。
 
 工程细节：[02. 控制流与可组合变换](02-控制流与可组合变换.md) · [运行时自动微分与高阶求导](../architecture/03-自动微分与自定义算子.md#higher-order)

@@ -24,7 +24,7 @@ class WeightExportTests(EngineTestCase):
             "bf16": ft.tensor([1.5, -2.0], dtype="bf16"),
             "nested": [{"weight": ft.tensor([[1.0, 2.0]], dtype="f32")},
                        (ft.tensor(3.0, dtype="f32"),)],
-            "empty": ft.tensor([], shape=(2, 0, 3), dtype="f32"),
+            "empty": ft.empty(2, 0, 3),
         }
 
     def test_published_manifest_schema_describes_the_format(self):

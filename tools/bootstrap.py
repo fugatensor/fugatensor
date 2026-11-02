@@ -301,8 +301,7 @@ def bootstrap(args):
         "ptxas": configuration.get("ptxas"),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
-    print(f"Ready: {shlex.quote(str(python))} {shlex.quote(str(ROOT / 'examples/jit_demo.py'))} --device cpu",
-          flush=True)
+    print(f"Ready: {shlex.quote(str(python))}; API: {ROOT / 'docs/API/README.md'}", flush=True)
     return summary
 
 

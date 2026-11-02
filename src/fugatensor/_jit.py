@@ -11,6 +11,7 @@ from types import MethodType
 
 from ._state import active_trace
 from .dtypes import DType
+from .devices import device as Device
 from .tensor import Tensor
 from .tracing import TraceContext, TraceTensor
 
@@ -25,11 +26,15 @@ class _Traced:
 def _static_key(value):
     if isinstance(value, DType):
         return 'dtype', value.value
+    if isinstance(value, Device):
+        return 'device', value.type, value.index
+    if isinstance(value, tuple):
+        return 'tuple', tuple(_static_key(item) for item in value)
     if type(value) in (bool, int, str, type(None)):
         return type(value).__name__, value
     if type(value) is float:
         return 'float', struct.pack('!d', value)
-    raise TypeError('operation arguments must be Tensor objects or static DType/bool/int/float/str/None values')
+    raise TypeError('operation arguments must be Tensor objects or static device/DType/bool/int/float/str/None values or tuples')
 
 
 class JITFunction:

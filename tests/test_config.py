@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import fugatensor as ft
 from fugatensor._config import runtime_defaults
+from fugatensor.devices import device as Device, normalize_device, resolve_device
 from fugatensor.engine import Engine, configure, shutdown, current_engine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +92,44 @@ class EngineConfigTests(unittest.TestCase):
             runtime_defaults("cuda")
 
 
+class DeviceDescriptionTests(unittest.TestCase):
+    def test_optional_index_identity_and_immutability(self):
+        cpu, unspecified, indexed = Device("cpu"), Device("cuda"), Device("cuda", 0)
+        self.assertEqual((cpu.type, cpu.index), ("cpu", None))
+        self.assertEqual((unspecified.type, unspecified.index), ("cuda", None))
+        self.assertEqual((indexed.type, indexed.index), ("cuda", 0))
+        self.assertEqual(indexed, Device("cuda:0"))
+        self.assertEqual(Device(indexed), indexed)
+        self.assertNotEqual(unspecified, indexed)
+        self.assertNotEqual(unspecified, "cuda")
+        self.assertEqual({indexed: 1}[Device("cuda:0")], 1)
+        self.assertEqual(str(indexed), "cuda:0")
+        self.assertEqual(repr(cpu), "device(type='cpu')")
+        self.assertEqual(repr(indexed), "device(type='cuda', index=0)")
+        with self.assertRaises(AttributeError):
+            indexed.index = 2
+        self.assertEqual(resolve_device(unspecified), indexed)
+        self.assertEqual(resolve_device(Device("cpu:0")), cpu)
+        self.assertEqual(normalize_device(indexed), "cuda")
+        self.assertEqual(normalize_device(Device("cuda", 2)), "cuda:2")
+
+    def test_invalid_device_descriptions_are_rejected(self):
+        for value in ("gpu", "cuda:-1", "cuda:", "cuda:one", "cpu:1", " cuda", "cuda:1:2"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                Device(value)
+        for index in (True, 1.5, "0"):
+            with self.subTest(index=index), self.assertRaises(TypeError):
+                Device("cuda", index)
+        with self.assertRaises(ValueError):
+            Device("cuda", -1)
+        with self.assertRaisesRegex(ValueError, "twice"):
+            Device("cuda:1", 1)
+        with self.assertRaises(TypeError):
+            Device(Device("cuda"), 1)
+        with self.assertRaises(TypeError):
+            Device(0)
+
+
 class DefaultDeviceTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -111,53 +150,82 @@ class DefaultDeviceTests(unittest.TestCase):
         self.assertEqual(x.dtype, "f32")
         self.assertEqual(ft.tensor([1, 2]).dtype, "f32")
         self.assertIs(x.engine, y.engine)
+        with self.assertRaisesRegex(TypeError, "shape"):
+            ft.tensor([1, 2], shape=(1, 2))
         result = x * x + y
         result.backward()
         self.assertEqual(result.tolist(), 11.0)
         self.assertEqual(x.grad.tolist(), 6.0)
         ft.set_default_device("cuda:0")
-        self.assertEqual(ft.get_default_device(), "cuda")
+        self.assertEqual(ft.get_default_device(), Device("cuda:0"))
         self.assertFalse(x.engine.closed)
         self.assertEqual((x + 1).tolist(), 4.0)
-        self.assertIs(ft.tensor(5, device="cpu").engine, x.engine)
-        ft.shutdown("cpu")
+        self.assertIs(ft.tensor(5, device=Device("cpu")).engine, x.engine)
+        ft.shutdown(Device("cpu"))
         self.assertTrue(x.engine.closed)
-        self.assertEqual(ft.get_default_device(), "cuda")
+        self.assertEqual(ft.get_default_device(), Device("cuda:0"))
 
     def test_selection_is_lazy_and_context_local(self):
         first, second = contextvars.Context(), contextvars.Context()
         with patch("fugatensor.engine.Engine") as engine:
-            first.run(ft.set_default_device, "cuda:2")
+            first.run(ft.set_default_device, Device("cuda", 2))
             second.run(ft.set_default_device, "cuda:0")
-            self.assertEqual(first.run(ft.get_default_device), "cuda:2")
-            self.assertEqual(second.run(ft.get_default_device), "cuda")
-            self.assertEqual(ft.get_default_device(), "cpu")
+            self.assertEqual(first.run(ft.get_default_device), Device("cuda:2"))
+            self.assertEqual(second.run(ft.get_default_device), Device("cuda:0"))
+            self.assertEqual(ft.get_default_device(), Device("cpu"))
             with self.assertRaises(ValueError):
                 first.run(ft.set_default_device, "gpu")
-            self.assertEqual(first.run(ft.get_default_device), "cuda:2")
+            self.assertEqual(first.run(ft.get_default_device), Device("cuda:2"))
             engine.assert_not_called()
 
     def test_explicit_engines_and_devices_override_selection(self):
         default = ft.tensor(1).engine
         ft.set_default_device("cuda:1")
-        with Engine("cpu") as active:
-            self.assertEqual(ft.get_default_device(), "cpu")
+        with Engine(Device("cpu")) as active:
+            self.assertEqual(ft.get_default_device(), Device("cpu"))
             self.assertIs(ft.tensor(2).engine, active)
             self.assertIs(ft.tensor(3, engine=default).engine, default)
             with self.assertRaisesRegex(ValueError, "device differs"):
                 ft.tensor(4, engine=active, device="cuda")
-            with Engine("cuda:2", compilers={}) as cuda:
-                self.assertEqual(ft.get_default_device(), "cuda:2")
+            with Engine(Device("cuda", 2), compilers={}) as cuda:
+                self.assertEqual(ft.get_default_device(), Device("cuda:2"))
                 self.assertIs(current_engine(), cuda)
-                self.assertIs(ft.tensor(5, device="cpu").engine, default)
+                self.assertIs(current_engine(Device("cuda:2")), cuda)
+                cpu_tensor = ft.tensor(5, device=Device("cpu"))
+                self.assertIs(cpu_tensor.engine, default)
+                with self.assertRaisesRegex(RuntimeError, "same device, got cuda:2 and cpu"):
+                    cuda.evaluate(cpu_tensor)
+                with self.assertRaisesRegex(ValueError, "different FugaTensor Engine"):
+                    active.evaluate(cpu_tensor)
                 self.assertIsNone(cuda._session)
-            self.assertEqual(ft.get_default_device(), "cpu")
-        self.assertEqual(ft.get_default_device(), "cuda:1")
+            self.assertEqual(ft.get_default_device(), Device("cpu"))
+        self.assertEqual(ft.get_default_device(), Device("cuda:1"))
         self.assertFalse(default.closed)
-        configured = ft.configure("cpu")
+        configured = ft.configure(Device("cpu"))
         self.assertTrue(default.closed)
         self.assertFalse(configured.closed)
-        self.assertEqual(ft.get_default_device(), "cuda:1")
+        self.assertEqual(ft.get_default_device(), Device("cuda:1"))
+
+    def test_devices_are_static_fun_arguments_and_configuration(self):
+        class Select(ft.fun):
+            selected = Device("cuda")
+
+            def forward(self, ctx, value, requested=Device("cuda")):
+                return value + (1 if requested == self.selected else 2)
+
+        operation = Select()
+        value = ft.tensor(3.0)
+        self.assertEqual(operation(value).tolist(), 4.0)
+        self.assertEqual(operation(value, Device("cuda:0")).tolist(), 5.0)
+        self.assertEqual(operation(value, "cuda").tolist(), 5.0)
+        self.assertEqual(operation(value, Device("cuda")).tolist(), 4.0)
+        operation.selected = Device("cuda:0")
+        self.assertEqual(operation(value, Device("cuda:0")).tolist(), 4.0)
+        operation.selected = (Device("cpu"), (2, 3))
+        self.assertEqual(operation(value, (Device("cpu"), (2, 3))).tolist(), 4.0)
+        self.assertEqual(operation(value, (Device("cpu"), (3, 2))).tolist(), 5.0)
+        with self.assertRaises(TypeError):
+            operation(value, [Device("cpu"), (2, 3)])
 
     def test_buffer_and_weight_factories_share_selected_engine(self):
         from array import array

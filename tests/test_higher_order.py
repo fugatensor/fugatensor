@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fugatensor._ask import CompilerError
 from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
-from tests._helpers import EXAMPLES_DIR, EngineTestCase, requires_cuda, requires_triton
+from tests._helpers import TRITON_KERNELS, EngineTestCase, requires_cuda, requires_triton
 
 
 class SharedHigherOrderMixin:
@@ -137,7 +137,7 @@ class OpaqueExternalHigherOrderTests(EngineTestCase):
 
     def test_opaque_triton_in_forward_or_backward_is_rejected_before_reverse_work(self):
         scale = ft.triton.kernel(
-            EXAMPLES_DIR / "kernels.py",
+            TRITON_KERNELS,
             entry="scale_kernel", input="inp", output="out",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
             grid=lambda spec: ((spec.numel + 127) // 128,),

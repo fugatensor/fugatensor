@@ -309,6 +309,20 @@ class Graph:
                        else ScalarType(dtype))
         return self._emit("ask.cast", (value,), result_type, {}, id=id, value_id=value_id)
 
+    def reshape(self, value: Value, shape: Sequence[int], *, id: str | None = None,
+                value_id: str | None = None) -> Value:
+        self._check_values((value,))
+        if not isinstance(value.type, TensorType):
+            raise TypeError("reshape requires a tensor")
+        result_type = TensorType(tuple(shape), value.type.dtype)
+        if None in value.type.shape or None in result_type.shape:
+            raise ValueError("reshape requires concrete shapes")
+        import math
+        if math.prod(value.type.shape) != math.prod(result_type.shape):
+            raise ValueError("reshape must preserve the number of elements")
+        return self._emit("ask.reshape", (value,), result_type,
+                          {"shape": _array_i64(result_type.shape)}, id=id, value_id=value_id)
+
     def _binary(self, operation: str, lhs: Value, rhs: Value, *, id: str | None,
                 value_id: str | None) -> Value:
         self._check_values((lhs, rhs))

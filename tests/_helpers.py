@@ -10,7 +10,7 @@ from fugatensor._ask import Compiler, CompilerError, ExecutionSession
 import fugatensor as ft
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES_DIR = ROOT / "examples"
+TRITON_KERNELS = ROOT / "tests/fixtures/triton_kernels.py"
 
 requires_cuda = unittest.skipUnless(
     os.environ.get("FUGATENSOR_TEST_CUDA") == "1",

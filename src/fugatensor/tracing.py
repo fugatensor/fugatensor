@@ -1,8 +1,10 @@
 """Trace tensor expressions into device-independent Fuga SSA."""
 from __future__ import annotations
 
+import math
 from .ir import Module, TensorType, Value
 from .dtypes import DType
+from .devices import device as Device, resolve_device
 
 from .tensor import normalize_dtype, normalize_shape
 from ._state import active_trace
@@ -29,12 +31,17 @@ class TraceTensor:
         return DType(self.value.type.dtype)
 
     @property
-    def device(self) -> str:
-        return self.context.engine.device if self.context.engine is not None else "cpu"
+    def device(self) -> Device:
+        return resolve_device(self.context.engine.device if self.context.engine is not None else "cpu")
 
     def astype(self, dtype: DType | str) -> TraceTensor:
         value = self.context.graph.cast(self.value, dtype=normalize_dtype(dtype))
         return self.context.wrap(value)
+
+    def reshape(self, *shape) -> TraceTensor:
+        from ._shape import infer_reshape
+        shape = infer_reshape(shape, math.prod(self.shape))
+        return self.context.wrap(self.context.graph.reshape(self.value, shape))
 
     def _operand(self, other):
         if isinstance(other, TraceTensor):

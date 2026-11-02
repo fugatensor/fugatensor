@@ -5,6 +5,7 @@ registered VJP/JVP callbacks that emit this same basis, so another transform can
 consume the result without evaluating tensor values in Python.
 """
 from dataclasses import dataclass
+import math
 from types import MappingProxyType
 
 from .errors import DifferentiationError
@@ -54,6 +55,17 @@ def _cast_type(inputs, attrs):
     return (cast_type(inputs[0], attrs["dtype"]),)
 
 
+def _reshape_type(inputs, attrs):
+    if len(inputs) != 1 or not isinstance(inputs[0], TensorType) or set(attrs) != {"shape"}:
+        raise TypeError("reshape requires one tensor and an explicit shape")
+    result = TensorType(attrs["shape"], inputs[0].dtype)
+    if None in inputs[0].shape or None in result.shape:
+        raise ValueError("reshape requires concrete shapes")
+    if math.prod(inputs[0].shape) != math.prod(result.shape):
+        raise ValueError("reshape must preserve the number of elements")
+    return (result,)
+
+
 def _arithmetic_type(inputs, attrs):
     if len(inputs) != 2 or inputs[0] != inputs[1]:
         raise TypeError("arithmetic requires exactly equal operand and result types")
@@ -93,6 +105,14 @@ def _cast_vjp(builder, operation, primals, cotangent, active):
     return (builder.cast(cotangent, dtype=operation.operands[0].type.dtype),)
 
 
+def _reshape_vjp(builder, operation, primals, cotangent, active):
+    return (builder.reshape(cotangent, operation.operands[0].type.shape) if active[0] else None,)
+
+
+def _reshape_jvp(builder, operation, primals, tangents):
+    return (None if tangents[0] is None else builder.reshape(tangents[0], operation.results[0].type.shape),)
+
+
 def _jvp_constant(*args):
     from .jvp import _constant_jvp
     return _constant_jvp(*args)
@@ -129,6 +149,8 @@ PRIMITIVE_RULES = MappingProxyType({
                          "Multiply each derivative by the opposite primal operand."),
     "cast": PrimitiveRule("cast", _cast_type, _cast_vjp, _jvp_cast,
                           "Floating casts cast the derivative too; rounding is ignored."),
+    "reshape": PrimitiveRule("reshape", _reshape_type, _reshape_vjp, _reshape_jvp,
+                             "Reshape tangents forward and cotangents back to the operand shape."),
 })
 
 

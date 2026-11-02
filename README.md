@@ -14,7 +14,17 @@ print(arithmetic(x, y).tolist())
 # [[22.0, 44.0], [66.0, 88.0]]
 ```
 
-默认使用 CPU 和 `ft.fp32`，无需创建引擎或使用 `with`，资源在正常进程退出时自动清理。需要其他精度时传 `dtype=ft.fp16` 等类型对象；使用 GPU 时传 `device="cuda"`，或先调用 `ft.set_default_device("cuda")` 统一选择后续张量的默认设备。
+默认使用 CPU 和 `ft.fp32`，无需创建引擎或使用 `with`，资源在正常进程退出时自动清理。需要其他精度时传 `dtype=ft.fp16` 等类型对象；设备可用 `ft.device("cuda", 0)` 或字符串 `"cuda:0"` 指定，也可用 `ft.set_default_device(...)` 统一选择后续张量的默认设备。
+
+按尺寸创建张量和改变形状可以直接写：
+
+```python
+x = ft.ones(2, 2)
+y = ft.tensor([1, 2, 3, 4]).reshape(2, 2)
+print((x + y).reshape(-1).tolist())  # [2.0, 3.0, 4.0, 5.0]
+```
+
+`tensor` 从嵌套数据推断形状；`zeros`、`ones`、`empty` 接受多个尺寸或一个 tuple/list，`full(size, value)` 指定填充值。`reshape` 保留元素次序并参与延迟计算和自动微分，可用一个 `-1` 推断尺寸。完整规则见[张量创建与形状](docs/API/01-张量与数据交换.md#size-factories)。
 
 - **自动组图与 JIT 执行**：`x + 2`、`x.square()`、`x.astype(ft.fp16)` 等运算先返回待计算 Tensor，跨算子和普通函数调用保留融合机会；执行边界合并依赖图，并按图结构和类型复用编译结果。所有张量算术都由 ASK 执行。
 - **CPU 与自有 CUDA 后端**：将张量指定为 `device="cuda"` 即可通过 ASK 自有 CUDA 后端生成并异步执行 GPU kernel，无需依赖 Triton。
@@ -69,28 +79,11 @@ class CustomSquare(ft.fun):
 
 ### 2. 接入用户 Triton 算子
 
-编写标准 Triton kernel（如 [examples/kernels.py](examples/kernels.py)）并注册输入输出参数与启动配置：
+使用 `ft.triton.from_source(source, ...)` 注册源码字符串，或通过 `ft.triton.kernel(path, ...)` 读取自己的 kernel 文件；已有 JIT 对象可通过 `ft.triton.from_jit(fn, ...)` 注册。配置张量端口、启动网格与参数后，返回的算子可以直接与普通张量运算组合。
 
-```python
-scale = ft.triton.kernel(
-    "examples/kernels.py",
-    entry="scale_kernel",
-    input="inp",
-    output="out",
-    constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
-    grid=lambda spec: ((spec.numel + 127) // 128, 1, 1),
-    options={"num_warps": 4},
-)
-def mixed(x):
-    return scale(x + 1) + 3
+注册时保存源码快照，不在宿主进程导入 Triton。worker 将源码编译成 `cubin`，ASK 在同一 stream 上调度外部 kernel 与前后自有计算，自有区域仍可融合。`scalars=` 绑定按值参数，`outputs=` 声明多个输出；autotune 只选择显式配置。完整用法见[标量与双输出示例](docs/API/05-Triton算子接入.md#example)，环境准备见 [Triton 配置](docs/安装.md#configure-triton)。
 
-x = ft.tensor([[1, 2], [3, 4]], device="cuda")
-print(mixed(x).tolist())  # [[7.0, 9.0], [11.0, 13.0]]
-```
-
-注册时保存源码快照，不在宿主进程导入 Triton。使用 `ft.triton.environment(python="/path/to/triton-env/bin/python")` 配置编译环境，worker 默认随 FugaTensor 包提供。上述图编译成 `owned(+1) → external(scale) → owned(+3)` 三个步骤，同一 stream 顺序执行，中间张量保存在显存；ASK 自有计算区域仍可融合。安装步骤见 [Triton 配置](docs/安装.md#configure-triton)。
-
-已有 JIT 对象可通过 `ft.triton.from_jit(fn, ...)` 注册。`scalars=` 绑定普通 `N`、stride、scale 等按值参数，`outputs=` 声明多个输出；`constants=` 支持浮点、bool、字符串、tuple、None 与 dtype。`autotune` 使用显式 `config=索引`，不运行自动测速。见[标量与双输出示例](examples/triton_multi_output.py)及[完整接入边界](docs/architecture/04-ASK桥接与多后端执行.md#cuda-and-triton)。
+内置注意力直接调用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，无需注册 kernel。该接口使用 FlashAttention 实现，支持 CUDA 上 `ft.fp16` / `ft.bf16` 的前向与一阶反向；形状与支持边界见[注意力 API](docs/API/08-注意力.md)。
 
 ### 3. 查看 IR、溯源产物与缓存统计
 
@@ -115,15 +108,18 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 | 项目 | 当前行为 |
 | --- | --- |
 | **数据类型** | 默认 `ft.fp32`；支持 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`，用 `.astype(...)` 显式转换 |
-| **基础运算** | `add`、`subtract`、`multiply`、`negative`、`square`、`cast`、`zeros_like`、`ones_like`（静态形状，含 0-D 标量与空张量，无隐式广播） |
+| **张量创建与基础运算** | `tensor`、`zeros`、`ones`、`empty`、`full`；加减乘、负号、`square`、`cast`、`reshape`、`zeros_like`、`ones_like`（静态形状，含 0-D 标量与空张量，无隐式广播） |
 | **控制流** | Fuga IR 静态 `if` 选择与有界 `for` 展开；普通 Python 支持 0-D Tensor 的 `if`/`while`，条件读取触发按需执行 |
 | **自动微分** | `requires_grad`、`.backward()`、`.grad` 累加、`detach()`、`no_grad()`、`ft.fun` 自定义前反向、`create_graph=True` 高阶求导 |
+| **注意力** | `nn.functional.scaled_dot_product_attention`，CUDA fp16/bf16、可选因果掩码、FlashAttention 前向及一阶反向 |
 | **权重导出** | 版本化 PyTree 权重目录，支持嵌套 dict/list/tuple、六种基础 dtype、内容寻址去重、原子导出与完整性校验 |
-| **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA（多输入/异构多输出，无需 Triton）、独立 Triton `cubin` 与多 kernel 调度、多输入/多输出静态外部算子、按值标量；FlashAttention-2 前向/反向多 kernel 示例 |
+| **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA（多输入/异构多输出，无需 Triton）、独立 Triton `cubin` 与多 kernel 调度、多输入/多输出静态外部算子、按值标量 |
 
 暂未实现隐式广播、矩阵乘法与归约算子；含不透明 Triton 算子的路径支持一阶手写反向，不支持二阶及以上高阶微分。
 
 ## 测试
+
+示例写在文档中，测试放在 `tests/` 并使用断言。数值覆盖由算子、组合深度、精度和求导阶数生成；筛选参数与扩展方式见[测试矩阵](docs/测试.md)。
 
 ```bash
 # CPU 编译、C++ 原生图分析、Fuga IR / JVP / VJP 与降级测试
@@ -140,10 +136,8 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 
 - [安装与独立构建](docs/安装.md)
 - [文档目录](docs/README.md)
-- [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级。
+- [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、注意力。
 - **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [01. 张量模型与追踪机制](docs/architecture/01-张量模型与追踪机制.md) · [02. 原生图分析与 C++ 边界](docs/architecture/02-原生图分析与C++边界.md) · [03. 自动微分与自定义算子](docs/architecture/03-自动微分与自定义算子.md) · [04. ASK 桥接与多后端执行](docs/architecture/04-ASK桥接与多后端执行.md) · [05. 权重格式与导出](docs/architecture/05-权重格式与导出.md)
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [01. 对象模型与验证](docs/ir/01-对象模型与验证.md) · [02. 控制流与可组合变换](docs/ir/02-控制流与可组合变换.md) · [03. 降级到 ASK](docs/ir/03-降级到ASK.md)
 
-[多 kernel 计划契约](../ask/docs/08-图切分与多Kernel执行计划.md) · [Flash Attention 2 前向/反向示例](examples/flash_attention2.py) · [权重格式与导出](docs/architecture/05-权重格式与导出.md)
-
-FlashAttention-2 前向是单个 `external` attention 步骤加自有前后计算；反向为统计量、dQ、dK、dV 四个单输出外部 kernel，当前执行计划还会重算一次前向 attention 以取得保存的 `O`，共调度五个外部步骤。
+[多 kernel 计划契约](../ask/docs/08-图切分与多Kernel执行计划.md) · [注意力 API](docs/API/08-注意力.md) · [权重格式与导出](docs/architecture/05-权重格式与导出.md)

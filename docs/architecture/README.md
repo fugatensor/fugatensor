@@ -34,7 +34,7 @@ flowchart TD
 
 ## 2. 张量模型、自动组图与执行边界
 
-Tensor 持有 CPU/CUDA 存储，或记录尚未计算的表达式及已知形状、类型和设备。`x + y`、`x.astype(ft.fp16)` 等运算自动组图；普通 Python 函数每次正常运行，无需装饰器。跨函数调用仍保留同一数据流与融合机会。
+Tensor 持有 CPU/CUDA 存储，或记录尚未计算的表达式及已知形状、类型和设备。`x + y`、`x.astype(ft.fp16)`、`x.reshape(2, 2)` 等运算自动组图；普通 Python 函数每次正常运行，无需装饰器。跨函数调用仍保留同一数据流与融合机会。
 
 读取数据、0-D 标量条件判断、`.backward()` 或 `ft.evaluate(...)` 触发 JIT。引擎回溯所需输出，先用不可变模板及连接关系查询结构缓存，未命中才合并 Fuga IR 并编译。`ft.evaluate(a, b)` 可以一起计算多个输出；已计算 Tensor 的重复读取不再执行。已有连续内存可通过 `from_buffer` / `to_buffer` 批量传递，避免逐元素转换。
 
@@ -64,7 +64,7 @@ Python `if` / `while` 通过条件 Tensor 的实际真值选择路径，后续�
 
 - **反向调度与预检**：构建表达式时，若输入含需要梯度的张量且未处于 `no_grad`，输出即记录 Fuga IR、正向实参与梯度历史；数值执行时间不改变这条边界。调用 `.backward()` 时先按拓扑逆序扫描历史 DAG 完成预检（Preflight Validation）：若必经路径上存在缺少反向规则的不透明外部算子，在启动反向编译或更新 `.grad` 之前直接报错。
 - **`ft.fun` 自定义算子**：继承 `ft.fun` 并定义普通 `forward` 与可选 `backward` 方法；追踪期生成带 `saved` 中间值端口的 `fuga.call`，求导期将其替换为 `backward` 对应的 Fuga IR 子图（支持在 `backward` 中调用手写 Triton kernel）。
-- **高阶求导（`create_graph=True`）**：基础算子（`constant`、`splat`、`add`、`mul`、`cast`）的 `jvp` 与 `vjp` 规则生成的仍是这五种基础算子；开启 `create_graph=True` 时，反向计算继续组图、合并并由 ASK 执行，同时记录梯度历史，支持继续调用 `.backward()` 求高阶导数。
+- **高阶求导（`create_graph=True`）**：基础算子（`constant`、`splat`、`add`、`mul`、`cast`、`reshape`）的 `jvp` 与 `vjp` 规则生成的仍是这六种基础算子；开启 `create_graph=True` 时，反向计算继续组图、合并并由 ASK 执行，同时记录梯度历史，支持继续调用 `.backward()` 求高阶导数。
 
 工程细节：[03. 自动微分与自定义算子](03-自动微分与自定义算子.md) · [控制流与可组合变换](../ir/02-控制流与可组合变换.md)
 
@@ -85,6 +85,6 @@ Python `if` / `while` 通过条件 Tensor 的实际真值选择路径，后续�
 
 ## 6. 权重格式与导出
 
-权重是调用方定义的 PyTree：嵌套 `dict`、`list`、`tuple` 和 `Tensor` 叶子，不绑定模型类、参数名或算子。导出目录只包含版本化 `manifest.json` 与内容寻址的 little-endian 数组文件；加载器校验树结构、dtype/shape/字节数、摘要和路径边界后，再按调用方选择的 Engine 创建 Tensor。增加网络层、改变命名或加入基础原子算子只改变树的键，不改变 v1 容器。
+权重是调用方定义的 PyTree：嵌套 `dict`、`list`、`tuple` 和 `Tensor` 叶子，不绑定模型类、参数名或算子。导出目录只包含版本化 `manifest.json` 与内容寻址的 little-endian 数组文件；加载器校验树结构、dtype/shape/字节数、摘要和路径边界后，在选定设备创建 Tensor。增加网络层、改变命名或加入基础原子算子只改变树的键，不改变 v1 容器。
 
 工程细节：[05. 权重格式与导出](05-权重格式与导出.md#weight-goals)

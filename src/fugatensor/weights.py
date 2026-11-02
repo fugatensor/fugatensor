@@ -364,10 +364,10 @@ def load(directory, *, engine=None, device=None, requires_grad=False):
     if type(requires_grad) is not bool:
         raise TypeError("requires_grad must be a bool")
     root, manifest = _manifest(directory)
-    from .engine import tensor as make_tensor
+    from .engine import _select_engine
+    selected = _select_engine(engine, device)
     def restore(values, *, dtype, shape, requires_grad):
-        return make_tensor(values, dtype=dtype, shape=shape, engine=engine, device=device,
-                           requires_grad=requires_grad)
+        return selected.tensor(values, dtype=dtype, shape=shape, requires_grad=requires_grad)
     return _restore(manifest["tree"], root, manifest["arrays"], restore, requires_grad)
 
 

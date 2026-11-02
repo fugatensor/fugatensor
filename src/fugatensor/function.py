@@ -59,12 +59,10 @@ def _method(cls, name):
 
 
 def _configuration_value(value):
-    if isinstance(value, tuple):
-        return "tuple", tuple(_configuration_value(item) for item in value)
     try:
         return _static_key(value)
     except TypeError as error:
-        raise TypeError("fun state must contain only immutable DType/bool/int/float/str/None values or tuples; "
+        raise TypeError("fun state must contain only immutable DType/device/bool/int/float/str/None values or tuples; "
                         "pass Tensor state as explicit function arguments") from error
 
 

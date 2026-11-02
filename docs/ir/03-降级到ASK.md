@@ -33,6 +33,7 @@ API：[IR 与降级](../API/07-IR与降级.md)
 | `fuga.splat` | `graph.splat(scalar, shape)` | 显式将标量填充为指定形状张量，包括 0-D 张量。 |
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | 同形状、同类型运算，无隐式广播或提升。 |
 | `fuga.cast` | `graph.cast(operand, dtype=...)` | 生成显式 `ask.cast`，保留原标量或张量形状。 |
+| `fuga.reshape` | `graph.reshape(operand, shape)` | 生成 `ask.reshape` 及具体 `shape` 属性；保持 dtype、元素数和连续元素次序，不把端口展平成一维。 |
 | `fuga.return` | `graph.return_(...)` → `func.return` | 支持多输出及异构形状、类型。 |
 
 <a id="external-and-sourcemap"></a>
@@ -43,6 +44,7 @@ API：[IR 与降级](../API/07-IR与降级.md)
 
 - 目标与实现声明必须兼容，CUDA 实现需具体整数架构号。Triton 的 `arch` 在这里由所选设备补齐；通用降级器不识别特定 DSL。
 - `same_as` 形状规则保留，Fuga 的 `explicit` 规则转换为 ASK 的 `fixed`；每个输出类型由已验证的 Fuga 类型确定。
+- reshape 前后的值各自保留真实形状，外部请求中的端口形状与该节点实际接收的 Tensor 一致。
 - 张量参数通过 `input:N` / `output:N` 绑定，普通标量保存声明的启动值，编译期配置保留递归 JSON。`effects` 非空的外部操作当前不能降级执行。
 - 每个外部节点保留为独立 kernel，自有区域继续由 ASK 优化。降级本身不启动 worker，也不分配设备存储。
 

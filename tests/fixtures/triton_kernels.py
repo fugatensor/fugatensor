@@ -1,5 +1,4 @@
-# This is user-written Triton code. FugaTensor reads this file as DSL source;
-# the FugaTensor worker imports Triton and compiles the selected entry.
+# Test fixtures compiled by the isolated Triton worker.
 import triton
 import triton.language as tl
 

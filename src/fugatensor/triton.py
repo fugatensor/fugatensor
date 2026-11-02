@@ -17,6 +17,7 @@ from fugatensor._ask import CompilerEnvironment
 
 from ._jit import jit
 from .dtypes import DType
+from .devices import device as Device, resolve_device
 from .ir import ExternalSpec, TensorType
 from .tensor import Tensor, normalize_dtype, normalize_shape
 from .tracing import TraceTensor
@@ -101,10 +102,11 @@ class TensorSpec:
     """Static specialization metadata; it never contains tensor storage or data."""
     shape: tuple[int, ...]
     dtype: DType
-    device: str
+    device: Device
 
     def __post_init__(self):
         object.__setattr__(self, 'dtype', DType(normalize_dtype(self.dtype)))
+        object.__setattr__(self, 'device', resolve_device(self.device))
 
     @property
     def numel(self):
