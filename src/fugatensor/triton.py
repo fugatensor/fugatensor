@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import re
+import sys
 import textwrap
 import symtable
 import types
@@ -406,12 +407,19 @@ def environment(*, python, worker=None):
     return CompilerEnvironment(python=python, worker=selected)
 
 
-def environment_from_env():
+def environment_from_env(*, use_installed=False):
     """Optional setup convenience; importing this module never imports Triton."""
     python = os.environ.get('FUGATENSOR_TRITON_PYTHON')
     worker = os.environ.get('FUGATENSOR_TRITON_WORKER')
     if python is None and worker is None:
-        return None
+        if not use_installed:
+            return None
+        from importlib.metadata import PackageNotFoundError, version
+        try:
+            version('triton')
+        except PackageNotFoundError:
+            return None
+        python = sys.executable
     if not python:
         raise ValueError('set FUGATENSOR_TRITON_PYTHON when selecting a Triton worker')
     return environment(python=python, worker=worker)

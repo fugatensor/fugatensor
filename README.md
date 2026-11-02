@@ -41,10 +41,11 @@ ASK 独立构建 C++ SDK，FugaTensor 是唯一的 Python 包。构建 FugaTenso
 
 ```bash
 CMAKE_PREFIX_PATH=/absolute/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist
-python3 -m pip install /absolute/path/to/fugatensor.whl
 ```
 
-构建需要 C++17、Python 3.10+ 开发环境、CMake 3.28+ 和 nanobind；消费 ASK 的 `Compiler` / `Runtime` 不需要 LLVM SDK。CPU JIT 仍需要 `cc` 链接器，自有 CUDA 代码生成需配置 `llc` / `ptxas`。只有接入 Triton 算子或使用内置注意力时，才需另外配置 Triton worker 环境，版本范围见[安装文档](docs/安装.md#configure-triton)。
+安装选项为 `fugatensor[pure]` 和 `fugatensor[all]`：pure 不安装 Triton，all 自动安装受支持的 Triton，并默认使用当前 Python 环境的 worker。两者共用同一 wheel；直接安装 `fugatensor` 等同 pure。具体命令和环境要求见[安装选项](docs/安装.md#installation-variants)。
+
+构建需要 C++17、Python 3.10+ 开发环境、CMake 3.28+ 和 nanobind；消费 ASK 的 `Compiler` / `Runtime` 不需要 LLVM SDK。CPU JIT 仍需要 `cc` 链接器，自有 CUDA 代码生成需配置 `llc` / `ptxas`。独立 Triton worker 的配置见[安装文档](docs/安装.md#configure-triton)。
 
 安装、配置和开发引导命令见[安装文档](docs/安装.md)。跨仓文档链接仅供源码浏览。
 

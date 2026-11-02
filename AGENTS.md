@@ -39,6 +39,7 @@
 - **外部编译器与 C++ 扩展**：
   - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 保存用户源码，不在宿主进程导入 Triton；`from_jit` 可快照调用方已加载的 JIT 函数和依赖。worker 执行可信 Python 源码并追踪加载的依赖文件，不用预置模板替代用户 kernel。
   - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。受支持的稳定版本范围、默认验证基线与 ABI 记录在 `triton.dependencies.lock.json`。
+  - 可选依赖通过标准 extras 提供：`fugatensor[pure]` 不安装 Triton，`fugatensor[all]` 由 pip 安装支持系列。两者共用 wheel；未指定独立环境时从当前解释器的安装元数据发现 Triton，仍不在宿主导入编译器。
   - C++ 扩展 `fugatensor._native`（`cpp/`）负责 SSA 图分析和 ASK 原生绑定，实际编译、整段计划提交、缓冲区、事件与 CUDA Graph 管理由 ASK C++ 实现。`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs`；Fuga 不复制运行时调度器。
 
 ---
@@ -48,7 +49,7 @@
 - **构建指令**：
   - 两个项目分别构建：先安装 ASK 0.1.0 的 C++ SDK，再用它构建 FugaTensor；ASK 不发布 Python 包，FugaTensor wheel 自带配套 ASK 共享库。
   - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
-  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install --no-deps -e .`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK。安装详情见 [`docs/安装.md`](docs/安装.md)。
+  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK，`--variant pure|all` 选择安装依赖。安装详情见 [`docs/安装.md`](docs/安装.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试组织**：
   - 基础数值测试从算子注册表生成组合，再与精度、求导阶数和设备正交交叉；新增算子扩展同一注册表，不逐个手写所有组合。独立参考给出预期数值，统一断言校验形状、类型、结果和梯度；环境变量可缩小覆盖用于定位。

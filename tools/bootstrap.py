@@ -225,6 +225,8 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--ask-prefix", type=Path, required=True, help="prefix of an independently installed ASK C++ SDK")
     result.add_argument("--venv", type=Path, default=ROOT / ".venv")
+    result.add_argument("--variant", choices=("pure", "all"), default="pure",
+                        help="installation extra: pure has no compiler dependency; all installs Triton")
     result.add_argument("--compiler-python", action="append", default=[], metavar="ID=PYTHON",
                         help="configure a bundled FugaTensor worker with an existing compiler environment")
     result.add_argument("--llvm-root", type=Path, help="optional CUDA codegen SDK matching the ASK compiler")
@@ -281,6 +283,8 @@ def bootstrap(args):
         compiler_python = fields["python"]
         if compiler_id != "triton":
             continue  # Other workers are configured explicitly through Engine/config JSON.
+        if args.variant == "all" and Path(compiler_python).absolute() == python:
+            continue  # pip resolves this interpreter's Triton dependency below.
         dependency = read_json(ROOT / "src/fugatensor/triton.dependencies.lock.json")["compiler"]
         package, version = dependency["name"], dependency["version"]
         actual = installed_version(compiler_python, package)
@@ -289,8 +293,9 @@ def bootstrap(args):
             raise ValueError(f"compiler {compiler_id} needs stable {package} {series}.x; selected Python has {actual!r}. "
                              "Install that dependency in the compiler environment separately.")
     # An explicit SDK selection must also replace a cached ASK_DIR from a prior build.
-    run([python, "-m", "pip", "install", "--no-deps", "--no-build-isolation",
-         "--config-settings=cmake.define.ASK_DIR=" + installed["cmake_dir"], "--editable", ROOT],
+    run([python, "-m", "pip", "install", "--no-build-isolation",
+         "--config-settings=cmake.define.ASK_DIR=" + installed["cmake_dir"],
+         "--editable", f"{ROOT}[{args.variant}]"],
         env=environment)
     run([python, "-m", "pip", "check"], env=environment)
     if not preserve_config:
@@ -300,6 +305,7 @@ def bootstrap(args):
         "engine_config": str(config_path),
         "ask_version": installed["version"],
         "ask_prefix": installed["prefix"],
+        "variant": args.variant,
         "configured_compilers": sorted(configuration.get("compilers", {})),
         "llc": configuration.get("llc"),
         "ptxas": configuration.get("ptxas"),

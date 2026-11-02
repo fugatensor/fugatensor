@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from importlib.metadata import PackageNotFoundError
 import contextvars
 from contextlib import redirect_stderr, redirect_stdout
 import io
@@ -60,6 +61,31 @@ class EngineConfigTests(unittest.TestCase):
             engine = configure(device="cuda", llc="/configured/llc", compilers={})
             self.assertEqual(engine.llc, "/configured/llc")
             self.assertEqual(engine.ptxas, "/saved/ptxas")
+
+    def test_installed_triton_is_optional_and_yields_to_configured_workers(self):
+        with patch("fugatensor.engine.Compiler"), patch("fugatensor.engine.ExecutionSession") as session, \
+                patch("importlib.metadata.version", return_value="3.9.0") as version:
+            with Engine(device="cuda") as engine:
+                self.assertEqual(engine.compilers["triton"].python, "/saved/python")
+            version.assert_not_called()
+            self.path.write_text(json.dumps({"schema_version": 1, "compilers": {}}))
+            with Engine(device="cuda") as engine:
+                self.assertEqual(engine.compilers["triton"], ft.triton.environment(python=sys.executable))
+            version.assert_called_once_with("triton")
+            version.reset_mock()
+            with Engine(device="cpu") as engine:
+                self.assertEqual(engine.compilers, {})
+            with Engine(device="cuda", compilers={}) as engine:
+                self.assertEqual(engine.compilers, {})
+            version.assert_not_called()
+            with patch.dict(os.environ, {"FUGATENSOR_TRITON_PYTHON": "/env/python"}):
+                with Engine(device="cuda") as engine:
+                    self.assertEqual(engine.compilers["triton"].python, "/env/python")
+            version.assert_not_called()
+            version.side_effect = PackageNotFoundError("triton")
+            with Engine(device="cuda") as engine:
+                self.assertEqual(engine.compilers, {})
+            session.assert_not_called()
 
     def test_explicit_or_env_ask_opt_isolates_from_saved_workers(self):
         self.path.write_text("broken stale configuration")
@@ -345,10 +371,10 @@ class BootstrapTests(unittest.TestCase):
         self.assertIsNone(summary["ptxas"])
         calls = [list(map(str, call.args[0])) for call in self.mock_run.call_args_list]
         self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[0], [str(self.python), "-m", "pip", "install", "--no-deps",
+        self.assertEqual(calls[0], [str(self.python), "-m", "pip", "install",
                                    "--no-build-isolation",
                                    "--config-settings=cmake.define.ASK_DIR=" + self.installed["cmake_dir"],
-                                   "--editable", str(self.root)])
+                                   "--editable", f"{self.root}[pure]"])
         self.assertEqual(calls[1], [str(self.python), "-m", "pip", "check"])
         self.assertEqual(json.loads(self.config.read_text()),
                          {"schema_version": 1, "llc": None, "ptxas": None, "compilers": {}})
@@ -356,6 +382,18 @@ class BootstrapTests(unittest.TestCase):
         self.mock_installed_version.assert_not_called()
         environment = self.mock_run.call_args_list[0].kwargs["env"]
         self.assertEqual(environment["CMAKE_PREFIX_PATH"], str(self.sdk) + os.pathsep + "/other-sdk")
+
+    def test_all_installs_optional_dependencies_through_pip(self):
+        worker = self.root / "src/fugatensor/_triton_worker.py"
+        worker.parent.mkdir(parents=True)
+        worker.write_text("# installed fixture\n")
+        self.mock_installed_version.side_effect = AssertionError("pip must install local Triton first")
+        with patch.object(bootstrap, "executable_path", return_value=self.python):
+            summary = self.execute("--variant", "all", "--compiler-python", f"triton={self.python}")
+        command = list(map(str, self.mock_run.call_args_list[0].args[0]))
+        self.assertNotIn("--no-deps", command)
+        self.assertEqual(command[-2:], ["--editable", f"{self.root}[all]"])
+        self.assertEqual(summary["variant"], "all")
 
     def test_missing_sdk_stops_before_creating_environment(self):
         self.mock_inspect_ask.side_effect = self.original_inspect

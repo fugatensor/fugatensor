@@ -9,6 +9,10 @@ description = "Fuga tensor IR and native graph analysis with ASK execution"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+pure = []
+all = ["triton>=3.9,<3.10"]
+
 [tool.scikit-build]
 minimum-version = "1.1"
 build-dir = "build/native/{wheel_tag}"

@@ -57,7 +57,7 @@
 
 ## 4. 选择编译环境
 
-`ft.triton.environment(*, python, worker=None)` 返回供 `ft.configure(compilers=...)` 使用的环境描述；`python` 指定安装了受支持 Triton 稳定版的解释器，`worker=None` 使用 FugaTensor 自带 worker。以下示例从 `TRITON_PYTHON` 读取解释器路径，运行前需设置该环境变量。
+安装 `fugatensor[all]` 后，CUDA 引擎默认使用当前 Python 环境的 Triton worker；安装方法见[可选依赖](../安装.md#installation-variants)。使用独立环境时，`ft.triton.environment(*, python, worker=None)` 返回供 `ft.configure(compilers=...)` 使用的环境描述；`python` 指定安装了受支持 Triton 稳定版的解释器，`worker=None` 使用 FugaTensor 自带 worker。以下示例从 `TRITON_PYTHON` 读取独立解释器路径，运行前需设置该环境变量。
 
 ```python
 import os
@@ -69,7 +69,7 @@ ft.configure("cuda", compilers={"triton": environment})
 
 编译环境在程序开始时配置一次即可。`configure("cuda", ...)` 只配置 CUDA 后端；创建张量时仍需传 `device="cuda"`，或先用 `ft.set_default_device("cuda")` 选择默认设备。配置已经通过安装文件或环境变量提供时，无需再调用 `configure`。
 
-也可通过 `FUGATENSOR_TRITON_PYTHON`、`FUGATENSOR_TRITON_WORKER` 配置。`ft.triton.environment_from_env()` 在两项均未设置时返回 `None`；Python 变量为空，或仅设置 worker 时抛出 `ValueError`。未显式指定 `compilers` 的 CUDA 引擎会读取这些变量，通常不必手动调用该函数。完整优先级见[设备与执行](设备与执行.md)。
+也可通过 `FUGATENSOR_TRITON_PYTHON`、`FUGATENSOR_TRITON_WORKER` 配置。`ft.triton.environment_from_env(*, use_installed=False)` 默认在两项均未设置时返回 `None`；设为 `True` 时还会检查当前环境的 Triton 安装元数据。Python 变量为空，或仅设置 worker 时抛出 `ValueError`。CUDA 引擎自行处理环境选择，通常不必手动调用该函数。完整优先级见[设备与执行](设备与执行.md)。
 
 只执行外部 Triton kernel 不需要为 ASK 配置 `llc` / `ptxas`；同一图含 FugaTensor 自有算术时，仍需[自有 CUDA 编译工具](../安装.md#configure-cuda)。worker 会执行可信源码的模块顶层语句，源码导入的包必须在所选解释器环境中可用。
 
@@ -77,10 +77,9 @@ ft.configure("cuda", compilers={"triton": environment})
 
 ## 5. 自包含示例
 
-下面直接注册源码，得到两个输出。将 `TRITON_PYTHON` 设置为已按安装文档配置的 Triton 解释器路径后运行；示例图仅包含一个外部 kernel。
+安装 all 后，在兼容的 NVIDIA GPU 上运行下面的示例，直接注册源码并得到两个输出。示例图仅包含一个外部 kernel，无需配置 ASK 自有 CUDA 编译工具。
 
 ```python
-import os
 import fugatensor as ft
 
 source = """
@@ -104,8 +103,6 @@ operation = ft.triton.from_source(
     grid=lambda spec: ((spec.numel + 127) // 128,),
     options={"num_warps": 4},
 )
-environment = ft.triton.environment(python=os.environ["TRITON_PYTHON"])
-ft.configure("cuda", compilers={"triton": environment})
 x = ft.tensor([1.0, 2.0, 3.0], device="cuda")
 y, z = operation(x)
 ft.evaluate(y, z)

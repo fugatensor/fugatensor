@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+from importlib.metadata import PackageNotFoundError
 import json
 import subprocess
 import os
@@ -187,6 +188,12 @@ class TritonRegistrationTests(unittest.TestCase):
             environment = ft.triton.environment(python=sys.executable)
             self.assertEqual(Path(environment.worker).name, "_triton_worker.py")
             self.assertTrue(Path(environment.worker).is_file())
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch('importlib.metadata.version', return_value='3.9.0') as version:
+                    self.assertEqual(ft.triton.environment_from_env(use_installed=True), environment)
+                    version.assert_called_once_with('triton')
+                with mock.patch('importlib.metadata.version', side_effect=PackageNotFoundError('triton')):
+                    self.assertIsNone(ft.triton.environment_from_env(use_installed=True))
             with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_PYTHON": sys.executable}, clear=True):
                 self.assertEqual(ft.triton.environment_from_env(), environment)
             with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_WORKER": "/worker.py"}, clear=True):

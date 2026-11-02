@@ -37,7 +37,8 @@ def _environment_options(device, *, include_compilers=True, use_config=True):
             options[name] = os.environ[variable]
     if device != 'cpu' and include_compilers:
         from .triton import environment_from_env
-        environment = environment_from_env()
+        environment = environment_from_env(use_installed=(
+            use_config and not options.get('ask_opt') and 'triton' not in options.get('compilers', {})))
         if environment is not None:
             options.setdefault('compilers', {})['triton'] = environment
     return options

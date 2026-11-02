@@ -47,7 +47,7 @@ GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine
 
 ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/docs/图切分与多Kernel执行计划.md#plan-v1)保留自有计算区域的融合，每个外部节点成为独立步骤。各步骤通过设备中间缓冲区传递数据，在同一会话 stream 上顺序提交。用户仍直接写普通函数；`ft.evaluate(...)` 触发求值，所有计算均编译后交给 ASK 执行。非法图、坏导出及编译失败直接报错。
 
-`ft.triton.environment(python=...)` 返回 ASK 通用 `CompilerEnvironment`，worker 默认取本包路径，也可显式指定。宿主不导入 Triton；编译子进程检查 Triton 属于受支持的稳定系列，按公开 JIT 参数顺序去掉 constexpr，再补齐 CUDA 启动 ABI 的 scratch 参数。动态共享内存来自编译元数据；需要全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动的产物明确报错。默认基线、支持范围与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
+`fugatensor[all]` 通过 pip 安装可选 Triton 依赖；CUDA 引擎默认从当前 Python 环境的安装元数据发现 Triton，以当前解释器启动包内 worker。独立环境可用 `ft.triton.environment(python=...)` 显式配置，返回 ASK 通用 `CompilerEnvironment`。宿主不导入 Triton；编译子进程检查 Triton 属于受支持的稳定系列，按公开 JIT 参数顺序去掉 constexpr，再补齐 CUDA 启动 ABI 的 scratch 参数。动态共享内存来自编译元数据；需要全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动的产物明确报错。默认基线、支持范围与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
 
 `kernel` / `from_source` 接收可信 Python 源码，worker 会执行模块顶层代码，允许正常的全局常量、辅助函数、默认参数与包导入；依赖包须安装在 worker 环境中。`from_jit(existing_kernel, ...)` 接收调用方已经加载的 JIT 函数，递归保存引用的 Python/JIT helper 和全局常量，保留导入模块；注册后修改原函数文件或全局值不改变快照。不同模块依赖若使用同一名字绑定不同对象，会明确报错。快照使用 JIT 对象保存的源码和 jit 选项；无法重建的程序式调优包装、自定义 repr、launch metadata 或 pre-run hook 需要调用方提供显式源码。
 
@@ -105,8 +105,9 @@ ASK 独立安装 C++ SDK，FugaTensor 构建时链接 `ASK::Compiler` 与 `ASK::
 
 1. **显式传参**：`ft.configure(device=..., ...)` 或 `ft.Engine(...)` 参数；
 2. **环境变量**：`ASK_OPT`、`FUGATENSOR_CACHE_DIR`、`FUGATENSOR_LLC`、`FUGATENSOR_PTXAS`、`FUGATENSOR_TRITON_{PYTHON,WORKER}`（以及指定配置文件路径的 `FUGATENSOR_CONFIG`）；
-3. **可选环境配置文件**：当前 Python 环境的 `sys.prefix/share/fugatensor/engine.json`，不存在时使用空配置。
+3. **可选环境配置文件**：当前 Python 环境的 `sys.prefix/share/fugatensor/engine.json`，不存在时使用空配置；
+4. **当前环境自动发现**：没有 Triton worker 配置时，若当前解释器安装了 Triton，则使用本环境和包内 worker。显式传入 `compilers={}` 可关闭编译器发现。
 
 `cc` 仅通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 指定，没有 `FUGATENSOR_CC` 环境变量入口。当通过代码或环境变量显式指定另一套 `ask_opt` 路径时，不会混读默认 `engine.json` 中保存的 SDK 与 worker 路径。
 
-安装已有 FugaTensor wheel 无需开发引导。`tools/bootstrap.py --ask-prefix SDK目录` 使用已安装 C++ SDK 构建 FugaTensor；工具配置的保留和重置规则见[开发引导](../安装.md#source-bootstrap)。
+安装已有 FugaTensor wheel 无需开发引导。`tools/bootstrap.py --ask-prefix SDK目录` 使用已安装 C++ SDK 构建 FugaTensor，默认安装 pure，可用 `--variant all` 同时安装 Triton；工具配置的保留和重置规则见[开发引导](../安装.md#source-bootstrap)。
