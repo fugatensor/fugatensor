@@ -19,7 +19,7 @@ print(arithmetic(x, y).tolist())
 - **自动微分与高阶导数**：支持 `requires_grad=True`、`y.backward()`、`ft.fun` 自定义前向/反向、跨 0-D 标量 `if`/`while` 动态分支的梯度传播，以及 `create_graph=True` 二阶/三阶导数。
 - **用户 Triton 算子调度**：通过 `ft.triton.kernel` / `from_jit` 接入用户源码或已有 JIT 函数，支持标量参数、多输出与常用 constexpr，由 FugaTensor worker 编译为 `cubin`，ASK 将其作为独立步骤与自有计算一起调度。
 
-设计细节见 [文档目录](docs/README.md)、[架构总览](docs/architecture/README.md) 与 [Fuga IR 总览](docs/ir/README.md)。
+接口用法见 [用户 API](docs/用户API/README.md)。设计细节见 [文档目录](docs/README.md)、[架构总览](docs/architecture/README.md) 与 [Fuga IR 总览](docs/ir/README.md)。
 
 <a id="setup"></a>
 
@@ -138,6 +138,7 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 
 - [安装与独立构建](docs/安装.md)
 - [文档目录](docs/README.md)
+- [用户 API](docs/用户API/README.md)：张量与数据交换、基础运算、引擎与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级。
 - **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [01. 张量模型与追踪机制](docs/architecture/01-张量模型与追踪机制.md) · [02. 原生图分析与 C++ 边界](docs/architecture/02-原生图分析与C++边界.md) · [03. 自动微分与自定义算子](docs/architecture/03-自动微分与自定义算子.md) · [04. ASK 桥接与多后端执行](docs/architecture/04-ASK桥接与多后端执行.md) · [05. 权重格式与导出](docs/architecture/05-权重格式与导出.md)
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [01. 对象模型与验证](docs/ir/01-对象模型与验证.md) · [02. 控制流与可组合变换](docs/ir/02-控制流与可组合变换.md) · [03. 降级到 ASK](docs/ir/03-降级到ASK.md)
 

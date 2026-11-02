@@ -1,6 +1,6 @@
 # FugaTensor 架构总览
 
-目录导航：[文档目录](../README.md) · 中间表示：[Fuga IR 总览](../ir/README.md) · 底层引擎：[ASK 核心思想](../../../ask/docs/核心思想.md)
+目录导航：[文档目录](../README.md) · 接口用法：[用户 API](../用户API/README.md) · 中间表示：[Fuga IR 总览](../ir/README.md) · 底层引擎：[ASK 核心思想](../../../ask/docs/核心思想.md)
 
 FugaTensor 负责 Python 张量接口、自动组图与按需执行、结构化中间表示（Fuga IR）与自动微分变换；所有张量算术计算均编译为原生 CPU 代码或 CUDA kernel 交由 [ASK](../../../ask/docs/核心思想.md) 执行。
 

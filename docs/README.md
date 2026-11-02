@@ -4,6 +4,15 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 
 安装入口：[安装与独立构建](安装.md)。先安装 ASK C++ SDK，再构建 FugaTensor wheel；wheel 携带所需共享库，运行时只有 FugaTensor Python 包。消费 SDK 不需要 ASK 源码或 LLVM 开发环境。
 
+## 用户 API（`docs/用户API/`）
+
+[用户 API 分类目录与快速示例](用户API/README.md)按接口类型说明签名、参数、返回值与支持边界：
+
+- [张量与数据交换](用户API/01-张量与数据交换.md) · [基础运算](用户API/02-基础运算.md)
+- [引擎与执行](用户API/03-引擎与执行.md) · [自动微分与自定义函数](用户API/04-自动微分与自定义函数.md)
+- [Triton 算子接入](用户API/05-Triton算子接入.md) · [权重读写](用户API/06-权重读写.md)
+- [IR 与降级](用户API/07-IR与降级.md)
+
 ## 系统架构（`docs/architecture/`）
 
 | 文档 | 内容 | 对应代码 |

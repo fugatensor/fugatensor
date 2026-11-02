@@ -2,6 +2,8 @@
 
 返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](01-张量模型与追踪机制.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/05-常驻运行时与多级缓存.md)
 
+用户 API：[引擎与执行](../用户API/03-引擎与执行.md) · [Triton 算子接入](../用户API/05-Triton算子接入.md)
+
 读取结果或反向传播触发待计算表达式合并为 Fuga IR `Module` 后，`Engine` 负责裁剪未使用的物理输入端口、降级为 ASK IR、写出跨层溯源产物，并调用 CPU 动态库或 GPU 常驻会话执行。
 
 <a id="engine-lifecycle"></a>
