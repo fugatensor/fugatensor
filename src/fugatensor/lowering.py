@@ -76,13 +76,15 @@ def lower_to_ask(module, *, target=None, max_unroll=10000, source_map=None):
             if op.opcode == 'return':
                 graph.return_(*operands)
                 continue
-            if len(op.results) != 1:
+            if len(op.results) != 1 and op.opcode != 'external':
                 raise LoweringError(f'ASK bridge requires one result for fuga.{op.opcode}')
             # Fuga IDs are local to a function; ASK IDs are module-wide.
             # Keep the existing single-graph spelling and qualify every ID in
             # multi-function modules to avoid collisions with user-supplied IDs.
             prefix = function.name + '::' if multiple_functions else ''
-            kwargs = {'id': prefix + op.id, 'value_id': prefix + op.results[0].value_id}
+            kwargs = {'id': prefix + op.id}
+            if len(op.results) == 1:
+                kwargs['value_id'] = prefix + op.results[0].value_id
             if op.opcode == 'constant':
                 result = graph.constant(op.attrs['value'], dtype=op.results[0].type.dtype, **kwargs)
             elif op.opcode == 'splat':
@@ -107,11 +109,12 @@ def lower_to_ask(module, *, target=None, max_unroll=10000, source_map=None):
                     source_bindings=dict(spec.source_bindings), constants=dict(spec.constants),
                     options=dict(spec.options), target=_target_for(spec, target), grid=spec.grid)
                 result = graph.external(*operands, semantics=semantic, implementation=implementation,
-                                        result_type=_ask_type(op.results[0].type), **kwargs)
+                                        result_types=[_ask_type(value.type) for value in op.results], **kwargs)
             else:
                 raise LoweringError(f'no ASK lowering for fuga.{op.opcode}')
-            values[op.results[0]] = result
-            record(function, op.results[0], result)
+            for value, lowered in zip(op.results, result if isinstance(result, tuple) else (result,)):
+                values[value] = lowered
+                record(function, value, lowered)
     if source_map is not None:
         source_map.clear()
         source_map.update(mapping)

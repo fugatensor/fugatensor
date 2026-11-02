@@ -72,8 +72,11 @@ class ExternalSpec:
             object.__setattr__(self, field_, _freeze(value))
         if set(self.signature) != set(self.source_bindings):
             raise ValueError("external signature and source bindings must name the same parameters")
-        if any(not isinstance(value, str) for value in (*self.signature.values(), *self.source_bindings.values())):
-            raise TypeError("external signatures and source bindings must contain strings")
+        if any(not isinstance(value, str) for value in self.signature.values()):
+            raise TypeError("external signature types must be strings")
+        if any(type(value) not in (str, bool, int, float)
+               or (type(value) is float and not math.isfinite(value)) for value in self.source_bindings.values()):
+            raise TypeError("external source bindings require port names or finite scalar values")
         if self.shape_rule not in ("same_as", "explicit"):
             raise ValueError("external shape_rule must be same_as or explicit")
         if type(self.shape_operand) is not int or self.shape_operand < 0:
@@ -588,9 +591,10 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             raise TypeError("external requires a structured spec and at least one result")
         if op.effects != spec.effects:
             raise ValueError("external effect declaration differs from its spec")
-        bindings = set(spec.source_bindings.values())
+        pointers = [value for value in spec.source_bindings.values() if isinstance(value, str)]
+        bindings = set(pointers)
         expected = {f"input:{index}" for index in range(len(operands))} | {f"output:{index}" for index in range(len(results))}
-        if bindings != expected or len(bindings) != len(spec.source_bindings):
+        if bindings != expected or len(bindings) != len(pointers):
             raise ValueError("external source bindings must cover every input and output exactly once")
         if spec.shape_rule == "same_as":
             if spec.shape_operand >= len(operands):
@@ -651,7 +655,8 @@ def _format_attr(value):
                  "output_count": value.output_count, "saved_count": value.saved_count,
                  "backward": value.backward_name, "forward": value._forward_text}
     if isinstance(value, Mapping):
-        return "{" + ", ".join(f"{name}={_format_attr(value[name])}" for name in sorted(value)) + "}"
+        return "{" + ", ".join(f"{name if _IDENTIFIER.fullmatch(name) else json.dumps(name, ensure_ascii=False)}={_format_attr(value[name])}"
+                               for name in sorted(value)) + "}"
     if isinstance(value, (tuple, list)):
         return "[" + ", ".join(_format_attr(item) for item in value) + "]"
     if isinstance(value, float):

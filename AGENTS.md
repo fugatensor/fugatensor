@@ -22,8 +22,8 @@
   - 梯度历史在组图时记录，`no_grad` 与 `detach` 的边界不随实际执行时间改变；Python 条件每次读取真实标量值，反向沿实际路径传播。
 - **多 Kernel 执行**：
   - FugaTensor 向 ASK 提交完整静态图，自有计算区域保留融合，外部算子统一作为独立 kernel 调度；前端不限制整图只有一个外部节点。
-  - Triton 多输入通过 `inputs=` 注册，输出形状/类型和启动参数只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
-  - 复杂算子（如 FlashAttention）的反向由 `ft.fun` 的显式 `backward` 组合多个单输出外部 kernel；每个外部调用仍返回一个结果，反向可因此形成多 kernel 执行计划。
+  - Triton 通过 `inputs=` / `outputs=` 注册多输入与多输出，`scalars=` 绑定按值启动参数，输出形状/类型和配置回调只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
+  - 复杂算子（如 FlashAttention）的反向由 `ft.fun` 的显式 `backward` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
 - **自动微分与原语闭合**：
   - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
@@ -32,7 +32,7 @@
   - `weights.py` 只序列化由嵌套 dict/list/tuple 与 Tensor 组成的 PyTree，不记录模型类、算子或设备；数组使用 dtype/shape/布局加数据的内容寻址身份。
   - 新增网络结构、参数命名或基础原子算子不改变 v1 容器；只有存储语义变化才提升 manifest `schema_version`。
 - **外部编译器与 C++ 扩展**：
-  - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 接收并保存用户编写的源码，不在宿主进程导入 Triton，也不用库内预置模板替代外部源码接入。
+  - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 保存用户源码，不在宿主进程导入 Triton；`from_jit` 可快照调用方已加载的 JIT 函数和依赖。worker 执行可信 Python 源码并追踪加载的依赖文件，不用预置模板替代用户 kernel。
   - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。固定版本 ABI 与依赖记录在 `triton.dependencies.lock.json`。
   - C++ 扩展 `fugatensor._native`（`cpp/`）负责无全局状态、释放 GIL 的 SSA 可达性与反向边界分析；`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs` 供全仓复用。
 

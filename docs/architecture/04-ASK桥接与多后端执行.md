@@ -40,18 +40,26 @@ GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine
 2. **含 `ft.triton.kernel` 的混合图 → 自有与外部 kernel 顺序调度**：
    - 通过 `ft.triton.kernel("kernels.py", entry=..., input=... 或 inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - **源码快照**：注册时按 UTF-8 读取源码文本并复制配置字典，不在宿主进程导入用户模块或 Triton；后续修改原文件不影响已注册的算子对象。
-   - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
+   - **配置快照与延迟架构绑定**：每次调用算子时执行 `constants`、`scalars` 与 `grid` 回调，仅向其提供不含张量数据的 `TensorSpec(shape, dtype, device, numel)`。返回配置在节点创建时复制、冻结；后续修改回调闭包只影响新的调用，包括算子位于普通 `ft.fun.forward` 中的情况。生成的 `fuga.external` 不含物理架构号；`lower_to_ask` 面向具体 GPU `Engine` 降级时再填入该显卡的 `arch` 生成 `ask.implementation` 与 `ask.external`。
    - 本包 [`_triton_worker.py`](../../src/fugatensor/_triton_worker.py) 在选定的解释器中调用 Triton，直接返回 `asm["cubin"]` 与启动元数据。通过 [ASK 通用 worker 接口](../../../ask/docs/04-外部产物与执行接口.md#worker-interface) 接入[执行计划调度](../../../ask/docs/08-图切分与多Kernel执行计划.md#program-runtime)，不经过 LLVM 导出或跨编译器融合。
 
 ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)保留自有计算区域的融合，每个外部节点成为独立步骤。各步骤通过设备中间缓冲区传递数据，在同一会话 stream 上顺序提交。用户仍直接写普通函数；`ft.evaluate(...)` 触发求值，所有计算均编译后交给 ASK 执行。非法图、坏导出及编译失败直接报错。
 
 `ft.triton.environment(python=...)` 返回 ASK 通用 `CompilerEnvironment`，worker 默认取本包路径，也可显式指定。宿主不导入 Triton；编译子进程要求锁定的 Triton 3.7.1，按公开 JIT 参数顺序去掉 constexpr，再绑定该版本 CUDA ABI 末尾的两个空 scratch 指针。动态共享内存来自编译元数据；需要全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动的产物明确报错。版本与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
 
-源码快照可定义多个 `@triton.jit` kernel 或辅助函数，只允许导入 `triton`、`triton.language` 与 `math`；不接受自定义 `extern_libs`、自由形式 `ptxas` 参数或 IR/目标覆盖，避免遗漏快照之外的编译依赖。缓存探测复用 Triton 官方编译器指纹，并记录运行时代码、实际 `ptxas` 和 `libdevice` 的内容摘要；ASK 缓存未命中时重新执行 Triton 编译。
+`kernel` / `from_source` 接收可信 Python 源码，worker 会执行模块顶层代码，允许正常的全局常量、辅助函数、默认参数与包导入；依赖包须安装在 worker 环境中。`from_jit(existing_kernel, ...)` 接收调用方已经加载的 JIT 函数，递归保存引用的 Python/JIT helper 和全局常量，保留导入模块；注册后修改原函数文件或全局值不改变快照。不同模块依赖若使用同一名字绑定不同对象，会明确报错。快照使用 JIT 对象保存的源码和 jit 选项；无法重建的程序式调优包装、自定义 repr、launch metadata 或 pre-run hook 需要调用方提供显式源码。
+
+缓存探测复用 Triton 官方编译器指纹，记录实际 `ptxas`、`libdevice`、运行时代码以及执行源码时已加载的模块文件摘要，因此跨模块或动态导入的依赖变化会使 ASK 外部缓存失效。每次 worker 使用空的临时 Python 缓存目录，不读取旧 `.pyc`，避免源码与时间戳相同长度变化时仍执行旧代码。ASK 缓存未命中时重新执行 Triton 编译。不接受自定义 `extern_libs`、自由形式 `ptxas` 参数或 IR/目标覆盖。
 
 worker 的 `required_element_types` 记录端口存储类型，不反向解析内部 LLVM/PTX 来枚举计算类型。内部指令能否用于目标架构由 Triton 与 `ptxas` 编译校验，ASK 再验证实际设备与产物目标架构的兼容性。
 
-多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。当前外部算子只有一个输出，完整图可以联合求值多个结果。
+多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。多个输出使用 `outputs={"Y": {"shape": ..., "dtype": ...}, "Z": {...}}`，按声明顺序返回 tuple；每项的 shape/dtype 可省略，默认沿用首个输入。即使图中只使用一个结果，也会保留 kernel 其他输出所需的物理缓冲区。输入与输出不能原地别名。
+
+`scalars={"N": ("i32", 1024), "scale": ("fp32", 0.5)}` 或对应回调声明普通运行时参数；它们按每次图调用冻结，并在 CUDA 启动时按值传参，不改成 `constexpr`，也不从 GPU 张量读取数据。改变这些值会产生新的图配置和缓存键。普通 Python bool/int/float 字面量默认参数可自动推断标量类型；其他默认表达式需显式传入 scalars。整数、浮点标量的类型与范围由 ASK 通用 ABI 校验。
+
+`constants` 可传递有限浮点数、整数、bool、字符串、None、列表/tuple 与 JSON 配置字典；序列在 worker 中变为 tuple，字典可承载 dtype 标签。kernel 内可使用的类型和操作仍遵循 Triton 本身的 constexpr 规则，例如不把任意 Python 字典自动转换成可索引的 Triton 值。dtype 可写 `{"__triton_dtype__": "float16"}`，也可在调用方已导入 Triton 时传 `tl.float16`。constexpr 默认值由 Triton 函数签名补齐。`@triton.heuristics` 在 worker 中使用标量、constexpr 与张量静态元数据（shape、dtype、ndim、numel()、stride()）求值；`@triton.autotune` 需要显式 `config=索引` 选择其配置列表的一项，不执行 benchmark。配置中的 constexpr 和编译选项可由显式注册参数覆盖；涉及输入修改或自定义调优 hook 的配置仍报错。
+
+最小的标量与双输出示例见 [`examples/triton_multi_output.py`](../../examples/triton_multi_output.py)。
 
 当前 FlashAttention-2 前向计划为 `owned(q*0.5) -> external(attention) -> owned(*2)`；反向由四个单输出反向 kernel（统计量、dQ、dK、dV）组成，且当前 `ft.fun` 的保存值仍是 `fuga.call` 结果，执行计划会额外重算一次前向 attention 以取得保存的 `O`。因此反向计划包含前向重算、统计量、dQ、dK、dV 五个外部步骤。
 

@@ -41,9 +41,10 @@
 
 1. 检查目标后端为 `"cuda"` 且已提供整数架构号 `arch`（如 `86`）；提交给 CPU 引擎时直接报错。
 2. 在 `ask.Module` 顶层生成一对声明（见 [ASK 外部算子语义与实现分离](../../../ask/docs/01-ASK-IR与数值语义.md#external-declaration)）：
-   - `ask.semantics`：声明逻辑输入/输出端口、形状规则（`same_as` 或 `explicit`）与副作用列表；多输入算子按操作数顺序声明端口，显式输出形状由 Fuga `TensorType` 进入 ASK `port_shapes`。
+   - `ask.semantics`：声明逻辑输入/输出端口、形状规则（`same_as` 或 `explicit`）与副作用列表；多输入算子按操作数顺序声明端口，所有输出形状由 Fuga `TensorType` 进入 ASK `port_shapes`，每个结果分别记录降级映射。
    - `ask.implementation`：填入用户 `@triton.jit` 源码快照、`entry`、`signature`、`source_bindings`、`constants`、`options`、`grid` 以及 `target={"backend": "cuda", "arch": arch, "warp_size": 32}`。
-3. 在函数体中生成引用上述两个符号的 `ask.external` 指令。ASK 按[执行计划 v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)将外部节点独立调度；降级器不把多输入或复杂算子改写成逐元素图。
+3. `source_bindings` 中张量参数绑定 `input:N` / `output:N`，普通标量保存有限数值并由 `signature` 指定 ABI 类型；编译期 `constants` 保留递归 JSON 结构。
+4. 在函数体中生成引用上述两个符号的 `ask.external` 指令，保留全部输出。ASK 按[执行计划 v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)将外部节点独立调度；降级器不把多输入或复杂算子改写成逐元素图。
 
 降级器同时记录每个 Fuga `Value` 和 `Operation` 的跨层对应关系，由 `Engine` 写入编译产物目录下的 `fuga-to-ask.json`：
 

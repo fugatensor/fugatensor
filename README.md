@@ -17,7 +17,7 @@ print(arithmetic(x, y).tolist())
 - **自动组图与 JIT 执行**：`x + 2`、`x.square()`、`x.astype("f16")` 等运算先返回待计算 Tensor，跨算子和普通函数调用保留融合机会；执行边界合并依赖图，并按图结构和类型复用编译结果。所有张量算术都由 ASK 执行。
 - **CPU 与自有 CUDA 后端**：将张量指定为 `device="cuda"` 即可通过 ASK 自有 CUDA 后端生成并异步执行 GPU kernel，无需依赖 Triton。
 - **自动微分与高阶导数**：支持 `requires_grad=True`、`y.backward()`、`ft.fun` 自定义前向/反向、跨 0-D 标量 `if`/`while` 动态分支的梯度传播，以及 `create_graph=True` 二阶/三阶导数。
-- **用户 Triton 算子调度**：通过 `ft.triton.kernel` 接入用户编写的 `@triton.jit` 源码，由 FugaTensor worker 编译为 `cubin`，ASK 将其作为独立步骤与自有计算一起调度。
+- **用户 Triton 算子调度**：通过 `ft.triton.kernel` / `from_jit` 接入用户源码或已有 JIT 函数，支持标量参数、多输出与常用 constexpr，由 FugaTensor worker 编译为 `cubin`，ASK 将其作为独立步骤与自有计算一起调度。
 
 设计细节见 [文档目录](docs/README.md)、[架构总览](docs/architecture/README.md) 与 [Fuga IR 总览](docs/ir/README.md)。
 
@@ -96,6 +96,8 @@ print(mixed(x).tolist())  # [[7.0, 9.0], [11.0, 13.0]]
 
 注册时保存源码快照，不在宿主进程导入 Triton。使用 `ft.triton.environment(python="/path/to/triton-env/bin/python")` 配置编译环境，worker 默认随 FugaTensor 包提供。上述图编译成 `owned(+1) → external(scale) → owned(+3)` 三个步骤，同一 stream 顺序执行，中间张量保存在显存；ASK 自有计算区域仍可融合。安装步骤见 [Triton 配置](docs/安装.md#configure-triton)。
 
+已有 JIT 对象可通过 `ft.triton.from_jit(fn, ...)` 注册。`scalars=` 绑定普通 `N`、stride、scale 等按值参数，`outputs=` 声明多个输出；`constants=` 支持浮点、bool、字符串、tuple、None 与 dtype。`autotune` 使用显式 `config=索引`，不运行自动测速。见[标量与双输出示例](examples/triton_multi_output.py)及[完整接入边界](docs/architecture/04-ASK桥接与多后端执行.md#cuda-and-triton)。
+
 ### 3. 查看 IR、溯源产物与缓存统计
 
 ```python
@@ -121,7 +123,7 @@ with ft.Engine(device="cpu") as engine:
 | **控制流** | Fuga IR 静态 `if` 选择与有界 `for` 展开；普通 Python 支持 0-D Tensor 的 `if`/`while`，条件读取触发按需执行 |
 | **自动微分** | `requires_grad`、`.backward()`、`.grad` 累加、`detach()`、`no_grad()`、`ft.fun` 自定义前反向、`create_graph=True` 高阶求导 |
 | **权重导出** | 版本化 PyTree 权重目录，支持嵌套 dict/list/tuple、六种基础 dtype、内容寻址去重、原子导出与完整性校验 |
-| **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA（多输入/异构多输出，无需 Triton）、独立 Triton `cubin` 与多 kernel 调度、多输入静态外部算子；FlashAttention-2 前向/反向多 kernel 示例 |
+| **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA（多输入/异构多输出，无需 Triton）、独立 Triton `cubin` 与多 kernel 调度、多输入/多输出静态外部算子、按值标量；FlashAttention-2 前向/反向多 kernel 示例 |
 
 暂未实现隐式广播、矩阵乘法与归约算子；含不透明 Triton 算子的路径支持一阶手写反向，不支持二阶及以上高阶微分。
 
