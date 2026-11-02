@@ -16,6 +16,39 @@ class ForwardOnly(ft.fun):
 
 
 class SharedAutodiffMixin:
+    def test_dtype_objects_are_static_fun_arguments_and_configuration(self):
+        class Convert(ft.fun):
+            output_dtype = ft.fp16
+
+            def forward(self, ctx, x, dtype=ft.fp32):
+                assert x.dtype is ft.fp32
+                ctx.save_for_backward(x)
+                # A dtype object and its legacy spelling are distinct static
+                # arguments even though their string-compatible values agree.
+                value = x if dtype is ft.fp32 else x + 1
+                result = value.astype(self.output_dtype)
+                assert result.dtype is self.output_dtype
+                return result
+
+            def backward(self, ctx, dy):
+                (x,) = ctx.saved_tensors
+                return (dy.astype(x.dtype),)
+
+        operation = Convert()
+        x = ft.tensor(2.0, requires_grad=True)
+        output = operation(x)
+        self.assertIs(output.dtype, ft.fp16)
+        self.assertEqual(output.tolist(), 2.0)
+        output.backward()
+        self.assertIs(x.grad.dtype, ft.fp32)
+        self.assertEqual(x.grad.tolist(), 1.0)
+        self.assertEqual(operation(x, "f32").tolist(), 3.0)
+        self.assertEqual(operation(x, ft.fp32).tolist(), 2.0)
+        operation.output_dtype = ft.fp32
+        widened = operation(x, ft.fp32)
+        self.assertIs(widened.dtype, ft.fp32)
+        self.assertEqual(widened.tolist(), 2.0)
+
     def test_precisions_finite_difference_multiport_and_mixed_precision(self):
         def poly(x):
             return ft.square(x) - 3 * x + 2

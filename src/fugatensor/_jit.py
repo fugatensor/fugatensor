@@ -10,6 +10,7 @@ import weakref
 from types import MethodType
 
 from ._state import active_trace
+from .dtypes import DType
 from .tensor import Tensor
 from .tracing import TraceContext, TraceTensor
 
@@ -22,11 +23,13 @@ class _Traced:
 
 
 def _static_key(value):
+    if isinstance(value, DType):
+        return 'dtype', value.value
     if type(value) in (bool, int, str, type(None)):
         return type(value).__name__, value
     if type(value) is float:
         return 'float', struct.pack('!d', value)
-    raise TypeError('operation arguments must be Tensor objects or static bool/int/float/str/None values')
+    raise TypeError('operation arguments must be Tensor objects or static DType/bool/int/float/str/None values')
 
 
 class JITFunction:

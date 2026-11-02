@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import contextvars
 from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
@@ -9,12 +10,14 @@ import os
 from pathlib import Path
 import tempfile
 import subprocess
+import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import fugatensor as ft
 from fugatensor._config import runtime_defaults
-from fugatensor.engine import Engine, configure, shutdown
+from fugatensor.engine import Engine, configure, shutdown, current_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("fuga_bootstrap", ROOT / "tools/bootstrap.py")
@@ -86,6 +89,127 @@ class EngineConfigTests(unittest.TestCase):
         self.path.unlink()
         with self.assertRaisesRegex(ValueError, "does not name"):
             runtime_defaults("cuda")
+
+
+class DefaultDeviceTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        environment = patch.dict(os.environ, {"FUGATENSOR_CACHE_DIR": str(self.directory / "cache")})
+        environment.start()
+        self.addCleanup(environment.stop)
+        previous = ft.get_default_device()
+        self.addCleanup(ft.set_default_device, previous)
+        ft.set_default_device("cpu")
+        ft.shutdown()
+        self.addCleanup(ft.shutdown)
+
+    def test_direct_tensor_calls_reuse_engine_and_support_autograd(self):
+        x = ft.tensor(3.0, requires_grad=True)
+        y = ft.tensor(2.0)
+        self.assertEqual(x.dtype, "f32")
+        self.assertEqual(ft.tensor([1, 2]).dtype, "f32")
+        self.assertIs(x.engine, y.engine)
+        result = x * x + y
+        result.backward()
+        self.assertEqual(result.tolist(), 11.0)
+        self.assertEqual(x.grad.tolist(), 6.0)
+        ft.set_default_device("cuda:0")
+        self.assertEqual(ft.get_default_device(), "cuda")
+        self.assertFalse(x.engine.closed)
+        self.assertEqual((x + 1).tolist(), 4.0)
+        self.assertIs(ft.tensor(5, device="cpu").engine, x.engine)
+        ft.shutdown("cpu")
+        self.assertTrue(x.engine.closed)
+        self.assertEqual(ft.get_default_device(), "cuda")
+
+    def test_selection_is_lazy_and_context_local(self):
+        first, second = contextvars.Context(), contextvars.Context()
+        with patch("fugatensor.engine.Engine") as engine:
+            first.run(ft.set_default_device, "cuda:2")
+            second.run(ft.set_default_device, "cuda:0")
+            self.assertEqual(first.run(ft.get_default_device), "cuda:2")
+            self.assertEqual(second.run(ft.get_default_device), "cuda")
+            self.assertEqual(ft.get_default_device(), "cpu")
+            with self.assertRaises(ValueError):
+                first.run(ft.set_default_device, "gpu")
+            self.assertEqual(first.run(ft.get_default_device), "cuda:2")
+            engine.assert_not_called()
+
+    def test_explicit_engines_and_devices_override_selection(self):
+        default = ft.tensor(1).engine
+        ft.set_default_device("cuda:1")
+        with Engine("cpu") as active:
+            self.assertEqual(ft.get_default_device(), "cpu")
+            self.assertIs(ft.tensor(2).engine, active)
+            self.assertIs(ft.tensor(3, engine=default).engine, default)
+            with self.assertRaisesRegex(ValueError, "device differs"):
+                ft.tensor(4, engine=active, device="cuda")
+            with Engine("cuda:2", compilers={}) as cuda:
+                self.assertEqual(ft.get_default_device(), "cuda:2")
+                self.assertIs(current_engine(), cuda)
+                self.assertIs(ft.tensor(5, device="cpu").engine, default)
+                self.assertIsNone(cuda._session)
+            self.assertEqual(ft.get_default_device(), "cpu")
+        self.assertEqual(ft.get_default_device(), "cuda:1")
+        self.assertFalse(default.closed)
+        configured = ft.configure("cpu")
+        self.assertTrue(default.closed)
+        self.assertFalse(configured.closed)
+        self.assertEqual(ft.get_default_device(), "cuda:1")
+
+    def test_buffer_and_weight_factories_share_selected_engine(self):
+        from array import array
+        source = ft.from_buffer(array("i", [1, 2]), dtype="i32", shape=(2,))
+        path = ft.save_weights(self.directory / "weights", {"x": source})
+        restored = ft.load_weights(path)["x"]
+        self.assertIs(restored.engine, source.engine)
+        self.assertEqual(restored.tolist(), [1, 2])
+        ft.set_default_device("cuda")
+        with Engine("cpu") as active:
+            imported = ft.from_buffer(source.to_buffer(), dtype="i32", shape=(2,))
+            loaded = ft.load_weights(path)["x"]
+            self.assertIs(imported.engine, active)
+            self.assertIs(loaded.engine, active)
+            self.assertEqual(loaded.tolist(), [1, 2])
+        explicit = ft.load_weights(path, device="cpu")["x"]
+        self.assertIs(explicit.engine, source.engine)
+
+    def test_synchronize_selects_engine_without_materializing_graph(self):
+        x = ft.tensor([1.0, 2.0])
+        pending = x + 1
+        before = x.engine.stats["executions"]
+        with patch.object(x.engine, "synchronize", wraps=x.engine.synchronize) as synchronize:
+            self.assertIsNone(ft.synchronize())
+            synchronize.assert_called_once_with()
+        self.assertEqual(x.engine.stats["executions"], before)
+        with Engine("cuda", compilers={}) as active:
+            with patch.object(active, "synchronize", wraps=active.synchronize) as synchronize:
+                ft.synchronize()
+                synchronize.assert_called_once_with()
+            ft.synchronize("cpu")
+            self.assertIsNone(active._session)
+        self.assertEqual(pending.tolist(), [2.0, 3.0])
+
+    def test_process_exit_closes_default_engine(self):
+        marker = self.directory / "closed"
+        script = '''
+import atexit
+from pathlib import Path
+import sys
+def check():
+    Path(sys.argv[1]).write_text(str(x.engine.closed))
+atexit.register(check)
+import fugatensor as ft
+x = ft.tensor([1, 2, 3])
+assert (x + 1).tolist() == [2.0, 3.0, 4.0]
+'''
+        completed = subprocess.run([sys.executable, "-c", script, str(marker)],
+                                   capture_output=True, text=True, timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stderr, "")
+        self.assertEqual(marker.read_text(), "True")
 
 
 class BootstrapTests(unittest.TestCase):

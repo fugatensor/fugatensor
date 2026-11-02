@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import math
+from .dtypes import DType
 from .ir import ScalarType, TensorType
 
 from ._state import require_not_tracing
 
 
-def normalize_dtype(dtype: str) -> str:
+def normalize_dtype(dtype: DType | str) -> str:
     """Normalize the public Fuga element type."""
     return ScalarType(dtype).dtype
 
@@ -71,7 +72,7 @@ class Tensor:
         self._engine = engine
         self._storage = storage
         self._shape = tuple(storage.shape)
-        self._dtype = storage.dtype
+        self._dtype = DType(storage.dtype)
         self._pending = None
         self._requires_grad = requires_grad
         self._grad = None
@@ -82,7 +83,7 @@ class Tensor:
     def _from_pending(cls, engine, shape, dtype, pending):
         result = cls.__new__(cls)
         result._engine, result._storage = engine, None
-        result._shape, result._dtype = tuple(shape), dtype
+        result._shape, result._dtype = tuple(shape), DType(dtype)
         result._pending = pending
         result._requires_grad = False
         result._grad = result._history = result._history_index = None
@@ -134,7 +135,7 @@ class Tensor:
         return self._shape
 
     @property
-    def dtype(self) -> str:
+    def dtype(self) -> DType:
         return self._dtype
 
     @property
@@ -157,7 +158,7 @@ class Tensor:
             raise ValueError("CUDA to_buffer requires copy=True for device-to-host transfer")
         return memoryview(self.storage.to_host_bytes())
 
-    def astype(self, dtype: str) -> Tensor:
+    def astype(self, dtype: DType | str) -> Tensor:
         return self._engine.elementwise("cast", (self,), dtype=normalize_dtype(dtype))
 
     def _binary(self, operation, other, *, reverse=False):

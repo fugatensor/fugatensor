@@ -296,6 +296,36 @@ def defaults(X, Y, N, scale=2.5, BLOCK:C=128):
         self.assertNotIn('BLOCK', request['signature'])
         self.assertEqual((request['signature']['scale'], request['source_bindings']['scale']), ('fp32', 2.5))
 
+    def test_public_dtypes_bind_metadata_scalars_and_constexpr(self):
+        source = '''import triton
+import triton.language as tl
+@triton.jit
+def types(X, Y, enabled, count, wide, half, bfloat, scale,
+          TYPE: tl.constexpr, PACK: tl.constexpr):
+    pass
+'''
+        def output_dtype(spec):
+            self.assertIs(spec.dtype, ft.fp32)
+            return ft.fp16
+
+        operation = ft.triton.from_source(
+            source, entry="types", input="X", output="Y", output_dtype=output_dtype,
+            grid=(1,), scalars={"enabled": (ft.bool, True), "count": (ft.int32, 2),
+                "wide": (ft.int64, 2**40), "half": (ft.fp16, 1.5),
+                "bfloat": (ft.bf16, 2.0), "scale": (ft.fp32, 3.0)},
+            constants={"TYPE": ft.fp16, "PACK": (ft.int32, {"value": ft.bf16})})
+        context = self.context(dtype=ft.fp32)
+        self.assertIs(context.inputs[0].dtype, ft.fp32)
+        output = operation(context.inputs[0])
+        self.assertIs(output.dtype, ft.fp16)
+        module = context.finish(output)
+        request = self.compiler.prepare(lower_to_ask(
+            module, target={"backend": "cuda", "arch": 86})).report["external_requests"][0]
+        self.assertEqual(request["signature"], {"X": "*fp32", "Y": "*fp16", "enabled": "i1",
+            "count": "i32", "wide": "i64", "half": "fp16", "bfloat": "bf16", "scale": "fp32"})
+        self.assertEqual(request["constants"], {"TYPE": {"__triton_dtype__": "float16"},
+            "PACK": [{"__triton_dtype__": "int32"}, {"value": {"__triton_dtype__": "bfloat16"}}]})
+
 
 
 class TritonWorkerContractTests(unittest.TestCase):
@@ -433,14 +463,16 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
             spec.loader.exec_module(module)
             scale = {'value': 2.5}
             operation = ft.triton.from_jit(module.expanded, input='X',
-                outputs={'Y': {}, 'Z': {'dtype': 'i32'}}, grid=(1,), config=1,
-                scalars=lambda spec: {'N': ('i32', spec.numel), 'scale': ('fp32', scale['value'])},
-                constants={'TYPE': {'__triton_dtype__': 'float32'}, 'PAIR': (2, 3)})
+                outputs={'Y': {}, 'Z': {'dtype': ft.int32}}, grid=(1,), config=1,
+                scalars=lambda spec: {'N': (ft.int32, spec.numel), 'scale': (ft.fp32, scale['value'])},
+                constants={'TYPE': ft.fp32, 'PAIR': (2, 3)})
             self.assertNotIn('object()', operation.source)
             module.BIAS = None  # Registered source no longer reads the original module.
             path.unlink()
             x = ft.tensor([0., 1., 2., 3.])
             y, z = operation(x)
+            self.assertIs(y.dtype, ft.fp32)
+            self.assertIs(z.dtype, ft.int32)
             scale['value'] = 4.0
             other, _ = operation(x)
             before = self.engine.session.stats['launches']

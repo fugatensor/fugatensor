@@ -1,6 +1,6 @@
 # FugaTensor 架构总览
 
-目录导航：[文档目录](../README.md) · 接口用法：[用户 API](../用户API/README.md) · 中间表示：[Fuga IR 总览](../ir/README.md) · 底层引擎：[ASK 核心思想](../../../ask/docs/核心思想.md)
+目录导航：[文档目录](../README.md) · 接口用法：[API](../API/README.md) · 中间表示：[Fuga IR 总览](../ir/README.md) · 底层引擎：[ASK 核心思想](../../../ask/docs/核心思想.md)
 
 FugaTensor 负责 Python 张量接口、自动组图与按需执行、结构化中间表示（Fuga IR）与自动微分变换；所有张量算术计算均编译为原生 CPU 代码或 CUDA kernel 交由 [ASK](../../../ask/docs/核心思想.md) 执行。
 
@@ -34,7 +34,7 @@ flowchart TD
 
 ## 2. 张量模型、自动组图与执行边界
 
-Tensor 持有 CPU/CUDA 存储，或记录尚未计算的表达式及已知形状、类型和设备。`x + y`、`x.astype("f16")` 等运算自动组图；普通 Python 函数每次正常运行，无需装饰器。跨函数调用仍保留同一数据流与融合机会。
+Tensor 持有 CPU/CUDA 存储，或记录尚未计算的表达式及已知形状、类型和设备。`x + y`、`x.astype(ft.fp16)` 等运算自动组图；普通 Python 函数每次正常运行，无需装饰器。跨函数调用仍保留同一数据流与融合机会。
 
 读取数据、0-D 标量条件判断、`.backward()` 或 `ft.evaluate(...)` 触发 JIT。引擎回溯所需输出，先用不可变模板及连接关系查询结构缓存，未命中才合并 Fuga IR 并编译。`ft.evaluate(a, b)` 可以一起计算多个输出；已计算 Tensor 的重复读取不再执行。已有连续内存可通过 `from_buffer` / `to_buffer` 批量传递，避免逐元素转换。
 

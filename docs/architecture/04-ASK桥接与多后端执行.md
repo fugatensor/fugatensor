@@ -2,7 +2,7 @@
 
 返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](01-张量模型与追踪机制.md) · [Fuga IR 降级到 ASK](../ir/03-降级到ASK.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/05-常驻运行时与多级缓存.md)
 
-用户 API：[引擎与执行](../用户API/03-引擎与执行.md) · [Triton 算子接入](../用户API/05-Triton算子接入.md)
+API：[设备与执行](../API/03-设备与执行.md) · [Triton 算子接入](../API/05-Triton算子接入.md)
 
 读取结果或反向传播触发待计算表达式合并为 Fuga IR `Module` 后，`Engine` 负责裁剪未使用的物理输入端口、降级为 ASK IR、写出跨层溯源产物，并调用 CPU 动态库或 GPU 常驻会话执行。
 
@@ -12,7 +12,7 @@
 
 `Engine` 管理 FugaTensor 与 [ASK 编译器及运行时](../../../ask/docs/02-前端接入与构建配置.md#python-sdk) 的连接状态：
 
-- **延迟初始化与上下文隔离**：默认按设备惰性创建全局引擎（首次使用 `device="cpu"` 或 `device="cuda"` / `"cuda:0"` 时建立，调用 `ft.shutdown()` 时关闭）；也可通过 `with ft.Engine(device=..., cache_dir=...) as eng:` 创建独立引擎。`Tensor` 绑定创建它的 `Engine`，使用已关闭引擎读取张量数据、继续运算，或跨 `Engine` 混用张量均会报错。
+- **延迟初始化与上下文隔离**：普通 `ft.tensor(...)` 默认使用 CPU，按设备惰性创建并复用引擎；正常进程退出或调用 `ft.shutdown()` 时关闭。`ft.set_default_device` 使用 `ContextVar` 保存后续创建的默认设备，切换不关闭引擎或移动已有张量；显式 `device=` 优先。需要独立资源时仍可创建 `Engine`，其上下文临时覆盖默认设备。`Tensor` 绑定创建它的引擎，关闭后读取数据、继续运算或跨引擎混用张量均会报错。`ft.synchronize` 只等待选定引擎已提交的任务，不会求值待计算表达式。
 - **无用物理输入端口裁剪**：
   反向传播或复合函数中常出现签名包含 `(x, dy)` 但图内仅消费 `dy` 的情况（如线性缩放算子的反向 `dx = dy * 2`）。`Engine._compile` 在降级前先调用 [`ir/transforms.py` 的 `prune`](02-原生图分析与C++边界.md#transforms-reuse) 找出实际被使用的输入参数，仅保留活跃输入端口编译为底层可执行文件，外层由 `_InputProjection` 在调用时按索引筛选实参。这样手写 Triton 反向不会因签名中的未用参数而被前端拒绝。
 - **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/03-降级到ASK.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。

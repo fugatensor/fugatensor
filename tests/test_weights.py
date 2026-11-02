@@ -19,7 +19,7 @@ class WeightExportTests(EngineTestCase):
             "bool": ft.tensor([True, False, True], dtype="bool"),
             "i32": ft.tensor([-2, 0, 7], dtype="i32"),
             "i64": ft.tensor([-(2 ** 40), 2 ** 40], dtype="i64"),
-            "f32": ft.tensor([1.5, -2.25], dtype="f32"),
+            "f32": ft.tensor([1.5, -2.25], dtype=ft.fp32),
             "f16": ft.tensor([[1.5, -2.0], [3.25, 4.0]], dtype="f16"),
             "bf16": ft.tensor([1.5, -2.0], dtype="bf16"),
             "nested": [{"weight": ft.tensor([[1.0, 2.0]], dtype="f32")},
@@ -48,9 +48,12 @@ class WeightExportTests(EngineTestCase):
             self.assertIsInstance(loaded["nested"], list)
             self.assertIsInstance(loaded["nested"][1], tuple)
             for name in ("bool", "i32", "i64", "f32", "f16", "bf16"):
+                self.assertIs(loaded[name].dtype, ft.DType(name))
                 self.assertEqual(loaded[name].dtype, tree[name].dtype)
                 self.assertEqual(loaded[name].shape, tree[name].shape)
                 self.assertEqual(loaded[name].tolist(), tree[name].tolist())
+            self.assertEqual({record["dtype"] for record in manifest["arrays"].values()},
+                             {"bool", "i32", "i64", "f32", "f16", "bf16"})
             self.assertEqual(loaded["nested"][0]["weight"].tolist(), [[1.0, 2.0]])
             self.assertEqual(loaded["nested"][1][0].tolist(), 3.0)
             self.assertEqual(loaded["empty"].shape, (2, 0, 3))

@@ -83,9 +83,26 @@ class HostStorageTests(unittest.TestCase):
 
 
 class SharedJITExecutionMixin:
+    def test_public_dtype_objects_survive_deferred_execution(self):
+        x = ft.tensor([1, 2])
+        self.assertIs(x.dtype, ft.fp32)
+        self.assertIn("dtype=ft.fp32", repr(x))
+        low = ft.cast(x + 1, ft.fp16)
+        self.assertIs(low.dtype, ft.fp16)
+        self.assertEqual(low.tolist(), [2.0, 3.0])
+        self.assertIs(low.dtype, ft.fp16)
+        self.assertIs(ft.tensor([1], dtype="fp16").dtype, ft.fp16)
+        integer = ft.tensor([2], dtype=ft.int64)
+        self.assertIs(integer.dtype, ft.int64)
+        self.assertEqual(integer.tolist(), [2])
+        self.assertIs(ft.tensor([True], dtype=ft.bool).dtype, ft.bool)
+        self.assertIs(ft.DType("f32"), ft.fp32)
+        self.assertEqual(json.dumps({"dtype": ft.fp32}), '{"dtype": "f32"}')
+
     def test_public_buffer_import_and_export(self):
         source = array('f', [1.5, -0.0])
-        x = ft.from_buffer(source, shape=(2,), dtype='f32', engine=self.engine, requires_grad=True)
+        x = ft.from_buffer(source, shape=(2,), dtype=ft.fp32, engine=self.engine, requires_grad=True)
+        self.assertIs(x.dtype, ft.fp32)
         source[0] = 9
         raw = (x * 2).to_buffer()
         self.assertTrue(raw.readonly)

@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import math
 import struct
 
+from ..dtypes import DType
+
 DTYPES = ("bool", "i32", "i64", "f32", "f16", "bf16")
 FLOAT_DTYPES = frozenset(("f16", "bf16", "f32"))
 _WIDTH = {"bool": 1, "i32": 4, "i64": 8, "f32": 4, "f16": 2, "bf16": 2}
@@ -12,6 +14,8 @@ _FLOAT = {"f32": (8, 23), "f16": (5, 10), "bf16": (8, 7)}
 
 
 def normalize_dtype(dtype):
+    if isinstance(dtype, DType):
+        return dtype.value
     dtype = "f16" if dtype == "fp16" else dtype
     if not isinstance(dtype, str) or dtype not in DTYPES:
         raise ValueError(f"unsupported Fuga element type: {dtype!r}")

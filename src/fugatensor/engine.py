@@ -1,6 +1,7 @@
 """Resource ownership and compilation through the installed ASK engine."""
 from __future__ import annotations
 
+import atexit
 import contextvars
 import json
 from pathlib import Path
@@ -13,12 +14,14 @@ from fugatensor._ask import Compiler, ExecutionSession
 
 from ._state import require_not_tracing
 from ._config import runtime_defaults
+from .dtypes import fp32
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
 from .lowering import lower_to_ask
 from .ir import prune, specialize
 
 _current = contextvars.ContextVar('fugatensor_engine', default=None)
+_default_device = contextvars.ContextVar('fugatensor_default_device', default='cpu')
 _defaults = {}
 _default_lock = threading.Lock()
 
@@ -48,9 +51,25 @@ def _environment_options(device, *, include_compilers=True, use_config=True):
     return options
 
 
+def set_default_device(device):
+    """Select the device for future tensors in this context, without initializing it.
+
+    Explicit devices and Engine contexts take precedence. Existing tensors and
+    engines retain their device and lifetime.
+    """
+    require_not_tracing()
+    _default_device.set(_device_name(device))
+
+
+def get_default_device():
+    """Return the effective device, including any active Engine context."""
+    active = _current.get()
+    return active.device if active is not None else _default_device.get()
+
+
 def current_engine(device=None):
     active = _current.get()
-    selected = _device_name(device) if device is not None else (active.device if active else 'cpu')
+    selected = _device_name(device) if device is not None else get_default_device()
     if active is not None and active.device == selected:
         active._check_open()
         return active
@@ -67,6 +86,7 @@ def configure(device='cpu', **options):
 
     Replacing a configuration closes its old default engine and its tensors.
     Without explicit configuration the same paths can be provided by environment.
+    This does not change the device selected by set_default_device().
     """
     require_not_tracing()
     device = _device_name(device)
@@ -83,7 +103,10 @@ def configure(device='cpu', **options):
 
 
 def shutdown(device=None):
-    """Wait for and close default engines. Explicit Engine contexts own themselves."""
+    """Close default engines without changing the default device selection.
+
+    Also called at normal process exit. Explicit Engines own their lifetime.
+    """
     require_not_tracing()
     with _default_lock:
         if device is None:
@@ -94,6 +117,15 @@ def shutdown(device=None):
             engines = [engine] if engine is not None else []
     for engine in engines:
         engine.close()
+
+
+atexit.register(shutdown)
+
+
+def synchronize(device=None):
+    """Wait for submitted work on the selected device without evaluating pending graphs."""
+    require_not_tracing()
+    current_engine(device).synchronize()
 
 
 class Engine:
@@ -163,7 +195,7 @@ class Engine:
                 result['runtime'] = self._session.stats
             return result
 
-    def tensor(self, values, *, dtype='f32', shape=None, requires_grad=False):
+    def tensor(self, values, *, dtype=fp32, shape=None, requires_grad=False):
         require_not_tracing()
         flat, shape = normalize_data(values, shape=shape)
         dtype = normalize_dtype(dtype)
@@ -411,7 +443,7 @@ def evaluate(*tensors):
     return results[0] if len(results) == 1 else results
 
 
-def tensor(values, *, dtype='f32', shape=None, engine=None, device=None, requires_grad=False):
+def tensor(values, *, dtype=fp32, shape=None, engine=None, device=None, requires_grad=False):
     require_not_tracing()
     selected = engine if engine is not None else current_engine(device)
     if device is not None and _device_name(device) != selected.device:

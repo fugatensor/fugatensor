@@ -33,7 +33,7 @@ def _dimensions(specs):
         raise ValueError('attention batch, head, key and value dimensions disagree')
     if d not in (32, 64, 128) or dv not in (32, 64, 128):
         raise ValueError('validated attention feature sizes are 32, 64 or 128')
-    if q.dtype not in ('f16', 'bf16') or any(spec.dtype != q.dtype for spec in (k, v)):
+    if q.dtype not in (ft.fp16, ft.bf16) or any(spec.dtype != q.dtype for spec in (k, v)):
         raise TypeError('attention requires matching f16 or bf16 inputs')
     return b, h, m, n, d, dv
 
@@ -47,7 +47,7 @@ def _stats_dimensions(specs):
         raise ValueError('attention stats batch, head or sequence dimensions disagree')
     if (b, h, m, dv) != do.shape:
         raise ValueError('attention output and output gradient shapes disagree')
-    if q.dtype not in ('f16', 'bf16') or any(spec.dtype != q.dtype for spec in (k, o, do)):
+    if q.dtype not in (ft.fp16, ft.bf16) or any(spec.dtype != q.dtype for spec in (k, o, do)):
         raise TypeError('attention requires matching f16 or bf16 inputs')
     if d not in (32, 64, 128) or dv not in (32, 64, 128):
         raise ValueError('validated attention feature sizes are 32, 64 or 128')
@@ -103,7 +103,7 @@ def _make_kernels(causal):
     return (
         register('flash_attention2', ('Q', 'K', 'V'), 'O', constants, query_grid, forward_shape),
         register('flash_attention2_bwd_stats', ('Q', 'K', 'O', 'dO'), 'Stats',
-                 stats_constants, stats_grid, stats_shape, 'f32'),
+                 stats_constants, stats_grid, stats_shape, ft.fp32),
         register('flash_attention2_bwd_dq', ('Q', 'K', 'V', 'dO', 'Stats'), 'dQ',
                  constants, query_grid, dq_shape),
         register('flash_attention2_bwd_dk', ('Q', 'K', 'V', 'dO', 'Stats'), 'dK',
@@ -211,9 +211,9 @@ def reference_backward(q, k, v, do, *, batch, heads, m, n, d, dv, causal):
 
 def _compare(actual, expected, dtype, label, *, gradient=False):
     if gradient:
-        atol, rtol = (0.02, 0.02) if dtype == 'f16' else (0.04, 0.04)
+        atol, rtol = (0.02, 0.02) if dtype == ft.fp16 else (0.04, 0.04)
     else:
-        atol, rtol = (0.003, 0.003) if dtype == 'f16' else (0.02, 0.02)
+        atol, rtol = (0.003, 0.003) if dtype == ft.fp16 else (0.02, 0.02)
     if len(actual) != len(expected):
         raise AssertionError(f'{label} length differs from the reference')
     error = max(abs(value - target) for value, target in zip(actual, expected))
@@ -224,49 +224,52 @@ def _compare(actual, expected, dtype, label, *, gradient=False):
     return error
 
 
-def validate(*, dtype='f16', causal=False, backward=False, m=35, n=41, d=32, dv=64):
+def validate(*, dtype=ft.fp16, causal=False, backward=False, m=35, n=41, d=32, dv=64):
+    if type(dtype) is str:
+        dtype = {'f16': ft.fp16, 'bf16': ft.bf16}[dtype]
     operation = attention(causal=causal)
-    with ft.Engine('cuda') as engine:
-        def make(count, period, scale, shape):
-            return ft.tensor([((i * 7) % period - period // 2) * scale for i in range(count)],
-                             shape=shape, dtype=dtype, requires_grad=backward)
-        q = make(m * d, 23, 0.03125, (1, 1, m, d))
-        k = make(n * d, 19, 0.03125, (1, 1, n, d))
-        v = make(n * dv, 17, 0.0625, (1, 1, n, dv))
-        shifted = q * 0.5
-        output = operation(shifted, k, v) * 2
-        # Reads happen only after the complete graph has been submitted.
-        actual = engine.to_flat(output)
-        forward_report = engine.last_report
-        forward_steps = [step['kind'] for step in forward_report['execution_plan']['steps']]
-        expected = [2.0 * value for value in reference(
-            _flat(shifted.tolist()), _flat(k.tolist()), _flat(v.tolist()), causal=causal,
-            batch=1, heads=1, m=m, n=n, d=d, dv=dv)]
-        forward_error = _compare(actual, expected, dtype, 'attention forward')
-        receipt = {'dtype': dtype, 'causal': causal, 'q_shape': q.shape, 'k_shape': k.shape,
-                   'v_shape': v.shape, 'output_shape': output.shape,
-                   'max_abs_error': forward_error, 'steps': forward_steps}
-        if backward:
-            seed_values = [((index * 5) % 13 - 6) * 0.0625 for index in range(len(actual))]
-            seed = ft.tensor(seed_values, shape=output.shape, dtype=dtype)
-            output.backward(seed)
-            if q.grad is None or k.grad is None or v.grad is None:
-                raise AssertionError('attention backward did not populate all input gradients')
-            dq, dk, dv = reference_backward(
-                _flat(shifted.tolist()), _flat(k.tolist()), _flat(v.tolist()),
-                [2.0 * value for value in _flat(seed.tolist())], causal=causal,
-                batch=1, heads=1, m=m, n=n, d=d, dv=dv)
-            dq = [0.5 * value for value in dq]
-            backward_report = engine.last_report
-            backward_steps = [step['kind'] for step in backward_report['execution_plan']['steps']]
-            receipt.update({
-                'backward_plan_steps': backward_steps,
-                'dq_error': _compare(_flat(q.grad.tolist()), dq, dtype, 'attention dQ', gradient=True),
-                'dk_error': _compare(_flat(k.grad.tolist()), dk, dtype, 'attention dK', gradient=True),
-                'dv_error': _compare(_flat(v.grad.tolist()), dv, dtype, 'attention dV', gradient=True),
-            })
-        receipt['verified'] = True
-        return receipt
+
+    def make(count, period, scale, shape):
+        return ft.tensor([((i * 7) % period - period // 2) * scale for i in range(count)],
+                         shape=shape, dtype=dtype, device="cuda", requires_grad=backward)
+    q = make(m * d, 23, 0.03125, (1, 1, m, d))
+    k = make(n * d, 19, 0.03125, (1, 1, n, d))
+    v = make(n * dv, 17, 0.0625, (1, 1, n, dv))
+    shifted = q * 0.5
+    output = operation(shifted, k, v) * 2
+    # Reads happen only after the complete graph has been submitted.
+    actual = _flat(output.tolist())
+    engine = q.engine
+    forward_report = engine.last_report
+    forward_steps = [step['kind'] for step in forward_report['execution_plan']['steps']]
+    expected = [2.0 * value for value in reference(
+        _flat(shifted.tolist()), _flat(k.tolist()), _flat(v.tolist()), causal=causal,
+        batch=1, heads=1, m=m, n=n, d=d, dv=dv)]
+    forward_error = _compare(actual, expected, dtype, 'attention forward')
+    receipt = {'dtype': dtype.value, 'causal': causal, 'q_shape': q.shape, 'k_shape': k.shape,
+               'v_shape': v.shape, 'output_shape': output.shape,
+               'max_abs_error': forward_error, 'steps': forward_steps}
+    if backward:
+        seed_values = [((index * 5) % 13 - 6) * 0.0625 for index in range(len(actual))]
+        seed = ft.tensor(seed_values, shape=output.shape, dtype=dtype, device="cuda")
+        output.backward(seed)
+        if q.grad is None or k.grad is None or v.grad is None:
+            raise AssertionError('attention backward did not populate all input gradients')
+        dq, dk, dv = reference_backward(
+            _flat(shifted.tolist()), _flat(k.tolist()), _flat(v.tolist()),
+            [2.0 * value for value in _flat(seed.tolist())], causal=causal,
+            batch=1, heads=1, m=m, n=n, d=d, dv=dv)
+        dq = [0.5 * value for value in dq]
+        backward_report = engine.last_report
+        backward_steps = [step['kind'] for step in backward_report['execution_plan']['steps']]
+        receipt.update({
+            'backward_plan_steps': backward_steps,
+            'dq_error': _compare(_flat(q.grad.tolist()), dq, dtype, 'attention dQ', gradient=True),
+            'dk_error': _compare(_flat(k.grad.tolist()), dk, dtype, 'attention dK', gradient=True),
+            'dv_error': _compare(_flat(v.grad.tolist()), dv, dtype, 'attention dV', gradient=True),
+        })
+    receipt['verified'] = True
+    return receipt
 
 
 def main():
@@ -275,7 +278,8 @@ def main():
     parser.add_argument('--causal', action='store_true')
     parser.add_argument('--backward', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(validate(dtype=args.dtype, causal=args.causal, backward=args.backward), indent=2))
+    dtype = {'f16': ft.fp16, 'bf16': ft.bf16}[args.dtype]
+    print(json.dumps(validate(dtype=dtype, causal=args.causal, backward=args.backward), indent=2))
 
 
 if __name__ == '__main__':

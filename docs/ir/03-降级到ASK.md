@@ -4,7 +4,7 @@
 
 [`lower_to_ask`](../../src/fugatensor/lowering.py) 接收 Fuga `Module` 与目标设备信息，返回 FugaTensor 内部 `_ask.Module` 图描述；调用其 `to_mlir()` 可得到提交给 ASK C++ 编译入口的文本。可选的 `source_map` 字典接收逐值溯源记录。Fuga IR 本身不依赖这些后端对象，ASK 也不提供独立 Python 包。
 
-用户 API：[IR 与降级](../用户API/07-IR与降级.md)
+API：[IR 与降级](../API/07-IR与降级.md)
 
 <a id="static-simplification"></a>
 
@@ -23,7 +23,7 @@
 
 ## 2. 类型与基础操作映射
 
-内部图桥接层逐条生成真正的 ASK MLIR。下表中的类型和构建器均位于 `fugatensor._ask`，不是另一套用户 API：
+内部图桥接层逐条生成真正的 ASK MLIR。下表中的类型和构建器均位于 `fugatensor._ask`，不是另一套API：
 
 | Fuga IR | ASK 描述或操作 | 说明 |
 | --- | --- | --- |

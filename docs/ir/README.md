@@ -1,6 +1,6 @@
 # Fuga IR 总览
 
-目录导航：[文档目录](../README.md) · 接口用法：[IR 与降级 API](../用户API/07-IR与降级.md) · 系统架构：[架构总览](../architecture/README.md) · 底层引擎：[ASK IR 与数值语义](../../../ask/docs/01-ASK-IR与数值语义.md)
+目录导航：[文档目录](../README.md) · 接口用法：[IR 与降级 API](../API/07-IR与降级.md) · 系统架构：[架构总览](../architecture/README.md) · 底层引擎：[ASK IR 与数值语义](../../../ask/docs/01-ASK-IR与数值语义.md)
 
 Fuga IR（`src/fugatensor/ir/`）是 FugaTensor 内部的中间表示，使用独立的类型、SSA 值、操作和嵌套区域对象承载框架层的图分析与变换，不依赖后端桥接层的值对象或 MLIR 字符串。
 

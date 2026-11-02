@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .ir import Module, TensorType, Value
+from .dtypes import DType
 
 from .tensor import normalize_dtype, normalize_shape
 from ._state import active_trace
@@ -24,14 +25,14 @@ class TraceTensor:
         return self.value.type.shape
 
     @property
-    def dtype(self) -> str:
-        return self.value.type.dtype
+    def dtype(self) -> DType:
+        return DType(self.value.type.dtype)
 
     @property
     def device(self) -> str:
         return self.context.engine.device if self.context.engine is not None else "cpu"
 
-    def astype(self, dtype: str) -> TraceTensor:
+    def astype(self, dtype: DType | str) -> TraceTensor:
         value = self.context.graph.cast(self.value, dtype=normalize_dtype(dtype))
         return self.context.wrap(value)
 

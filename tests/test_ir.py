@@ -7,6 +7,7 @@ from types import MappingProxyType
 import unittest
 from unittest.mock import patch
 
+import fugatensor as ft
 from fugatensor.ir import ExternalSpec, Module, ScalarType, TensorType, primitives, prune, specialize, vjp
 from fugatensor.ir.transforms import StaticControlFlowError
 
@@ -15,6 +16,25 @@ class FugaIRCoreTests(unittest.TestCase):
     def graph(self, **inputs):
         module = Module()
         return module, module.graph("calculate", inputs=inputs)
+
+    def test_public_dtype_objects_normalize_to_canonical_ir_types(self):
+        tensor_type = TensorType((2,), ft.fp32)
+        scalar_type = ScalarType(ft.int64)
+        self.assertIs(type(tensor_type.dtype), str)
+        self.assertIs(type(scalar_type.dtype), str)
+        self.assertEqual((tensor_type.dtype, scalar_type.dtype), ("f32", "i64"))
+        module, graph = self.graph(x=tensor_type)
+        low = graph.cast(graph.inputs["x"], dtype=ft.fp16)
+        constant = graph.constant(True, dtype=ft.bool)
+        graph.return_(low, constant)
+        module.verify()
+        text = module.to_text()
+        self.assertIn("tensor<2xf16>", text)
+        self.assertNotIn("ft.", text)
+        self.assertNotIn("DType", text)
+        lowered = ft.lower_to_ask(module, target={"backend": "host"}).to_mlir()
+        self.assertIn("tensor<2xf16>", lowered)
+        self.assertNotIn("ft.", lowered)
 
     def test_types_nodes_immutability_and_ssa_naming(self):
         module, graph = self.graph(x=TensorType((2, 3), "fp16"))

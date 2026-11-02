@@ -64,7 +64,7 @@ def _configuration_value(value):
     try:
         return _static_key(value)
     except TypeError as error:
-        raise TypeError("fun state must contain only immutable bool/int/float/str/None values or tuples; "
+        raise TypeError("fun state must contain only immutable DType/bool/int/float/str/None values or tuples; "
                         "pass Tensor state as explicit function arguments") from error
 
 

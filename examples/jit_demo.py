@@ -41,7 +41,7 @@ def arithmetic_demo(device):
     if second != expected_second:
         raise AssertionError((second, expected_second))
     return {"device": device, "expression": "(x + y) * 2", "first": first,
-            "new_input": second, "shape": x.shape, "dtype": x.dtype,
+            "new_input": second, "shape": x.shape, "dtype": x.dtype.value,
             "verified": True, **_details(x.engine)}
 
 
@@ -68,7 +68,7 @@ def triton_demo():
     if second != expected_second:
         raise AssertionError((second, expected_second))
     return {"device": "cuda", "expression": "ASK(x + 1) -> Triton(* 2) -> ASK(+ 3)",
-            "first": first, "new_input": second, "shape": x.shape, "dtype": x.dtype,
+            "first": first, "new_input": second, "shape": x.shape, "dtype": x.dtype.value,
             "user_kernel": str(source), "verified": True, **_details(x.engine)}
 
 

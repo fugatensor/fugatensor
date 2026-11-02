@@ -16,6 +16,7 @@ import types
 from fugatensor._ask import CompilerEnvironment
 
 from ._jit import jit
+from .dtypes import DType
 from .ir import ExternalSpec, TensorType
 from .tensor import Tensor, normalize_dtype, normalize_shape
 from .tracing import TraceTensor
@@ -32,6 +33,10 @@ def _identifier(value, field):
 
 def _constant(value):
     """Serialize constexpr data without importing the selected compiler."""
+    if isinstance(value, DType):
+        names = {'bool': 'int1', 'i32': 'int32', 'i64': 'int64',
+                 'f32': 'float32', 'f16': 'float16', 'bf16': 'bfloat16'}
+        return {'__triton_dtype__': names[value]}
     if type(value).__module__.startswith('triton.language') and type(value).__name__ == 'constexpr':
         return _constant(value.value)
     if type(value).__module__.startswith('triton.language') and type(value).__name__ == 'dtype':
@@ -46,7 +51,7 @@ def _constant(value):
         return [_constant(item) for item in value]
     if isinstance(value, Mapping) and all(isinstance(key, str) for key in value):
         return {key: _constant(item) for key, item in value.items()}
-    raise TypeError('constexpr data must be finite JSON values or a Triton dtype')
+    raise TypeError('constexpr data must be finite JSON values or a FugaTensor/Triton dtype')
 
 
 def _constants(values):
@@ -64,6 +69,8 @@ def _scalars(values):
         if not isinstance(pair, (tuple, list)) or len(pair) != 2:
             raise TypeError('scalar bindings require (ABI type, value) pairs')
         dtype, value = pair
+        if isinstance(dtype, DType):
+            dtype = _SIGNATURE[dtype][1:]
         if not isinstance(dtype, str) or type(value) not in (bool, int, float) or (type(value) is float and not math.isfinite(value)):
             raise TypeError("scalar bindings require an ABI type and a finite numeric value")
         result[name] = (dtype, value)
@@ -93,8 +100,11 @@ def _launch_grid(value):
 class TensorSpec:
     """Static specialization metadata; it never contains tensor storage or data."""
     shape: tuple[int, ...]
-    dtype: str
+    dtype: DType
     device: str
+
+    def __post_init__(self):
+        object.__setattr__(self, 'dtype', DType(normalize_dtype(self.dtype)))
 
     @property
     def numel(self):
