@@ -1,6 +1,6 @@
-返回 API：[分类目录](README.md) · 相关 API：[设备与执行](03-设备与执行.md) · [自动微分与自定义函数](04-自动微分与自定义函数.md)
+返回 API：[分类目录](README.md) · 相关 API：[设备与执行](设备与执行.md) · [自动微分与自定义函数](自动微分与自定义函数.md)
 
-# 05. Triton 算子接入
+# Triton 算子接入
 
 `ft.triton` 把用户 kernel 注册为可参与 FugaTensor 图的算子。算子调用先生成待计算 Tensor；执行时由独立 worker 编译，交给 ASK 原生计划调度。worker 支持的稳定版本范围、安装与环境配置见[安装文档](../安装.md#configure-triton)。
 
@@ -69,7 +69,7 @@ ft.configure("cuda", compilers={"triton": environment})
 
 编译环境在程序开始时配置一次即可。`configure("cuda", ...)` 只配置 CUDA 后端；创建张量时仍需传 `device="cuda"`，或先用 `ft.set_default_device("cuda")` 选择默认设备。配置已经通过安装文件或环境变量提供时，无需再调用 `configure`。
 
-也可通过 `FUGATENSOR_TRITON_PYTHON`、`FUGATENSOR_TRITON_WORKER` 配置。`ft.triton.environment_from_env()` 在两项均未设置时返回 `None`；Python 变量为空，或仅设置 worker 时抛出 `ValueError`。未显式指定 `compilers` 的 CUDA 引擎会读取这些变量，通常不必手动调用该函数。完整优先级见[设备与执行](03-设备与执行.md)。
+也可通过 `FUGATENSOR_TRITON_PYTHON`、`FUGATENSOR_TRITON_WORKER` 配置。`ft.triton.environment_from_env()` 在两项均未设置时返回 `None`；Python 变量为空，或仅设置 worker 时抛出 `ValueError`。未显式指定 `compilers` 的 CUDA 引擎会读取这些变量，通常不必手动调用该函数。完整优先级见[设备与执行](设备与执行.md)。
 
 只执行外部 Triton kernel 不需要为 ASK 配置 `llc` / `ptxas`；同一图含 FugaTensor 自有算术时，仍需[自有 CUDA 编译工具](../安装.md#configure-cuda)。worker 会执行可信源码的模块顶层语句，源码导入的包必须在所选解释器环境中可用。
 
@@ -122,6 +122,6 @@ print(z.tolist())  # [2.0, 3.0, 4.0]
 - `options` 限于所选受支持版本的 CUDA 编译选项；禁止覆盖 `arch`、`backend_name`、`ir_override`、`extern_libs` 和 `ptx_options`。不能用注册配置替换目标架构、注入外部 IR 或自由追加 ptxas 参数。
 - autotune 仅选择已声明配置；带输入重置/恢复、自定义 pre/post hook、配置 pre-hook 或 IR override 的用法不受支持。显式 `constants` / `options` 可覆盖所选配置，heuristics 随后求值。
 - `from_jit` 可保存引用的 Python/JIT helper、全局常量和模块导入；依赖同名冲突或无法重建的程序式调优包装会报错。自定义 JIT repr、launch metadata 和 pre-run hook 也不能快照；这些情况需要调整源码或接口，不能假定会自动导出。
-- 裸 Triton 算子没有自动梯度规则。需要梯度时用 [`ft.fun`](04-自动微分与自定义函数.md) 提供显式反向；含不透明外部算子的路径不支持二阶及以上微分。不同编译器产物作为独立 kernel 调度，不进行第三方代码融合。
+- 裸 Triton 算子没有自动梯度规则。需要梯度时用 [`ft.fun`](自动微分与自定义函数.md) 提供显式反向；含不透明外部算子的路径不支持二阶及以上微分。不同编译器产物作为独立 kernel 调度，不进行第三方代码融合。
 
-实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/04-ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[注意力 API](08-注意力.md)。
+实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[注意力 API](注意力.md)。

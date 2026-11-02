@@ -1,6 +1,6 @@
-返回API：[分类目录](README.md#categories) · 相关接口：[自动微分](04-自动微分与自定义函数.md) · 设计说明：[Fuga IR 总览](../ir/README.md)
+返回API：[分类目录](README.md#categories) · 相关接口：[自动微分](自动微分与自定义函数.md) · 设计说明：[Fuga IR 总览](../ir/README.md)
 
-# 07. IR 与降级
+# IR 与降级
 
 这里的接口用于手写或变换图。普通 Tensor 计算不需要显式操作 IR；这些调用构造图，不分配 Tensor，也不直接执行设备计算。
 
@@ -45,9 +45,9 @@ IR 类型把传入的 `ft.DType` 转成内部字符串编码；这与用户 Tens
 | `graph.for_(lower, upper, step, initial_values, body_fn)` | `body_fn(builder, index, *carried)`；边界与非零步长为 Python i64 范围整数，`index` 为 i64 SSA 值，返回值类型与初始值一致。 |
 | `graph.while_(initial_values, condition_fn, body_fn)` | 两个回调均为 `callback(builder, *carried)`；条件返回一个 bool 值，循环体返回与初始值同类型的值。 |
 
-回调通过传入的 builder 构图，返回 Value 或 Value 序列；也可显式调用 `builder.yield_(...)` 并返回 `None`，两种结束方式不能混用。区域使用传入的块参数，不能直接捕获外层 SSA 值。构图允许动态控制流，但 ASK 降级当前只接受静态 `if` 和可展开的 `for`，不接受 `while`。区域规则见[对象模型](../ir/01-对象模型与验证.md#ops-and-regions)，执行限制见[静态化简](../ir/03-降级到ASK.md#static-simplification)。
+回调通过传入的 builder 构图，返回 Value 或 Value 序列；也可显式调用 `builder.yield_(...)` 并返回 `None`，两种结束方式不能混用。区域使用传入的块参数，不能直接捕获外层 SSA 值。构图允许动态控制流，但 ASK 降级当前只接受静态 `if` 和可展开的 `for`，不接受 `while`。区域规则见[对象模型](../ir/对象模型与验证.md#ops-and-regions)，执行限制见[静态化简](../ir/降级到ASK.md#static-simplification)。
 
-高级外部节点使用 `ft.ir.ExternalSpec` 与 `graph.external(*operands, spec=..., result_types=None, id=None)`；一般 Triton 用户应使用[算子注册接口](05-Triton算子接入.md)，无需手写完整导出契约。
+高级外部节点使用 `ft.ir.ExternalSpec` 与 `graph.external(*operands, spec=..., result_types=None, id=None)`；一般 Triton 用户应使用[算子注册接口](Triton算子接入.md)，无需手写完整导出契约。
 
 <a id="ir-transforms"></a>
 
@@ -62,7 +62,7 @@ IR 类型把传入的 `ft.DType` 转成内部字符串编码；这与用户 Tens
 | `ft.ir.jvp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及选定输入的切线，输出原始结果及对应结果切线。 |
 | `ft.ir.vjp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及每个结果的余切种子，输出选定输入的梯度。 |
 
-`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。二者是图变换，不是 `Tensor.backward()` 的另一种调用签名。更多边界见[可组合微分](../ir/02-控制流与可组合变换.md#jvp-and-vjp)。
+`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。二者是图变换，不是 `Tensor.backward()` 的另一种调用签名。更多边界见[可组合微分](../ir/控制流与可组合变换.md#jvp-and-vjp)。
 
 <a id="lowering"></a>
 

@@ -1,6 +1,6 @@
-# 02. 原生图分析与 C++ 边界
+# 原生图分析与 C++ 边界
 
-返回架构总览：[独立 Fuga IR 与 C++ 原生图分析](README.md#arch-ir-native) · 相关细节：[张量模型与追踪机制](01-张量模型与追踪机制.md) · [自动微分与自定义算子](03-自动微分与自定义算子.md) · [Fuga IR 对象模型](../ir/01-对象模型与验证.md)
+返回架构总览：[独立 Fuga IR 与 C++ 原生图分析](README.md#arch-ir-native) · 相关细节：[张量模型与追踪机制](张量模型与追踪机制.md) · [自动微分与自定义算子](自动微分与自定义算子.md) · [Fuga IR 对象模型](../ir/对象模型与验证.md)
 
 自动微分（多输出部分求导、带副作用算子剪枝与高阶导数嵌套）和输入端口裁剪需要频繁计算 SSA 图的前向微分可达集、逆向活跃集与反向算子调度序。FugaTensor 将这部分图拓扑分析实现在必选 C++17 `nanobind` 扩展 `fugatensor._native` 中。
 
@@ -43,7 +43,7 @@ C++ 层先校验输入结构（拒绝负数或越界 Value ID、重复结果定�
 - **`prune(module)`**：以 `selected_inputs=()` 调用 `analyze_function`，按 `live_ops` 重建移除死代码并递归清理子区域后的 `Module`，保留函数级与模块级 `metadata`（如外部实现表 `external_implementations` 与子函数字典 `functions`）。
 - **`project_outputs(module, output_indices)`**：将 `Function.outputs` 投影到反向实际收到梯度种子的输出子集，再调用 `prune(module)` 移除无关输出支路。
 
-`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 与 [`engine.py` 的无用输入端口裁剪](04-ASK桥接与多后端执行.md#engine-lifecycle) 统一调用这三个函数。
+`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 与 [`engine.py` 的无用输入端口裁剪](ASK桥接与多后端执行.md#engine-lifecycle) 统一调用这三个函数。
 
 <a id="gil-and-concurrency"></a>
 

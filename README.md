@@ -24,7 +24,7 @@ y = ft.tensor([1, 2, 3, 4]).reshape(2, 2)
 print((x + y).reshape(-1).tolist())  # [2.0, 3.0, 4.0, 5.0]
 ```
 
-`tensor` 从嵌套数据推断形状；`zeros`、`ones`、`empty` 接受多个尺寸或一个 tuple/list，`full(size, value)` 指定填充值。`reshape` 保留元素次序并参与延迟计算和自动微分，可用一个 `-1` 推断尺寸。完整规则见[张量创建与形状](docs/API/01-张量与数据交换.md#size-factories)。
+`tensor` 从嵌套数据推断形状；`zeros`、`ones`、`empty` 接受多个尺寸或一个 tuple/list，`full(size, value)` 指定填充值。`reshape` 保留元素次序并参与延迟计算和自动微分，可用一个 `-1` 推断尺寸。完整规则见[张量创建与形状](docs/API/张量与数据交换.md#size-factories)。
 
 - **自动组图与 JIT 执行**：`x + 2`、`x.square()`、`x.astype(ft.fp16)` 等运算先返回待计算 Tensor，跨算子和普通函数调用保留融合机会；执行边界合并依赖图，并按图结构和类型复用编译结果。所有张量算术都由 ASK 执行。
 - **CPU 与自有 CUDA 后端**：将张量指定为 `device="cuda"` 即可通过 ASK 自有 CUDA 后端生成并异步执行 GPU kernel，无需依赖 Triton。
@@ -75,15 +75,15 @@ class CustomSquare(ft.fun):
         return (2 * x * dy,)
 ```
 
-- 传入 `y.backward(create_graph=True)` 会记录梯度的计算图，先保存 `first = x.grad`，再调用 `x.zero_grad()` 与 `first.backward()` 可继续求高阶导数；求导路径包含无原语规则的不透明外部算子时，会在反向执行前报错拒绝。见 [自动微分与自定义算子](docs/architecture/03-自动微分与自定义算子.md)。
+- 传入 `y.backward(create_graph=True)` 会记录梯度的计算图，先保存 `first = x.grad`，再调用 `x.zero_grad()` 与 `first.backward()` 可继续求高阶导数；求导路径包含无原语规则的不透明外部算子时，会在反向执行前报错拒绝。见 [自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md)。
 
 ### 2. 接入用户 Triton 算子
 
 使用 `ft.triton.from_source(source, ...)` 注册源码字符串，或通过 `ft.triton.kernel(path, ...)` 读取自己的 kernel 文件；已有 JIT 对象可通过 `ft.triton.from_jit(fn, ...)` 注册。配置张量端口、启动网格与参数后，返回的算子可以直接与普通张量运算组合。
 
-注册时保存源码快照，不在宿主进程导入 Triton。worker 将源码编译成 `cubin`，ASK 在同一 stream 上调度外部 kernel 与前后自有计算，自有区域仍可融合。`scalars=` 绑定按值参数，`outputs=` 声明多个输出；autotune 只选择显式配置。完整用法见[标量与双输出示例](docs/API/05-Triton算子接入.md#example)，环境准备见 [Triton 配置](docs/安装.md#configure-triton)。
+注册时保存源码快照，不在宿主进程导入 Triton。worker 将源码编译成 `cubin`，ASK 在同一 stream 上调度外部 kernel 与前后自有计算，自有区域仍可融合。`scalars=` 绑定按值参数，`outputs=` 声明多个输出；autotune 只选择显式配置。完整用法见[标量与双输出示例](docs/API/Triton算子接入.md#example)，环境准备见 [Triton 配置](docs/安装.md#configure-triton)。
 
-内置注意力直接调用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，无需注册 kernel。该接口使用 FlashAttention 实现，支持 CUDA 上 `ft.fp16` / `ft.bf16` 的前向与一阶反向；形状与支持边界见[注意力 API](docs/API/08-注意力.md)。
+内置注意力直接调用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，无需注册 kernel。该接口使用 FlashAttention 实现，支持 CUDA 上 `ft.fp16` / `ft.bf16` 的前向与一阶反向；形状与支持边界见[注意力 API](docs/API/注意力.md)。
 
 ### 3. 查看 IR、溯源产物与缓存统计
 
@@ -101,7 +101,7 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 `ft.evaluate(a, b)` 合并两个待计算输出的依赖图，并返回原 Tensor；已计算结果不会重复执行。`shape`、`dtype`、`device` 与 `repr` 只读取元信息。普通 Python 的 `if`/`while` 在读取 0-D Tensor 真值时执行条件所需的图，再按实际条件继续组图；`ft.fun` 内部的隔离追踪仍不支持数据依赖控制流。
 
-引擎在拼接完整图之前，用不可变模板及其连接关系查询缓存；重复图跳过组合、IR 文本生成和编译，普通 Python 函数仍照常执行。已有连续数组可用 `ft.from_buffer(data, shape=..., dtype=...)` 批量导入，用 `tensor.to_buffer()` 导出原始字节；CPU 支持显式借用存储，详见 [buffer 接口与寿命规则](docs/architecture/01-张量模型与追踪机制.md#buffer-io)。
+引擎在拼接完整图之前，用不可变模板及其连接关系查询缓存；重复图跳过组合、IR 文本生成和编译，普通 Python 函数仍照常执行。已有连续数组可用 `ft.from_buffer(data, shape=..., dtype=...)` 批量导入，用 `tensor.to_buffer()` 导出原始字节；CPU 支持显式借用存储，详见 [buffer 接口与寿命规则](docs/architecture/张量模型与追踪机制.md#buffer-io)。
 
 ## 当前支持范围
 
@@ -137,7 +137,7 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 - [安装与独立构建](docs/安装.md)
 - [文档目录](docs/README.md)
 - [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、注意力。
-- **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [01. 张量模型与追踪机制](docs/architecture/01-张量模型与追踪机制.md) · [02. 原生图分析与 C++ 边界](docs/architecture/02-原生图分析与C++边界.md) · [03. 自动微分与自定义算子](docs/architecture/03-自动微分与自定义算子.md) · [04. ASK 桥接与多后端执行](docs/architecture/04-ASK桥接与多后端执行.md) · [05. 权重格式与导出](docs/architecture/05-权重格式与导出.md)
-- **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [01. 对象模型与验证](docs/ir/01-对象模型与验证.md) · [02. 控制流与可组合变换](docs/ir/02-控制流与可组合变换.md) · [03. 降级到 ASK](docs/ir/03-降级到ASK.md)
+- **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [张量模型与追踪机制](docs/architecture/张量模型与追踪机制.md) · [原生图分析与 C++ 边界](docs/architecture/原生图分析与C++边界.md) · [自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md) · [ASK 桥接与多后端执行](docs/architecture/ASK桥接与多后端执行.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
+- **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [对象模型与验证](docs/ir/对象模型与验证.md) · [控制流与可组合变换](docs/ir/控制流与可组合变换.md) · [降级到 ASK](docs/ir/降级到ASK.md)
 
-[多 kernel 计划契约](../ask/docs/08-图切分与多Kernel执行计划.md) · [注意力 API](docs/API/08-注意力.md) · [权重格式与导出](docs/architecture/05-权重格式与导出.md)
+[多 kernel 计划契约](../ask/docs/图切分与多Kernel执行计划.md) · [注意力 API](docs/API/注意力.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
