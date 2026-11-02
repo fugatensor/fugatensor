@@ -18,7 +18,7 @@ requires_cuda = unittest.skipUnless(
 )
 requires_triton = unittest.skipUnless(
     os.environ.get("FUGATENSOR_TEST_TRITON") == "1",
-    "set FUGATENSOR_TEST_TRITON=1 to run user Triton GPU fusion tests",
+    "set FUGATENSOR_TEST_TRITON=1 to run user Triton GPU scheduling tests",
 )
 
 
@@ -67,8 +67,6 @@ class EngineTestCase(unittest.TestCase):
                     "Triton tests require a configured Triton worker (via engine.json or "
                     "FUGATENSOR_TRITON_PYTHON / FUGATENSOR_TRITON_WORKER)"
                 )
-            if os.environ.get("FUGATENSOR_TEST_NONE") == "1" and caps.get("third_party_compilers"):
-                raise AssertionError("FUGATENSOR_TEST_NONE=1 requires an ASK build without third-party compilers")
             major, _ = cls.engine.session.capability
             cls.supports_bf16 = major >= 8
 

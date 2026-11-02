@@ -12,7 +12,7 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 | [01. 张量模型与追踪机制](architecture/01-张量模型与追踪机制.md) | CPU/CUDA 张量存储、自动组图、按需 JIT 执行、隔离追踪与 0-D 标量条件 | `tensor.py`、`ops.py`、`_lazy.py`、`_jit.py`、`tracing.py` |
 | [02. 原生图分析与 C++ 边界](architecture/02-原生图分析与C++边界.md) | Python 与 C++ `_native` 扩展的分工、可达性与反向边界分析、`ir/transforms.py` 剪枝投影与无状态并发 | `cpp/graph.h`、`cpp/graph.cpp`、`cpp/bindings.cpp`、`ir/transforms.py` |
 | [03. 自动微分与自定义算子](architecture/03-自动微分与自定义算子.md) | 运行时 `GradHistory` 反向图调度、`ft.fun` 自定义前向/反向、JVP/VJP 高阶求导与反向预检 | `autograd.py`、`function.py`、`ir/differentiate.py`、`ir/jvp.py` |
-| [04. ASK 桥接与多后端执行](architecture/04-ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、自有 CUDA 与 Triton 融合执行、图编译及 ASK 缓存与 `bootstrap.py` 配置 | `engine.py`、`backends/`、`triton.py`、`_config.py`、`tools/bootstrap.py` |
+| [04. ASK 桥接与多后端执行](architecture/04-ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、自有 CUDA 与独立 Triton 调度、图编译及 ASK 缓存与 `bootstrap.py` 配置 | `engine.py`、`backends/`、`triton.py`、`_triton_worker.py`、`_config.py`、`tools/bootstrap.py` |
 | [05. 权重格式与导出](architecture/05-权重格式与导出.md) | 版本化 PyTree 权重目录、manifest/数组身份、原子导出、完整性校验与架构扩展边界 | `weights.py`、`schemas/weights-manifest-v1.schema.json` |
 
 ## Fuga IR 设计与变换（`docs/ir/`）
@@ -32,5 +32,5 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 - [ASK 文档目录](../../ask/docs/README.md) · [ASK 核心思想](../../ask/docs/核心思想.md)
 - [图切分与多 Kernel 执行计划](../../ask/docs/08-图切分与多Kernel执行计划.md) · [多 kernel 计划 JSON 契约](../../ask/schemas/execution-plan-v1.schema.json)
 - [外部编译器适配接入规范](../../ask/docs/09-外部编译器适配接入规范.md) · [worker 请求与 artifact 契约](../../ask/schemas/)
-- [ASK IR 与数值语义](../../ask/docs/01-ASK-IR与数值语义.md) · [外部编译器适配与边界内联](../../ask/docs/04-外部编译器适配与边界内联.md)
+- [ASK IR 与数值语义](../../ask/docs/01-ASK-IR与数值语义.md) · [外部产物与执行接口](../../ask/docs/04-外部产物与执行接口.md)
 - [常驻运行时与多级缓存](../../ask/docs/05-常驻运行时与多级缓存.md) · [FugaTensor 协同与演进路线](../../ask/docs/07-FugaTensor协同与演进路线.md)

@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 
 import fugatensor as ft
-from ask import CompilerEnvironment
 
 
 def _details(engine):
@@ -20,7 +19,7 @@ def _details(engine):
         "fuga_ir_file": str(directory / "fuga.ir"),
         "artifact_dir": str(directory),
         "phase": engine.last_report.get("phase"),
-        "external_compiler": engine.last_report.get("fusion", {}).get("compiler"),
+        "execution_plan": engine.last_report.get("execution_plan"),
         "ir_cache": engine.last_report.get("ir_cache", {}).get("status"),
         "executable_cache": engine.last_report.get("executable_cache", {}).get("status"),
     }
@@ -83,9 +82,9 @@ def configure_tools(args):
         if not args.triton:
             options['compilers'] = {}
         elif args.triton_python or args.triton_worker:
-            if not (args.triton_python and args.triton_worker):
-                raise ValueError('provide both --triton-python and --triton-worker')
-            options['compilers'] = {'triton': CompilerEnvironment(
+            if not args.triton_python:
+                raise ValueError('provide --triton-python when selecting a worker')
+            options['compilers'] = {'triton': ft.triton.environment(
                 python=args.triton_python, worker=args.triton_worker)}
         ft.configure(device='cuda', cache_dir=args.cache_dir / 'cuda', **options)
 

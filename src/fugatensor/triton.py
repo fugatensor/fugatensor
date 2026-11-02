@@ -67,8 +67,8 @@ class TensorSpec:
 class TritonKernel:
     """A snapshot of user source plus explicit ASK parameter and launch bindings.
 
-    Registration does not import or execute the source. ASK's selected Triton
-    adapter validates and compiles it later. Re-register after changing source,
+    Registration does not import or execute the source. FugaTensor's Triton
+    worker compiles it later for independent ASK scheduling. Re-register after changing source,
     then call the new registration to record new expressions.
     """
     def __init__(self, source, *, entry, input=None, inputs=None, output, grid, constants=None,
@@ -212,12 +212,18 @@ def from_source(source, *, entry, input=None, inputs=None, output, grid, constan
                         output_shape=output_shape, output_dtype=output_dtype)
 
 
+def environment(*, python, worker=None):
+    """Select a compiler interpreter and this package's standalone Triton worker."""
+    selected = Path(__file__).with_name('_triton_worker.py') if worker is None else worker
+    return CompilerEnvironment(python=python, worker=selected)
+
+
 def environment_from_env():
     """Optional setup convenience; importing this module never imports Triton."""
     python = os.environ.get('FUGATENSOR_TRITON_PYTHON')
     worker = os.environ.get('FUGATENSOR_TRITON_WORKER')
     if python is None and worker is None:
         return None
-    if not python or not worker:
-        raise ValueError('set both FUGATENSOR_TRITON_PYTHON and FUGATENSOR_TRITON_WORKER')
-    return CompilerEnvironment(python=python, worker=worker)
+    if not python:
+        raise ValueError('set FUGATENSOR_TRITON_PYTHON when selecting a Triton worker')
+    return environment(python=python, worker=worker)

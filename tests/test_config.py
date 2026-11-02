@@ -104,9 +104,9 @@ class BootstrapTests(unittest.TestCase):
         self.package = self.venv / "lib/site-packages/ask"
         self.config = self.venv / "share/fugatensor/engine.json"
         self.installed = {
-            "version": "0.1.0", "package": str(self.package), "registrations": {},
+            "version": "0.1.0", "package": str(self.package),
             "capabilities": {"ask_version": "0.1.0", "host_codegen": True,
-                             "cuda_graph_codegen": True, "third_party_compilers": [],
+                             "cuda_graph_codegen": True,
                              "llvm_revision": "locked-revision"},
         }
         self.original_inspect = bootstrap.inspect_ask
@@ -221,31 +221,29 @@ class BootstrapTests(unittest.TestCase):
         self.execute("--reset-config")
         self.assertIsNone(json.loads(self.config.read_text())["llc"])
 
-    def test_changed_ask_selection_cannot_silently_keep_incompatible_workers(self):
+    def test_missing_saved_worker_requires_explicit_configuration(self):
         bootstrap.write_config(self.venv, {"schema_version": 1, "compilers": {
             "triton": {"python": "/saved/python", "worker": "/saved/worker.py"}}})
         before = self.config.read_bytes()
-        with self.assertRaisesRegex(ValueError, "does not enable.*reset-config"):
+        with self.assertRaisesRegex(ValueError, "worker is missing.*reset-config"):
             self.execute()
         self.assertEqual(self.config.read_bytes(), before)
         self.mock_run.assert_not_called()
 
-    def test_explicit_worker_uses_installed_registry_and_lock_without_installing_compiler(self):
-        worker = self.package / "share/ask/adapters/example/exporter.py"
+    def test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler(self):
+        worker = self.root / "src/fugatensor/_triton_worker.py"
         worker.parent.mkdir(parents=True)
         worker.write_text("# installed fixture\n")
-        (worker.parent / "dependencies.lock.json").write_text(json.dumps({
-            "compiler": {"name": "example-compiler", "version": "1.2.3"}}))
-        self.installed["registrations"] = {"example": {"worker": "exporter.py", "requires_python": True}}
-        self.installed["capabilities"]["third_party_compilers"] = ["example"]
+        (worker.parent / "triton.dependencies.lock.json").write_text(json.dumps({
+            "compiler": {"name": "triton", "version": "3.7.1"}}))
         with patch.object(bootstrap, "executable_path", return_value=self.python):
-            self.mock_installed_version.side_effect = ["0.1.0", "1.2.3"]
-            self.execute("--compiler-python", "example=python")
-            self.assertEqual(json.loads(self.config.read_text())["compilers"]["example"]["worker"], str(worker))
+            self.mock_installed_version.side_effect = ["0.1.0", "3.7.1"]
+            self.execute("--compiler-python", "triton=python")
+            self.assertEqual(json.loads(self.config.read_text())["compilers"]["triton"]["worker"], str(worker))
             self.mock_run.reset_mock()
-            for extra in ((), ("--compiler-python", "example=python")):
+            for extra in ((), ("--compiler-python", "triton=python")):
                 self.mock_installed_version.side_effect = ["0.1.0", None]
-                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "example-compiler==1.2.3.*separately"):
+                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "triton==3.7.1.*separately"):
                     self.execute(*extra)
             self.mock_run.assert_not_called()
 
@@ -275,13 +273,12 @@ class BootstrapTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             bootstrap.compiler_overrides([f"other={link}"], ("triton",))
 
-    def test_engine_config_uses_installed_worker_and_writes_atomically(self):
-        worker = self.package / "share/ask/adapters/triton/exporter.py"
+    def test_engine_config_uses_fuga_worker_and_writes_atomically(self):
+        worker = self.root / "src/fugatensor/_triton_worker.py"
         worker.parent.mkdir(parents=True)
         worker.write_text("# installed fixture\n")
         config = bootstrap.engine_config(
-            self.directory / "sdk", self.directory / "ptxas", {"triton": self.python}, self.package,
-            {"triton": {"worker": "exporter.py"}})
+            self.directory / "sdk", self.directory / "ptxas", {"triton": self.python}, worker)
         self.assertNotIn("ask_opt", config)
         self.assertEqual(config["compilers"]["triton"]["worker"], str(worker))
         target = bootstrap.write_config(self.venv, config)
@@ -289,8 +286,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(list(target.parent.iterdir()), [target])
         worker.unlink()
         with self.assertRaisesRegex(ValueError, "worker is missing"):
-            bootstrap.engine_config(None, None, {"triton": self.python}, self.package,
-                                    {"triton": {"worker": "exporter.py"}})
+            bootstrap.engine_config(None, None, {"triton": self.python}, worker)
 
 
 if __name__ == "__main__":

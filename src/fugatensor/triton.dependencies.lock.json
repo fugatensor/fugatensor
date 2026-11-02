@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "adapter_version": "1.0.0",
+  "protocol_version": 2,
+  "compiler": {"name": "triton", "version": "3.7.1"},
+  "cuda_abi": "source-runtime-pointer-order-then-global-and-profile-scratch"
+}

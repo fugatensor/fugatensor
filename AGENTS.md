@@ -21,7 +21,7 @@
   - `ft.fun` 的普通 `forward` 与可选 `backward` 自动进行隔离追踪，保留 `CallSpec`、保存值与定义变更校验；方法内部不支持数据依赖控制流。Triton 源码中的 `@triton.jit` 保留。
   - 梯度历史在组图时记录，`no_grad` 与 `detach` 的边界不随实际执行时间改变；Python 条件每次读取真实标量值，反向沿实际路径传播。
 - **多 Kernel 执行**：
-  - FugaTensor 向 ASK 提交完整静态图，由 ASK MLIR 切分器和版本化执行计划选择融合或多 kernel 调度；前端不再限制整图只有一个外部节点。
+  - FugaTensor 向 ASK 提交完整静态图，自有计算区域保留融合，外部算子统一作为独立 kernel 调度；前端不限制整图只有一个外部节点。
   - Triton 多输入通过 `inputs=` 注册，输出形状/类型和启动参数只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
   - 复杂算子（如 FlashAttention）的反向由 `ft.fun` 的显式 `backward` 组合多个单输出外部 kernel；每个外部调用仍返回一个结果，反向可因此形成多 kernel 执行计划。
 - **自动微分与原语闭合**：
@@ -33,6 +33,7 @@
   - 新增网络结构、参数命名或基础原子算子不改变 v1 容器；只有存储语义变化才提升 manifest `schema_version`。
 - **外部编译器与 C++ 扩展**：
   - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 接收并保存用户编写的源码，不在宿主进程导入 Triton，也不用库内预置模板替代外部源码接入。
+  - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。固定版本 ABI 与依赖记录在 `triton.dependencies.lock.json`。
   - C++ 扩展 `fugatensor._native`（`cpp/`）负责无全局状态、释放 GIL 的 SSA 可达性与反向边界分析；`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs` 供全仓复用。
 
 ---
@@ -48,7 +49,7 @@
   - 测试收敛在 `tests/` 下 11 个模块（共用 `tests/_helpers.py` 中的 `EngineTestCase`）：
     - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`
     - 启用自有 CUDA 硬件测试：`FUGATENSOR_TEST_CUDA=1 .venv/bin/python -m unittest -v`
-    - 启用自有 CUDA + 用户 Triton 融合测试：`FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v`
+    - 启用自有 CUDA + 用户 Triton 调度测试：`FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v`
   - 始终使用已安装 `_native` 扩展的 `.venv/bin/python` 运行测试，不使用脱离原生扩展的 `PYTHONPATH=$PWD/src`。
 
 ---

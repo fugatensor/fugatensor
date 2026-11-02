@@ -1,4 +1,4 @@
-"""Record graph history when tensors are created; ASK executes fused derivatives."""
+"""Record graph history when tensors are created; ASK executes derivative graphs."""
 from __future__ import annotations
 
 from contextlib import ContextDecorator, contextmanager
@@ -193,7 +193,7 @@ def _recording(enabled):
 
 
 def backward(tensor, gradient=None, *, retain_graph=None, create_graph=False):
-    """Validate reverse graphs, then execute their fused gradient updates."""
+    """Validate reverse graphs, then execute their compiled gradient updates."""
     require_not_tracing()
     if (retain_graph is not None and type(retain_graph) is not bool) or type(create_graph) is not bool:
         raise TypeError("retain_graph must be bool or None; create_graph must be bool")

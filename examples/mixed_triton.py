@@ -23,12 +23,11 @@ def main():
         x = ft.tensor([1, 2, 3], device="cuda")
         result = mixed(x).tolist()
         assert result == [7.0, 9.0, 11.0], result
-        assert engine.last_report["phase"] == "fused_llvm"
-        assert engine.last_report["fusion"]["compiler"] == "triton"
+        assert [step["kind"] for step in engine.last_report["execution_plan"]["steps"]] == ["owned", "external", "owned"]
         print(result)
         print("\nFuga IR:")
         print(engine.last_fuga_ir)
-        print("ASK IR and LLVM artifacts:", engine.last_artifact_dir)
+        print("ASK IR and compiled kernel artifacts:", engine.last_artifact_dir)
 
 
 if __name__ == "__main__":

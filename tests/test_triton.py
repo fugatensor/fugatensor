@@ -1,8 +1,10 @@
-"""User @triton.jit source snapshotting, deferred SM arch binding, and real ASK + Triton GPU fusion."""
+"""User Triton source snapshots, standalone cubin ABI, and ASK GPU scheduling."""
 from __future__ import annotations
 
 import builtins
-from dataclasses import FrozenInstanceError
+import os
+import sys
+from dataclasses import FrozenInstanceError, dataclass
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -148,6 +150,24 @@ class TritonRegistrationTests(unittest.TestCase):
                     self.assertEqual([request["grid"] for request in requests], [[3, 1, 1], [2, 1, 1]])
                     self.assertEqual(engine.stats["executions"], 0)
 
+    def test_environment_selects_bundled_worker_without_importing_triton(self):
+        original_import = builtins.__import__
+
+        def guarded(name, *args, **kwargs):
+            if name == "triton" or name.startswith("triton."):
+                raise AssertionError("environment setup must not import the compiler")
+            return original_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=guarded):
+            environment = ft.triton.environment(python=sys.executable)
+            self.assertEqual(Path(environment.worker).name, "_triton_worker.py")
+            self.assertTrue(Path(environment.worker).is_file())
+            with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_PYTHON": sys.executable}, clear=True):
+                self.assertEqual(ft.triton.environment_from_env(), environment)
+            with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_WORKER": "/worker.py"}, clear=True):
+                with self.assertRaisesRegex(ValueError, "FUGATENSOR_TRITON_PYTHON"):
+                    ft.triton.environment_from_env()
+
     def test_multiple_inputs_and_explicit_output_metadata(self):
         source = ('import triton\nimport triton.language as tl\n'
                   '@triton.jit\ndef product(Q, K, O, M: tl.constexpr):\n pass\n')
@@ -210,6 +230,36 @@ class TritonRegistrationTests(unittest.TestCase):
             self.registration(constants={"N": 10.0, "BLOCK": 128})
 
 
+class TritonWorkerContractTests(unittest.TestCase):
+    def test_binary_export_uses_source_abi_without_reading_compiler_ir(self):
+        from fugatensor import _triton_worker as worker
+
+        @dataclass
+        class Target:
+            backend: str = "cuda"
+            arch: int = 86
+            warp_size: int = 32
+
+        request = {"signature": {"lhs": "*fp32", "out": "*fp32", "rhs": "*fp32"},
+                   "source_bindings": {"lhs": "input:0", "out": "output:0", "rhs": "input:1"},
+                   "target": {"backend": "cuda", "arch": 86, "warp_size": 32}, "grid": [2, 1, 1]}
+        metadata = SimpleNamespace(name="subtract", triton_version="3.7.1", target=Target(),
+            global_scratch_size=0, profile_scratch_size=0, tmem_size=0, num_ctas=1,
+            tensordesc_meta=[], launch_cooperative_grid=False, launch_pdl=False,
+            instrumentation_mode="", shared=1024, warp_size=32, num_warps=4)
+        compiled = SimpleNamespace(name="subtract", metadata=metadata, asm={"cubin": b"binary fixture"})
+        with mock.patch.object(worker, "probe", return_value={"producer": {"name": "triton", "version": "3.7.1"}}):
+            result = worker.artifact(request, compiled, ["out", "rhs", "lhs"])
+            self.assertEqual(result["arguments"], ["output:0", "input:1", "input:0", "null", "null"])
+            self.assertEqual(result["launch"], {"grid": [2, 1, 1], "block": [128, 1, 1], "shared_bytes": 1024})
+            for name, value in (("global_scratch_size", 8), ("profile_scratch_size", 8),
+                                ("tmem_size", 32), ("num_ctas", 2), ("launch_cooperative_grid", True),
+                                ("launch_pdl", True), ("tensordesc_meta", [1]), ("instrumentation_mode", "test")):
+                with self.subTest(resource=name), mock.patch.object(metadata, name, value):
+                    with self.assertRaisesRegex(ValueError, "unsupported"):
+                        worker.artifact(request, compiled, ["out", "rhs", "lhs"])
+
+
 @requires_triton
 class TritonGPUExecutionTests(EngineTestCase):
     device = "cuda"
@@ -235,7 +285,7 @@ class TritonGPUExecutionTests(EngineTestCase):
             grid=lambda spec: ((spec.numel + 127) // 128, 1, 1), options={"num_warps": 4},
         )
 
-    def test_fused_forward_across_precisions_algorithms_and_custom_backward(self):
+    def test_scheduled_forward_across_precisions_algorithms_and_custom_backward(self):
         scale, identity, polynomial = self.scale, self.identity, self.polynomial
 
         def mixed(x):
@@ -248,15 +298,17 @@ class TritonGPUExecutionTests(EngineTestCase):
                         mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype)).tolist()
                     continue
                 before = self.engine.stats["executions"]
+                launches = self.engine.session.stats["launches"]
                 out = mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype))
                 self.assertEqual(self.engine.stats["executions"], before)
                 self.assertEqual((out.tolist(), out.dtype), ([[7, 9], [11, 13]], dtype))
                 self.assertEqual(self.engine.stats["executions"], before + 1)
+                self.assertEqual(self.engine.session.stats["launches"], launches + 3)
                 self.assertEqual(mixed(ft.tensor([[5, 6], [7, 8]], dtype=dtype)).tolist(), [[15, 17], [19, 21]])
-                self.assertEqual(self.engine.last_report["phase"], "fused_llvm")
-                self.assertEqual(self.engine.last_report["fusion"]["compiler"], "triton")
-                self.assertEqual(self.engine.last_report["external_requests"][0]["source"], self.scale_path.read_text())
-                self.assertTrue((Path(self.engine.last_artifact_dir) / "fused.ll").is_file())
+                self.assertEqual(self.engine.last_report["phase"], "compiled_plan")
+                self.assertEqual([step["kind"] for step in self.engine.last_report["execution_plan"]["steps"]],
+                                 ["owned", "external", "owned"])
+                self.assertEqual(len(list((Path(self.engine.last_artifact_dir) / "package").rglob("kernel.cubin"))), 3)
 
         # Bool kernel, mixed-precision casts, and custom polynomial kernel.
         def bool_id(x):
@@ -269,7 +321,7 @@ class TritonGPUExecutionTests(EngineTestCase):
 
         self.assertEqual(poly_graph(ft.tensor([1, 2, 3])).tolist(), [8, 13, 20])
 
-        # Raw Triton on derivative path fails preflight; ft.fun custom backward fuses both forward and backward!
+        # Raw Triton on derivative paths fails preflight; ft.fun supplies the explicit backward.
         rx = ft.tensor(3.0, requires_grad=True)
         rout = mixed(rx)
         with mock.patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before validation")):
@@ -304,7 +356,31 @@ class TritonGPUExecutionTests(EngineTestCase):
         self.assertIs(outputs[2], x)
         plan = self.engine.last_report['execution_plan']
         self.assertGreaterEqual(len(plan['steps']), 2)
-        self.assertEqual(sum(step['kind'] in ('external', 'fused') for step in plan['steps']), 2)
+        self.assertEqual(sum(step['kind'] == 'external' for step in plan['steps']), 2)
+
+    def test_pointer_order_and_external_only_execution_without_ask_codegen_tools(self):
+        source = """import triton
+import triton.language as tl
+@triton.jit
+def subtract(out, N: tl.constexpr, rhs, lhs, BLOCK: tl.constexpr):
+    index = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
+    a = tl.load(lhs + index, index < N, 0)
+    b = tl.load(rhs + index, index < N, 0)
+    tl.store(out + index, a - b, index < N)
+"""
+        subtract = ft.triton.from_source(source, entry="subtract", inputs=("lhs", "rhs"), output="out",
+            constants=lambda specs: {"N": specs[0].numel, "BLOCK": 128},
+            grid=lambda specs: ((specs[0].numel + 127) // 128,))
+        # Omit ASK codegen tools: the external worker returns finished machine code.
+        with ft.Engine(device="cuda", compilers=self.engine.compilers,
+                       cache_dir=self.cache_dir / "external-only") as engine:
+            engine.llc = engine.ptxas = None
+            x = ft.tensor([10, 20, 30], dtype="i32")
+            y = ft.tensor([1, 3, 5], dtype="i32")
+            before = engine.session.stats["launches"]
+            self.assertEqual(subtract(x, y).tolist(), [9, 17, 25])
+            self.assertEqual(engine.session.stats["launches"], before + 1)
+            self.assertEqual([step["kind"] for step in engine.last_report["execution_plan"]["steps"]], ["external"])
 
     def test_flash_attention_backward_uses_multiple_external_kernels(self):
         import importlib.util

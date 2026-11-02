@@ -44,12 +44,12 @@ def executable_path(value):
     return Path(selected).absolute()
 
 
-def compiler_overrides(values, selected):
+def compiler_overrides(values, selected=("triton",)):
     result = {}
     for item in values:
         name, separator, path = item.partition("=")
         if not separator or not path or name not in selected:
-            raise ValueError("--compiler-python expects an installed ASK compiler ID followed by =/path/to/python")
+            raise ValueError("--compiler-python expects a bundled FugaTensor compiler ID followed by =/path/to/python")
         if name in result:
             raise ValueError(f"compiler Python was provided twice: {name}")
         result[name] = executable_path(path)
@@ -120,12 +120,10 @@ def inspect_ask(python, expected):
     installed = python_json(
         python,
         "import json,sys,ask; from pathlib import Path; from ask import Compiler; "
-        "from ask.adapters import AdapterRegistry; "
         "c=Compiler(); c._check_companion(); caps=c.capabilities(); "
-        "registry=AdapterRegistry(caps); package=Path(ask.__file__).resolve().parent; "
+        "package=Path(ask.__file__).resolve().parent; "
         "assert package.is_relative_to(Path(sys.prefix).resolve()), 'ASK must be installed in the target venv'; "
-        "print(json.dumps({'capabilities':caps,'version':ask.__version__,'package':str(package),"
-        "'registrations':{name:registry.registration(name) for name in caps['third_party_compilers']}}))",
+        "print(json.dumps({'capabilities':caps,'version':ask.__version__,'package':str(package)}))",
     )
     capabilities = installed["capabilities"]
     if installed["version"] != expected or capabilities.get("ask_version") != expected:
@@ -135,16 +133,15 @@ def inspect_ask(python, expected):
     return installed
 
 
-def engine_config(llvm_root, ptxas, environments, package_root, registrations):
+def engine_config(llvm_root, ptxas, environments, worker=None):
     compilers = {}
     for compiler_id, python_path in sorted(environments.items()):
-        worker_name = registrations[compiler_id].get("worker")
-        if not isinstance(worker_name, str) or Path(worker_name).name != worker_name:
-            raise ValueError(f"compiler {compiler_id} requires a simple registered worker filename")
-        worker = package_root / "share/ask/adapters" / compiler_id / worker_name
-        if not worker.is_file():
-            raise ValueError(f"installed ASK worker is missing: {worker}")
-        compilers[compiler_id] = {"python": str(python_path), "worker": str(worker)}
+        if compiler_id != "triton":
+            raise ValueError(f"no bundled FugaTensor worker for {compiler_id!r}")
+        selected_worker = Path(worker) if worker is not None else ROOT / "src/fugatensor/_triton_worker.py"
+        if not selected_worker.is_file():
+            raise ValueError(f"FugaTensor worker is missing: {selected_worker}")
+        compilers[compiler_id] = {"python": str(python_path), "worker": str(selected_worker)}
     return {
         "schema_version": 1,
         "llc": str(llvm_root / "bin/llc") if llvm_root is not None else None,
@@ -170,7 +167,7 @@ def write_config(venv_root, configuration):
     return destination
 
 
-def read_existing_config(path, package_root, registrations):
+def read_existing_config(path):
     configuration = read_json(path)
     if (not isinstance(configuration, dict) or type(configuration.get("schema_version")) is not int
             or configuration["schema_version"] != 1):
@@ -183,16 +180,11 @@ def read_existing_config(path, package_root, registrations):
     if not isinstance(compilers, dict):
         raise ValueError("existing compiler configuration is invalid; use --reset-config to replace it")
     for compiler_id, fields in compilers.items():
-        if compiler_id not in registrations:
-            raise ValueError(f"existing configuration uses compiler {compiler_id!r}, which installed ASK "
-                             "does not enable; use --reset-config or configure its replacement explicitly")
         if (not isinstance(fields, dict) or set(fields) != {"python", "worker"}
                 or any(not isinstance(value, str) or not value for value in fields.values())):
             raise ValueError(f"existing compiler {compiler_id} configuration is invalid; use --reset-config")
-        expected = engine_config(None, None, {compiler_id: fields["python"]},
-                                 package_root, registrations)["compilers"][compiler_id]["worker"]
-        if Path(fields["worker"]).resolve() != Path(expected).resolve():
-            raise ValueError(f"existing compiler {compiler_id} worker differs from installed ASK; "
+        if not Path(fields["worker"]).is_file():
+            raise ValueError(f"existing compiler {compiler_id} worker is missing; "
                              "use --reset-config or configure its replacement explicitly")
     return configuration
 
@@ -259,7 +251,7 @@ def parser():
     result.add_argument("--ask-wheel", type=Path, help="install an independently built local ASK wheel")
     result.add_argument("--venv", type=Path, default=ROOT / ".venv")
     result.add_argument("--compiler-python", action="append", default=[], metavar="ID=PYTHON",
-                        help="configure an installed ASK adapter with an existing compiler environment")
+                        help="configure a bundled FugaTensor worker with an existing compiler environment")
     result.add_argument("--llvm-root", type=Path, help="optional CUDA codegen SDK matching installed ASK")
     result.add_argument("--ptxas", help="optional CUDA assembler executable")
     result.add_argument("--reset-config", action="store_true",
@@ -275,7 +267,7 @@ def parser():
 def bootstrap(args):
     if args.ask_root is not None or args.compilers is not None or args.skip_ask:
         raise ValueError("--ask-root, --compilers and --skip-ask belonged to the removed combined build. "
-                         "Build ASK and select its adapters in the ASK project separately; "
+                         "Build ASK in the ASK project separately; "
                          "use --ask-wheel PATH or an ASK wheel already installed in --venv.")
     if args.jobs < 1:
         raise ValueError("--jobs must be positive")
@@ -317,20 +309,17 @@ def bootstrap(args):
         revision = capabilities.get("llvm_revision")
         if not revision or not header.is_file() or revision not in header.read_text(encoding="utf-8"):
             raise ValueError("--llvm-root must match the LLVM revision of the installed ASK package")
-    registrations = installed["registrations"]
-    environments = compiler_overrides(args.compiler_python, registrations)
-    package_root = Path(installed["package"])
+    environments = compiler_overrides(args.compiler_python)
     config_path = environment_root / "share/fugatensor/engine.json"
     preserve_config = (config_path.is_file() and not args.reset_config and llvm_root is None
                        and ptxas is None and not args.compiler_python)
-    configuration = (read_existing_config(config_path, package_root, registrations) if preserve_config else
-                     engine_config(llvm_root, ptxas, environments, package_root, registrations))
+    configuration = (read_existing_config(config_path) if preserve_config else
+                     engine_config(llvm_root, ptxas, environments))
     for compiler_id, fields in configuration.get("compilers", {}).items():
         compiler_python = fields["python"]
-        if registrations[compiler_id].get("requires_python") is not True:
-            raise ValueError(f"compiler {compiler_id} does not register a Python worker")
-        worker = Path(fields["worker"])
-        dependency = read_json(worker.parent / "dependencies.lock.json")["compiler"]
+        if compiler_id != "triton":
+            continue  # Other workers are configured explicitly through Engine/config JSON.
+        dependency = read_json(ROOT / "src/fugatensor/triton.dependencies.lock.json")["compiler"]
         package, version = dependency["name"], dependency["version"]
         actual = installed_version(compiler_python, package)
         if actual != version:
@@ -345,7 +334,6 @@ def bootstrap(args):
         "python": str(python),
         "engine_config": str(config_path),
         "ask_version": expected_version,
-        "third_party_compilers": capabilities["third_party_compilers"],
         "configured_compilers": sorted(configuration.get("compilers", {})),
         "llc": configuration.get("llc"),
         "ptxas": configuration.get("ptxas"),

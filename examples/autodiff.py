@@ -103,8 +103,7 @@ def run_triton():
         result, gradient = output.tolist(), x.grad.tolist()
         assert result == [7.0, 9.0, 11.0]
         assert gradient == [2.0, 4.0, -2.0]
-        assert forward_report["phase"] == "fused_llvm"
-        assert forward_report["fusion"]["compiler"] == "triton"
+        assert [step["kind"] for step in forward_report["execution_plan"]["steps"]] == ["owned", "external", "owned"]
         print(f"cuda user Triton: forward={result}, x.grad={gradient}")
 
         higher = mixed(ft.tensor(3, requires_grad=True))

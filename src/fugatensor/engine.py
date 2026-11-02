@@ -279,8 +279,6 @@ class Engine:
                     raise NotImplementedError('Triton operations require a CUDA Engine')
                 executable = self._host.compile(module)
             else:
-                if self.llc is None or self.ptxas is None:
-                    raise ValueError('CUDA compilation requires explicit llc and ptxas paths')
                 artifacts = self.cache_dir / 'artifacts'
                 artifacts.mkdir(exist_ok=True)
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
