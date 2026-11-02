@@ -1,19 +1,19 @@
 # FugaTensor 文档目录
 
-FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之上：前端记录独立的 Fuga IR，结合 C++ 原生图分析完成控制流化简与前向/反向微分，再将静态计算图降级为 ASK IR 交由 CPU 或 CUDA 执行。
+按 API、架构和 IR 查找文档。底层编译与执行见 [ASK 文档](../../ask/docs/README.md)。
 
-安装入口：[安装与独立构建](安装.md)。先安装 ASK C++ SDK，再构建 FugaTensor wheel；wheel 携带所需共享库，运行时只有 FugaTensor Python 包。消费 SDK 不需要 ASK 源码或 LLVM 开发环境。
+环境准备见[安装与构建](安装.md)。
 
 ## API（`docs/API/`）
 
-[API 分类目录与快速示例](API/README.md)按接口类型说明签名、参数、返回值与支持边界：
+[API 分类目录](API/README.md)提供签名、参数、返回值和用法：
 
 - [张量与数据交换](API/张量与数据交换.md) · [基础运算](API/基础运算.md)
 - [设备与执行](API/设备与执行.md) · [自动微分与自定义函数](API/自动微分与自定义函数.md)
 - [Triton 算子接入](API/Triton算子接入.md) · [权重读写](API/权重读写.md)
 - [IR 与降级](API/IR与降级.md) · [attention](API/attention.md)
 
-开发验证：[测试组织与覆盖矩阵](测试.md)。文档中的示例说明 API 用法；独立数值参考、组合生成和断言位于 `tests/`。
+测试运行和用例扩展见[测试组织与覆盖矩阵](测试.md)。
 
 ## 系统架构（`docs/architecture/`）
 
@@ -36,8 +36,6 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 | [降级到 ASK](ir/降级到ASK.md) | 静态分支选择与有界循环展开、类型与算子映射、外部 Triton 架构绑定及 `fuga-to-ask.json` 溯源 | `lowering.py` |
 
 ## 底层编译引擎文档（`ask/docs/`）
-
-以下相对链接供源码并列检出时浏览，不表示必须存在同级 ASK 目录；独立构建和包安装不依赖这些文档路径。
 
 - [ASK 安装](../../ask/docs/安装.md)
 - [ASK 文档目录](../../ask/docs/README.md) · [ASK 核心思想](../../ask/docs/核心思想.md)

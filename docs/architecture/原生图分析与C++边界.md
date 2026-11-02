@@ -2,7 +2,7 @@
 
 返回架构总览：[独立 Fuga IR 与 C++ 原生图分析](README.md#arch-ir-native) · 相关细节：[张量模型与追踪机制](张量模型与追踪机制.md) · [自动微分与自定义算子](自动微分与自定义算子.md) · [Fuga IR 对象模型](../ir/对象模型与验证.md)
 
-自动微分（多输出部分求导、带副作用算子剪枝与高阶导数嵌套）和输入端口裁剪需要频繁计算 SSA 图的前向微分可达集、逆向活跃集与反向算子调度序。FugaTensor 将这部分图拓扑分析实现在必选 C++17 `nanobind` 扩展 `fugatensor._native` 中。
+自动微分和输入裁剪都要计算 SSA 图的可达范围、活跃节点和反向遍历顺序。这些分析由 C++17 扩展 `fugatensor._native` 完成，Python 层负责构建和变换 Fuga IR。
 
 <a id="python-cpp-boundary"></a>
 
@@ -14,24 +14,19 @@
 | **FugaTensor C++ 扩展** | `cpp/graph.*`、`cpp/compiler.cpp`、`cpp/ask_runtime.cpp`、`cpp/runtime.cpp`（`fugatensor._native`） | 扁平化 SSA 图输入校验、前向微分可达性分析、带副作用保活的逆向死代码分析、微分子图活跃性交集计算与逆拓扑反向求导序列生成；绑定 ASK C++ 接口，并一次提交原生执行计划。 |
 | **ASK C++ 编译与运行时** | ASK C++ SDK 的 `ASK::Compiler` / `ASK::Runtime` 共享库 | `ask` dialect 校验与优化、CPU / 自有 CUDA 原生 LLVM IR 代码生成、图切分、原生执行计划、缓冲区与事件复用、CUDA Graph replay；FugaTensor 的私有 `_ask/` 负责图转换、worker 调用、产物验证和磁盘缓存。 |
 
-`ir/transforms.py` 直接调用 `fugatensor._native`，不设纯 Python 回退实现。
-
-FugaTensor 原生扩展直接链接 ASK 共享库，不经过 ASK Python API。ASK 不构建 Python 包。Python 请求进入 `_native` 后，编译与计划执行通过普通 C++ 调用完成；消费这两个 SDK 组件不需要 LLVM 头文件。构建流程见[安装文档](../安装.md#build-fugatensor)。
+`ir/transforms.py` 调用 `_native` 做图分析；编译和执行绑定也通过这个扩展调用 ASK 共享库。构建流程见[安装文档](../安装.md#build-fugatensor)。
 
 <a id="native-analyze"></a>
 
 ## 2. 可达性与反向边界分析（`cpp/graph.cpp`）
 
-`fugatensor._native.analyze(...)` 接收 Fuga `Function` 的整数编码快照：`num_values`、按拓扑序排列的 `op_operands` / `op_results` / `op_has_effects`、`outputs` 以及需要求导的输入值集合 `selected_inputs`。
+`fugatensor._native.analyze(...)` 接收函数的输入数、按拓扑序排列的操作数与结果数量、各节点的副作用标记、输出值以及需要求导的输入序号。
 
-C++ 层先校验输入结构（拒绝负数或越界 Value ID、重复结果定义、非拓扑序的前向引用；`bindings.cpp` 同时拦截将 Python `bool` 当作整数 ID 的隐式转换），随后在线性时间 $O(V + E)$ 内完成四步扫描：
+C++ 层检查值编号和拓扑顺序，`bindings.cpp` 同时拒绝用 Python `bool` 充当整数 ID。随后在线性时间 $O(V + E)$ 内计算三组结果：
 
-1. **前向种子传播（`forward_from_selected`）**：从 `selected_inputs` 出发沿 `operand → result` 正向标记受自变量影响的值。不依赖自变量的支路（如仅由常量或非求导整数算出的系数）无需反向规则。
-2. **输出数据流逆向可达（`reaches_selected_outputs`）**：仅从函数 `outputs` 出发沿 `result → operand` 逆向标记。
-3. **带副作用保活集（`live_values` / `live_ops`）**：将 `outputs` 与 `op_has_effects == true` 的算子共同作为保活根逆向标记操作数依赖，使死代码消除（DCE）保留有外部副作用的节点。
-4. **微分子图交集与逆拓扑序列（`active_ops` / `reverse_ops`）**：
-   - 值同时满足“受 `selected_inputs` 正向影响”和“能沿数据流到达 `outputs`”时才归入微分子图（`active_values = forward ∩ reaches_outputs`）。未流向目标输出或不依赖自变量的外部算子不会进入 `reverse_ops`（不会触发缺少反向规则报错，若带副作用则仍保留在 `live_ops` 中）。
-   - 多返回值算子（如携带 `saved` 状态的 `fuga.call`）作为单一边界在 `reverse_ops` 中按逆拓扑序只出现一次。
+1. `active_values`：从所选输入出发，沿 `operand → result` 标记受其影响的值。
+2. `reverse_operations`：从受影响的输出向前回溯，生成所需节点的逆拓扑顺序。未流向目标输出或不依赖所选输入的节点跳过求导；多返回值节点只出现一次。
+3. `live_operations`：从输出和副作用节点回溯依赖，生成前向保活序列，供 DCE 使用。活跃的数值系数和副作用节点可以保留在这里，而不参与反向求导。
 
 <a id="transforms-reuse"></a>
 
@@ -39,14 +34,16 @@ C++ 层先校验输入结构（拒绝负数或越界 Value ID、重复结果定�
 
 `ir/transforms.py` 基于 `_native.analyze` 封装了三个共用函数：
 
-- **`analyze_function(function, selected_inputs)`**：将含嵌套 `Region` 的 Fuga `Function`（提取 `if`/`for`/`while` 子区域引用的外层自由 SSA 值作为控制流算子操作数）编码给 `_native.analyze`，返回 `NativeGraphAnalysis`。
-- **`prune(module)`**：以 `selected_inputs=()` 调用 `analyze_function`，按 `live_ops` 重建移除死代码并递归清理子区域后的 `Module`，保留函数级与模块级 `metadata`（如外部实现表 `external_implementations` 与子函数字典 `functions`）。
-- **`project_outputs(module, output_indices)`**：将 `Function.outputs` 投影到反向实际收到梯度种子的输出子集，再调用 `prune(module)` 移除无关输出支路。
+- `analyze_function(function, selected=())`：将平坦函数的 SSA 边编码给 `_native.analyze`，返回操作序列、按编号排列的值和分析结果。
+- `prune(module)`：按分析结果中的 `live_operations` 重建函数，删除无副作用的死节点。
+- `project_outputs(module, indices, ...)`：先化简静态控制流，再选取输出并调用 `prune` 删除无关支路。
 
-`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 与 [`engine.py` 的无用输入端口裁剪](ASK桥接与多后端执行.md#engine-lifecycle) 统一调用这三个函数。
+含控制流区域的图先经 `specialize` 展开，再做平坦图分析。
+
+`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 和 [`engine.py` 的输入裁剪](ASK桥接与多后端执行.md#engine-lifecycle) 共用这些函数。
 
 <a id="gil-and-concurrency"></a>
 
 ## 4. 无状态与多线程并发
 
-`cpp/graph.cpp` 中的 `analyze_graph(const GraphInput&)` 仅使用栈上局部变量与只读输入，无静态缓存或跨请求共享状态。`cpp/bindings.cpp` 完成参数转换与校验后通过 `nb::gil_scoped_release` 释放 Python GIL 执行图分析，结束后重新获取 GIL 构造只读 `AnalysisResult` 返回，支持多线程并发调用（见 `tests/test_native_graph.py`）。
+`cpp/graph.cpp` 的 `analyze(const Graph&)` 使用本次调用的局部状态和只读输入。绑定层转换参数后，通过 `nb::gil_scoped_release` 释放 GIL，分析结束后重新获取 GIL 并返回结果。多线程覆盖见 `tests/test_native_graph.py`。

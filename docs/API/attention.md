@@ -20,7 +20,7 @@ ft.nn.functional.scaled_dot_product_attention(query, key, value, *, is_causal=Fa
 
 三个输入必须是同一设备、同一引擎上的连续 CUDA 张量，GPU 要求 SM80 或更新架构，类型相同且为 `ft.fp16` 或 `ft.bf16`。各维须大于零，`D`、`DV` 各自取 32、64 或 128；`M` 与 `N` 可以不同，也不必是分块大小的整数倍。
 
-返回形状 `[B, H, M, DV]`、类型与设备均与输入一致的待计算 Tensor。计算为 `softmax(Q @ Kᵀ / sqrt(D)) @ V`；因果掩码在非方阵上按左上角对齐。输入参与梯度记录时，结果可通过 `backward` 求出 Q、K、V 的一阶梯度，也可与普通 FugaTensor 运算继续组合。
+返回形状 `[B, H, M, DV]` 的待计算 Tensor，类型和设备与输入一致。计算式为 `softmax(Q @ Kᵀ / sqrt(D)) @ V`；因果掩码在非方阵上按左上角对齐。反向传播计算 Q、K、V 的一阶梯度。
 
 <a id="example"></a>
 
@@ -42,13 +42,13 @@ print(q.grad.shape, k.grad.shape, v.grad.shape)
 # (1, 2, 16, 32) (1, 2, 24, 32) (1, 2, 24, 64)
 ```
 
-注意力结果不是标量，调用 `backward` 时须提供同形状、同类型的梯度种子。前后运算可以直接写为 `scaled_dot_product_attention(q * 0.5, k, v) * 2`，它们保留在同一计算图中，并参与链式求导。
+调用 `backward` 时传入同形状、同类型的梯度种子。前后运算可写为 `scaled_dot_product_attention(q * 0.5, k, v) * 2`，一起参与链式求导。
 
 <a id="support-boundaries"></a>
 
 ## 3. 当前边界
 
-该接口要求已配置 Triton worker；宿主进程不需要导入 Triton。CPU、`ft.fp32`、空维度及上述范围之外的特征宽度当前不受支持。通用张量创建仍默认 `ft.fp32`，使用注意力时需显式选择 `ft.fp16` 或 `ft.bf16`。
+使用前安装 `fugatensor[all]` 或配置独立 Triton worker。输入须满足上文的 CUDA、形状和类型要求，创建时选择 `dtype=ft.fp16` 或 `dtype=ft.bf16`。
 
 当前没有自定义 scale、dropout、加性 bias、外部 attention mask、分组查询注意力、变长序列或非连续 stride 参数。手写反向支持一阶微分，请求 `create_graph=True` 等高阶微分会被拒绝。
 

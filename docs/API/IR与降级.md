@@ -2,7 +2,7 @@
 
 # IR 与降级
 
-这里的接口用于手写或变换图。普通 Tensor 计算不需要显式操作 IR；这些调用构造图，不分配 Tensor，也不直接执行设备计算。
+这些接口用于手写计算图和图变换。构图与实际 Tensor 求值分开，执行入口见[设备与执行](设备与执行.md#execution)。
 
 <a id="ir-builders"></a>
 
@@ -37,7 +37,7 @@ module.verify()
 print(module.to_text())
 ```
 
-IR 类型把传入的 `ft.DType` 转成内部字符串编码；这与用户 Tensor 的 `.dtype` 返回类型对象不同。`Value`、`Operation`、`Block`、`BlockBuilder`、`Region`、`Function` 是公开对象类型，推荐通过上述构建器创建有效图。
+IR 内部用字符串编码 dtype，构建器接受 `ft.DType` 类型对象。图由 `Value`、`Operation`、`Block`、`BlockBuilder`、`Region`、`Function` 组成。
 
 | 控制流接口（均可传 `id=None`） | 回调签名与结果 |
 | --- | --- |
@@ -47,7 +47,7 @@ IR 类型把传入的 `ft.DType` 转成内部字符串编码；这与用户 Tens
 
 回调通过传入的 builder 构图，返回 Value 或 Value 序列；也可显式调用 `builder.yield_(...)` 并返回 `None`，两种结束方式不能混用。区域使用传入的块参数，不能直接捕获外层 SSA 值。构图允许动态控制流，但 ASK 降级当前只接受静态 `if` 和可展开的 `for`，不接受 `while`。区域规则见[对象模型](../ir/对象模型与验证.md#ops-and-regions)，执行限制见[静态化简](../ir/降级到ASK.md#static-simplification)。
 
-高级外部节点使用 `ft.ir.ExternalSpec` 与 `graph.external(*operands, spec=..., result_types=None, id=None)`；一般 Triton 用户应使用[算子注册接口](Triton算子接入.md)，无需手写完整导出契约。
+用 `ft.ir.ExternalSpec` 和 `graph.external(*operands, spec=..., result_types=None, id=None)` 构造外部节点。Triton kernel 的便捷入口见[算子注册](Triton算子接入.md)。
 
 <a id="ir-transforms"></a>
 
@@ -62,7 +62,7 @@ IR 类型把传入的 `ft.DType` 转成内部字符串编码；这与用户 Tens
 | `ft.ir.jvp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及选定输入的切线，输出原始结果及对应结果切线。 |
 | `ft.ir.vjp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及每个结果的余切种子，输出选定输入的梯度。 |
 
-`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。二者是图变换，不是 `Tensor.backward()` 的另一种调用签名。更多边界见[可组合微分](../ir/控制流与可组合变换.md#jvp-and-vjp)。
+`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。变换规则见[可组合微分](../ir/控制流与可组合变换.md#jvp-and-vjp)。
 
 <a id="lowering"></a>
 
@@ -85,4 +85,4 @@ lowered = ft.lower_to_ask(module, target={"backend": "host"}, source_map=mapping
 print(lowered.to_mlir())
 ```
 
-此接口只做图转换。正常编译执行通过 `Engine` 的 Tensor 求值入口完成；需要直接消费底层 IR 时，使用 [ASK C++ 编译接口](../../../ask/docs/用户API.md#compiler-api)。返回对象属于内部桥接表示，不需直接导入 `fugatensor._ask`。
+图的编译和执行使用 [Tensor 求值入口](设备与执行.md#execution)；直接编译 ASK IR 可用 [ASK C++ 编译接口](../../../ask/docs/用户API.md#compiler-api)。
