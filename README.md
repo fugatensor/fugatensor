@@ -83,7 +83,7 @@ class CustomSquare(ft.fun):
 
 注册时保存源码快照，不在宿主进程导入 Triton。worker 将源码编译成 `cubin`，ASK 在同一 stream 上调度外部 kernel 与前后自有计算，自有区域仍可融合。`scalars=` 绑定按值参数，`outputs=` 声明多个输出；autotune 只选择显式配置。完整用法见[标量与双输出示例](docs/API/Triton算子接入.md#example)，环境准备见 [Triton 配置](docs/安装.md#configure-triton)。
 
-内置注意力直接调用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，无需注册 kernel。该接口使用 FlashAttention 实现，支持 CUDA 上 `ft.fp16` / `ft.bf16` 的前向与一阶反向；形状与支持边界见[注意力 API](docs/API/注意力.md)。
+内置注意力直接调用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，无需注册 kernel。该接口使用 FlashAttention 实现，支持 CUDA 上 `ft.fp16` / `ft.bf16` 的前向与一阶反向；形状与支持边界见[attention API](docs/API/attention.md)。
 
 ### 3. 查看 IR、溯源产物与缓存统计
 
@@ -136,8 +136,8 @@ FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
 
 - [安装与独立构建](docs/安装.md)
 - [文档目录](docs/README.md)
-- [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、注意力。
+- [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、attention。
 - **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [张量模型与追踪机制](docs/architecture/张量模型与追踪机制.md) · [原生图分析与 C++ 边界](docs/architecture/原生图分析与C++边界.md) · [自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md) · [ASK 桥接与多后端执行](docs/architecture/ASK桥接与多后端执行.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [对象模型与验证](docs/ir/对象模型与验证.md) · [控制流与可组合变换](docs/ir/控制流与可组合变换.md) · [降级到 ASK](docs/ir/降级到ASK.md)
 
-[多 kernel 计划契约](../ask/docs/图切分与多Kernel执行计划.md) · [注意力 API](docs/API/注意力.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
+[多 kernel 计划契约](../ask/docs/图切分与多Kernel执行计划.md) · [attention API](docs/API/attention.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)

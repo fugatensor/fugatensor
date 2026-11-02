@@ -11,7 +11,7 @@ FugaTensor 构建在 [ASK](../../ask/docs/README.md) 编译与运行时引擎之
 - [张量与数据交换](API/张量与数据交换.md) · [基础运算](API/基础运算.md)
 - [设备与执行](API/设备与执行.md) · [自动微分与自定义函数](API/自动微分与自定义函数.md)
 - [Triton 算子接入](API/Triton算子接入.md) · [权重读写](API/权重读写.md)
-- [IR 与降级](API/IR与降级.md) · [注意力](API/注意力.md)
+- [IR 与降级](API/IR与降级.md) · [attention](API/attention.md)
 
 开发验证：[测试组织与覆盖矩阵](测试.md)。文档中的示例说明 API 用法；独立数值参考、组合生成和断言位于 `tests/`。
 

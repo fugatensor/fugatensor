@@ -124,4 +124,4 @@ print(z.tolist())  # [2.0, 3.0, 4.0]
 - `from_jit` 可保存引用的 Python/JIT helper、全局常量和模块导入；依赖同名冲突或无法重建的程序式调优包装会报错。自定义 JIT repr、launch metadata 和 pre-run hook 也不能快照；这些情况需要调整源码或接口，不能假定会自动导出。
 - 裸 Triton 算子没有自动梯度规则。需要梯度时用 [`ft.fun`](自动微分与自定义函数.md) 提供显式反向；含不透明外部算子的路径不支持二阶及以上微分。不同编译器产物作为独立 kernel 调度，不进行第三方代码融合。
 
-实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[注意力 API](注意力.md)。
+实现与调度边界见[自有 CUDA 与用户 Triton 算子执行](../architecture/ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[attention API](attention.md)。

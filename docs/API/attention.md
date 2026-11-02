@@ -1,6 +1,6 @@
 返回 API：[分类目录](README.md) · 相关 API：[张量与数据交换](张量与数据交换.md) · [自动微分](自动微分与自定义函数.md) · 环境准备：[Triton 配置](../安装.md#configure-triton)
 
-# 注意力
+# attention
 
 `ft.nn.functional.scaled_dot_product_attention` 计算缩放点积注意力。FlashAttention 的 kernel、启动配置和反向规则随 FugaTensor 包提供，调用方直接传入 Tensor，无需自行注册 Triton kernel。
 

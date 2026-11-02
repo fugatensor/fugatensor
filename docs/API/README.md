@@ -17,7 +17,7 @@
 | [Triton 算子接入](Triton算子接入.md) | `triton.kernel`、`from_source`、`from_jit`、配置回调与编译环境 |
 | [权重读写](权重读写.md) | `save_weights`、`load_weights`、`weights` 的清单与元数据接口 |
 | [IR 与降级](IR与降级.md) | `ir.Module`、类型与构图、`jvp` / `vjp`、`lower_to_ask` |
-| [注意力](注意力.md) | `nn.functional.scaled_dot_product_attention`、因果掩码与一阶反向 |
+| [attention](attention.md) | `nn.functional.scaled_dot_product_attention`、因果掩码与一阶反向 |
 
 <a id="quick-start"></a>
 
