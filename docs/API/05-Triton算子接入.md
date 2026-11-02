@@ -2,7 +2,7 @@
 
 # 05. Triton 算子接入
 
-`ft.triton` 把用户 kernel 注册为可参与 FugaTensor 图的算子。算子调用先生成待计算 Tensor；执行时由独立 worker 编译，交给 ASK 原生计划调度。当前 worker 固定使用 Triton 3.7.1，安装与环境配置见[安装文档](../安装.md#configure-triton)。
+`ft.triton` 把用户 kernel 注册为可参与 FugaTensor 图的算子。算子调用先生成待计算 Tensor；执行时由独立 worker 编译，交给 ASK 原生计划调度。worker 支持的稳定版本范围、安装与环境配置见[安装文档](../安装.md#configure-triton)。
 
 <a id="registration"></a>
 
@@ -34,7 +34,7 @@
 | `grid` | 必填，整数、长度 1–3 的整数序列或回调。各维须满足 `0 < n < 2**31`，不足三维时补 1。 |
 | `constants=None` | `constexpr` 名字到值的字典，或返回该字典的回调；默认空字典。 |
 | `scalars=None` | 普通标量参数名到 `(ABI 类型, 值)` 的字典，或返回该字典的回调；默认空字典。 |
-| `options=None` | 固定编译选项字典，例如 `{"num_warps": 4}`；默认空字典，未指定项使用锁定版本编译器的默认值。 |
+| `options=None` | 固定编译选项字典，例如 `{"num_warps": 4}`；默认空字典，未指定项使用所选编译器版本的默认值。 |
 | `config=None` | `@triton.autotune` 配置列表的非负整数索引。带 autotune 的入口必须显式选择有效索引，不执行自动测速。 |
 | `source_path=None` | `from_source` / `from_jit` 可选的源码来源记录；`kernel` 自动记录解析后的文件路径。记录路径不会自动添加到 worker 的模块搜索路径。 |
 
@@ -57,7 +57,7 @@
 
 ## 4. 选择编译环境
 
-`ft.triton.environment(*, python, worker=None)` 返回供 `ft.configure(compilers=...)` 使用的环境描述；`python` 指定安装了锁定 Triton 版本的解释器，`worker=None` 使用 FugaTensor 自带 worker。以下示例从 `TRITON_PYTHON` 读取解释器路径，运行前需设置该环境变量。
+`ft.triton.environment(*, python, worker=None)` 返回供 `ft.configure(compilers=...)` 使用的环境描述；`python` 指定安装了受支持 Triton 稳定版的解释器，`worker=None` 使用 FugaTensor 自带 worker。以下示例从 `TRITON_PYTHON` 读取解释器路径，运行前需设置该环境变量。
 
 ```python
 import os
@@ -77,7 +77,7 @@ ft.configure("cuda", compilers={"triton": environment})
 
 ## 5. 自包含示例
 
-下面直接注册源码，得到两个输出。将 `TRITON_PYTHON` 设置为已安装 Triton 3.7.1 的解释器路径后运行；示例图仅包含一个外部 kernel。
+下面直接注册源码，得到两个输出。将 `TRITON_PYTHON` 设置为已按安装文档配置的 Triton 解释器路径后运行；示例图仅包含一个外部 kernel。
 
 ```python
 import os
@@ -119,7 +119,7 @@ print(z.tolist())  # [2.0, 3.0, 4.0]
 
 - 张量端口使用六种基础 dtype 和静态连续存储。输入、输出都必须非空；0-D 张量有一个元素，可以使用。普通启动参数是扁平指针或标量，不支持运行时 tuple 参数及 TMA tensor descriptor。
 - 支持编译元数据声明的动态共享内存。需要非零 global/profile scratch、tensor memory、cluster（`num_ctas != 1`）、协作式启动、PDL 或插桩启动的产物会报错拒绝。
-- `options` 限于锁定版本的 CUDA 编译选项；禁止覆盖 `arch`、`backend_name`、`ir_override`、`extern_libs` 和 `ptx_options`。不能用注册配置替换目标架构、注入外部 IR 或自由追加 ptxas 参数。
+- `options` 限于所选受支持版本的 CUDA 编译选项；禁止覆盖 `arch`、`backend_name`、`ir_override`、`extern_libs` 和 `ptx_options`。不能用注册配置替换目标架构、注入外部 IR 或自由追加 ptxas 参数。
 - autotune 仅选择已声明配置；带输入重置/恢复、自定义 pre/post hook、配置 pre-hook 或 IR override 的用法不受支持。显式 `constants` / `options` 可覆盖所选配置，heuristics 随后求值。
 - `from_jit` 可保存引用的 Python/JIT helper、全局常量和模块导入；依赖同名冲突或无法重建的程序式调优包装会报错。自定义 JIT repr、launch metadata 和 pre-run hook 也不能快照；这些情况需要调整源码或接口，不能假定会自动导出。
 - 裸 Triton 算子没有自动梯度规则。需要梯度时用 [`ft.fun`](04-自动微分与自定义函数.md) 提供显式反向；含不透明外部算子的路径不支持二阶及以上微分。不同编译器产物作为独立 kernel 调度，不进行第三方代码融合。

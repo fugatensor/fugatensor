@@ -38,7 +38,7 @@
   - 新增网络结构、参数命名或基础原子算子不改变 v1 容器；只有存储语义变化才提升 manifest `schema_version`。
 - **外部编译器与 C++ 扩展**：
   - 基础算子在 CPU 与 GPU 上均走 ASK 自有降级，不依赖 Triton。`ft.triton.kernel` / `from_source` 保存用户源码，不在宿主进程导入 Triton；`from_jit` 可快照调用方已加载的 JIT 函数和依赖。worker 执行可信 Python 源码并追踪加载的依赖文件，不用预置模板替代用户 kernel。
-  - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。固定版本 ABI 与依赖记录在 `triton.dependencies.lock.json`。
+  - Triton 适配位于本包 `_triton_worker.py`，通过 ASK 通用 worker 协议返回 `cubin` 与启动元数据；不要求 ASK 构建注册、不导出 LLVM 或插入融合标记。受支持的稳定版本范围、默认验证基线与 ABI 记录在 `triton.dependencies.lock.json`。
   - C++ 扩展 `fugatensor._native`（`cpp/`）负责 SSA 图分析和 ASK 原生绑定，实际编译、整段计划提交、缓冲区、事件与 CUDA Graph 管理由 ASK C++ 实现。`ir/transforms.py` 统一封装 `analyze_function`、`prune` 与 `project_outputs`；Fuga 不复制运行时调度器。
 
 ---

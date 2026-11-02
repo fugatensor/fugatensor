@@ -329,6 +329,21 @@ def types(X, Y, enabled, count, wide, half, bfloat, scale,
 
 
 class TritonWorkerContractTests(unittest.TestCase):
+    def test_compiler_selection_accepts_stable_patches_and_rejects_other_releases(self):
+        from fugatensor import _triton_worker as worker
+
+        for version in (worker.TRITON_VERSION, worker.TRITON_SERIES + ".99"):
+            compiler = SimpleNamespace(__version__=version)
+            with self.subTest(version=version), mock.patch.dict(sys.modules, {"triton": compiler}):
+                self.assertIs(worker.load_triton(), compiler)
+        for version in ("0.0.0", worker.TRITON_SERIES,
+                        worker.TRITON_SERIES + ".0rc1", worker.TRITON_SERIES + ".0.dev1",
+                        worker.TRITON_SERIES + ".0+custom"):
+            with self.subTest(version=version), mock.patch.dict(
+                    sys.modules, {"triton": SimpleNamespace(__version__=version)}):
+                with self.assertRaisesRegex(ValueError, "stable triton"):
+                    worker.load_triton()
+
     def test_binary_export_uses_source_abi_without_reading_compiler_ir(self):
         from fugatensor import _triton_worker as worker
 
@@ -341,15 +356,20 @@ class TritonWorkerContractTests(unittest.TestCase):
         request = {"signature": {"lhs": "*fp32", "out": "*fp32", "rhs": "*fp32"},
                    "source_bindings": {"lhs": "input:0", "out": "output:0", "rhs": "input:1"},
                    "target": {"backend": "cuda", "arch": 86, "warp_size": 32}, "grid": [2, 1, 1]}
-        metadata = SimpleNamespace(name="subtract", triton_version="3.7.1", target=Target(),
+        version = worker.TRITON_SERIES + ".99"
+        metadata = SimpleNamespace(name="subtract", triton_version=version, target=Target(),
             global_scratch_size=0, profile_scratch_size=0, tmem_size=0, num_ctas=1,
             tensordesc_meta=[], launch_cooperative_grid=False, launch_pdl=False,
             instrumentation_mode="", shared=1024, warp_size=32, num_warps=4)
         compiled = SimpleNamespace(name="subtract", metadata=metadata, asm={"cubin": b"binary fixture"})
-        with mock.patch.object(worker, "probe", return_value={"producer": {"name": "triton", "version": "3.7.1"}}):
+        with mock.patch.object(worker, "probe", return_value={"producer": {"name": "triton", "version": version}}):
             result = worker.artifact(request, compiled, ["out", "rhs", "lhs"])
+            self.assertEqual(result["producer"]["version"], version)
             self.assertEqual(result["arguments"], ["output:0", "input:1", "input:0", "null", "null"])
             self.assertEqual(result["launch"], {"grid": [2, 1, 1], "block": [128, 1, 1], "shared_bytes": 1024})
+            with mock.patch.object(metadata, "triton_version", worker.TRITON_VERSION):
+                with self.assertRaisesRegex(ValueError, "version metadata"):
+                    worker.artifact(request, compiled, ["out", "rhs", "lhs"])
             for name, value in (("global_scratch_size", 8), ("profile_scratch_size", 8),
                                 ("tmem_size", 32), ("num_ctas", 2), ("launch_cooperative_grid", True),
                                 ("launch_pdl", True), ("tensordesc_meta", [1]), ("instrumentation_mode", "test")):
@@ -429,6 +449,17 @@ def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
                     env=environment, capture_output=True, text=True, check=True)
                 return json.loads(result.stdout) if result.stdout else None
             first = run('--probe', '--request', path)
+            identities = []
+            for flag in ('0', '1'):
+                environment['TRITON_DEFAULT_FP_FUSION'] = flag
+                identities.append(run('--probe', '--request', path))
+            self.assertNotEqual(identities[0]['producer'], identities[1]['producer'])
+            self.assertEqual([item['producer']['environment']['TRITON_DEFAULT_FP_FUSION']
+                              for item in identities], ['false', 'true'])
+            if 'TRITON_DEFAULT_FP_FUSION' in os.environ:
+                environment['TRITON_DEFAULT_FP_FUSION'] = os.environ['TRITON_DEFAULT_FP_FUSION']
+            else:
+                environment.pop('TRITON_DEFAULT_FP_FUSION')
             run('--request', path, '--output', output)
             old = json.loads(output.read_text())
             self.assertEqual(old['producer'], first['producer'])

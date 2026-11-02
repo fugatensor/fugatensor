@@ -264,10 +264,13 @@ def bootstrap(args):
                    [sys.executable, "-m", "pip", "--python", str(python)])
         run([*install, "install", *pending_reqs], env=environment)
     if llvm_root is not None:
-        header = llvm_root / "include/llvm/Support/VCSRevision.h"
-        revision = capabilities.get("llvm_revision")
-        if not revision or not header.is_file() or revision not in header.read_text(encoding="utf-8"):
-            raise ValueError("--llvm-root must match the LLVM revision of the ASK SDK")
+        result = subprocess.run([str(llvm_root / "bin/llc"), "--version"],
+                                capture_output=True, text=True, check=True)
+        version = re.search(r"\bLLVM version (\d+\.\d+\.\d+)(?=\s|$)", result.stdout)
+        actual = version.group(1) if version else None
+        expected = capabilities.get("llvm_version")
+        if not expected or actual != expected:
+            raise ValueError(f"--llvm-root llc version must match ASK LLVM {expected}; found {actual}")
     environments = compiler_overrides(args.compiler_python)
     config_path = environment_root / "share/fugatensor/engine.json"
     preserve_config = (config_path.is_file() and not args.reset_config and llvm_root is None
@@ -281,8 +284,9 @@ def bootstrap(args):
         dependency = read_json(ROOT / "src/fugatensor/triton.dependencies.lock.json")["compiler"]
         package, version = dependency["name"], dependency["version"]
         actual = installed_version(compiler_python, package)
-        if actual != version:
-            raise ValueError(f"compiler {compiler_id} needs {package}=={version}; selected Python has {actual!r}. "
+        series = ".".join(version.split(".")[:2])
+        if actual is None or re.fullmatch(re.escape(series) + r"\.\d+", actual) is None:
+            raise ValueError(f"compiler {compiler_id} needs stable {package} {series}.x; selected Python has {actual!r}. "
                              "Install that dependency in the compiler environment separately.")
     # An explicit SDK selection must also replace a cached ASK_DIR from a prior build.
     run([python, "-m", "pip", "install", "--no-deps", "--no-build-isolation",

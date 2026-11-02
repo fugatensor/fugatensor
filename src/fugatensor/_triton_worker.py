@@ -1,7 +1,7 @@
 """Compile user Triton source to a standalone cubin for ASK's worker protocol.
 
 This file runs in the selected compiler environment, independently of FugaTensor
-and ASK imports. The pinned Triton CUDA ABI appends two scratch pointers after
+and ASK imports. The supported Triton CUDA ABI appends two scratch pointers after
 the runtime source arguments; unsupported launch resources are rejected below.
 """
 from __future__ import annotations
@@ -19,6 +19,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import sys
 import tempfile
 
@@ -30,6 +31,7 @@ if __name__ == "__main__":
 DEPENDENCIES_LOCK = Path(__file__).with_name("triton.dependencies.lock.json")
 LOCK = json.loads(DEPENDENCIES_LOCK.read_text(encoding="utf-8"))
 TRITON_VERSION = LOCK["compiler"]["version"]
+TRITON_SERIES = TRITON_VERSION.rsplit(".", 1)[0]
 ADAPTER_VERSION = LOCK["adapter_version"]
 ELEMENT_TYPES = {"*i1": "bool", "*i32": "i32", "*i64": "i64",
                  "*fp32": "f32", "*fp16": "f16", "*bf16": "bf16"}
@@ -48,8 +50,8 @@ def load_triton():
                      "LLVM_PASS_PLUGIN_PATH", "PTXAS_OPTIONS")),
             "external IR/target overrides, LLVM plugins and free-form ptxas options are not supported")
     import triton
-    require(triton.__version__ == TRITON_VERSION,
-            f"Triton CUDA ABI requires triton=={TRITON_VERSION}; found {triton.__version__}")
+    require(re.fullmatch(re.escape(TRITON_SERIES) + r"\.\d+", triton.__version__) is not None,
+            f"Triton CUDA ABI requires a stable triton {TRITON_SERIES}.x release; found {triton.__version__}")
     return triton
 
 
@@ -80,6 +82,7 @@ def source_module(request):
 
 def probe(request=None):
     triton = load_triton()
+    from triton._C.libtriton import get_cache_invalidating_env_vars
     from triton.runtime.cache import triton_key
     from triton.backends.nvidia.compiler import CUDAOptions
     root = Path(triton.__file__).parent
@@ -101,14 +104,16 @@ def probe(request=None):
                     paths['import:' + name] = path
     dependencies.update({name: file_digest(path) for name, path in paths.items()})
     return {"producer": {"name": "triton", "version": triton.__version__,
-                         "python_version": platform.python_version(), "dependencies": dependencies},
+                         "python_version": platform.python_version(), "dependencies": dependencies,
+                         "environment": get_cache_invalidating_env_vars()},
             "adapter_version": ADAPTER_VERSION}
 
 
 def artifact(request, compiled, names, producer=None):
     """Translate public signature and launch metadata, without parsing compiler IR."""
+    producer = producer if producer is not None else probe()["producer"]
     metadata = compiled.metadata
-    require(metadata.name == compiled.name and metadata.triton_version == TRITON_VERSION,
+    require(metadata.name == compiled.name and metadata.triton_version == producer["version"],
             "compiled entry/version metadata differs from the selected compiler")
     require(dataclasses.asdict(metadata.target) == request["target"],
             "compiled target differs from request")
@@ -125,7 +130,7 @@ def artifact(request, compiled, names, producer=None):
             "invalid dynamic shared memory size")
     require(metadata.warp_size == 32 and type(metadata.num_warps) is int
             and 0 < metadata.num_warps <= 32, "invalid CUDA thread-block dimensions")
-    # Triton 3.7.1 NVIDIA driver.c: flattened non-constexpr data parameters,
+    # Triton 3.9 NVIDIA driver.c: flattened non-constexpr data parameters,
     # followed by global_scratch and profile_scratch. No descriptor/tuple args
     # are accepted by this flat pointer/scalar interface, so no ABI expansion occurs.
     arguments = [request["source_bindings"][name] if request["signature"][name].startswith("*")
@@ -134,7 +139,7 @@ def artifact(request, compiled, names, producer=None):
     return {"protocol_version": 2, "format": "cubin",
             "payload": base64.b64encode(compiled.asm["cubin"]).decode("ascii"),
             "entry": compiled.name, "target": request["target"],
-            "producer": producer if producer is not None else probe()["producer"],
+            "producer": producer,
             "launch": {"grid": request["grid"],
                        "block": [metadata.num_warps * metadata.warp_size, 1, 1],
                        "shared_bytes": metadata.shared},

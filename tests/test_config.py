@@ -306,7 +306,7 @@ class BootstrapTests(unittest.TestCase):
             "version": "0.1.0", "prefix": str(self.sdk), "cmake_dir": str(self.sdk / "lib/cmake/ASK"),
             "capabilities": {"ask_version": "0.1.0", "host_codegen": True,
                              "cuda_graph_codegen": True,
-                             "llvm_revision": "locked-revision"},
+                             "llvm_version": "23.1.4", "llvm_revision": ""},
         }
         self.original_inspect = bootstrap.inspect_ask
         self.original_missing_tools = bootstrap.missing_build_tools
@@ -412,21 +412,40 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(), before)
         self.mock_run.assert_not_called()
 
+    def test_cuda_tool_version_matches_the_built_sdk_without_revision_headers(self):
+        llvm = self.directory / "llvm"
+        llc = llvm / "bin/llc"
+        llc.parent.mkdir(parents=True)
+        llc.write_text("#!/bin/sh\n")
+        llc.chmod(0o700)
+        self.mock_subprocess.return_value.stdout = "LLVM version 23.1.4\n  Optimized build.\n"
+        self.execute("--llvm-root", str(llvm))
+        self.assertEqual(json.loads(self.config.read_text())["llc"], str(llc))
+        self.assertFalse((llvm / "include/llvm/Support/VCSRevision.h").exists())
+        self.mock_run.reset_mock()
+        for version in ("23.1.3", "24.1.0", "23.1.4git", "unknown"):
+            self.mock_subprocess.return_value.stdout = f"LLVM version {version}\n"
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "match ASK LLVM 23.1.4"):
+                self.execute("--llvm-root", str(llvm))
+        self.mock_run.assert_not_called()
+
     def test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler(self):
         worker = self.root / "src/fugatensor/_triton_worker.py"
         worker.parent.mkdir(parents=True)
         worker.write_text("# installed fixture\n")
         (worker.parent / "triton.dependencies.lock.json").write_text(json.dumps({
-            "compiler": {"name": "triton", "version": "3.7.1"}}))
+            "compiler": {"name": "triton", "version": "3.9.0"}}))
         with patch.object(bootstrap, "executable_path", return_value=self.python):
-            self.mock_installed_version.return_value = "3.7.1"
-            self.execute("--compiler-python", "triton=python")
+            for version in ("3.9.0", "3.9.1"):
+                self.mock_installed_version.return_value = version
+                self.execute("--compiler-python", "triton=python")
             self.assertEqual(json.loads(self.config.read_text())["compilers"]["triton"]["worker"], str(worker))
             self.mock_run.reset_mock()
-            for extra in ((), ("--compiler-python", "triton=python")):
-                self.mock_installed_version.return_value = None
-                with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, "triton==3.7.1.*separately"):
-                    self.execute(*extra)
+            for version in (None, "3.8.0", "3.10.0", "3.9.0rc1", "3.9.1+local"):
+                for extra in ((), ("--compiler-python", "triton=python")):
+                    self.mock_installed_version.return_value = version
+                    with self.subTest(version=version, extra=extra), self.assertRaisesRegex(ValueError, "triton 3.9.x.*separately"):
+                        self.execute(*extra)
             self.mock_run.assert_not_called()
 
     @unittest.skipUnless(os.name == "posix", "executable fixtures need POSIX")

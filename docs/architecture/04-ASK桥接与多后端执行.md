@@ -47,11 +47,11 @@ GPU `Engine` 初始化时只保存配置。首次上传 Tensor 或访问 `engine
 
 ASK 在高层 MLIR 中切分静态图，按[执行计划 JSON v1](../../../ask/docs/08-图切分与多Kernel执行计划.md#plan-v1)保留自有计算区域的融合，每个外部节点成为独立步骤。各步骤通过设备中间缓冲区传递数据，在同一会话 stream 上顺序提交。用户仍直接写普通函数；`ft.evaluate(...)` 触发求值，所有计算均编译后交给 ASK 执行。非法图、坏导出及编译失败直接报错。
 
-`ft.triton.environment(python=...)` 返回 ASK 通用 `CompilerEnvironment`，worker 默认取本包路径，也可显式指定。宿主不导入 Triton；编译子进程要求锁定的 Triton 3.7.1，按公开 JIT 参数顺序去掉 constexpr，再绑定该版本 CUDA ABI 末尾的两个空 scratch 指针。动态共享内存来自编译元数据；需要全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动的产物明确报错。版本与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
+`ft.triton.environment(python=...)` 返回 ASK 通用 `CompilerEnvironment`，worker 默认取本包路径，也可显式指定。宿主不导入 Triton；编译子进程检查 Triton 属于受支持的稳定系列，按公开 JIT 参数顺序去掉 constexpr，再补齐 CUDA 启动 ABI 的 scratch 参数。动态共享内存来自编译元数据；需要全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动的产物明确报错。默认基线、支持范围与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
 
 `kernel` / `from_source` 接收可信 Python 源码，worker 会执行模块顶层代码，允许正常的全局常量、辅助函数、默认参数与包导入；依赖包须安装在 worker 环境中。`from_jit(existing_kernel, ...)` 接收调用方已经加载的 JIT 函数，递归保存引用的 Python/JIT helper 和全局常量，保留导入模块；注册后修改原函数文件或全局值不改变快照。不同模块依赖若使用同一名字绑定不同对象，会明确报错。快照使用 JIT 对象保存的源码和 jit 选项；无法重建的程序式调优包装、自定义 repr、launch metadata 或 pre-run hook 需要调用方提供显式源码。
 
-缓存探测复用 Triton 官方编译器指纹，记录实际 `ptxas`、`libdevice`、运行时代码以及执行源码时已加载的模块文件摘要，因此跨模块或动态导入的依赖变化会使 外部产物缓存失效。每次 worker 使用空的临时 Python 缓存目录，不读取旧 `.pyc`，避免源码与时间戳相同长度变化时仍执行旧代码。产物缓存未命中时重新执行 Triton 编译。不接受自定义 `extern_libs`、自由形式 `ptxas` 参数或 IR/目标覆盖。
+缓存探测复用 Triton 官方编译器指纹，记录实际 `ptxas`、`libdevice`、运行时代码和源码已加载模块的文件摘要，并将上游 `get_cache_invalidating_env_vars()` 返回的编译环境写入 `producer.environment`。依赖文件或浮点融合开关等编译环境变化时，外部产物缓存随之失效。每次 worker 使用空的临时 Python 缓存目录，不读取旧 `.pyc`，避免源码与时间戳相同长度变化时仍执行旧代码。产物缓存未命中时重新执行 Triton 编译。不接受自定义 `extern_libs`、自由形式 `ptxas` 参数或 IR/目标覆盖。
 
 worker 的 `required_element_types` 记录端口存储类型，不反向解析内部 LLVM/PTX 来枚举计算类型。内部指令能否用于目标架构由 Triton 与 `ptxas` 编译校验，ASK 再验证实际设备与产物目标架构的兼容性。
 
