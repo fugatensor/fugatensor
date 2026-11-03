@@ -130,7 +130,7 @@ class SharedTensorPrimitiveMatrix:
                 ddx = ft.grad(dx, x, seed=ft.ones_like(dx))
                 before = self.engine.session.stats if self.device != 'cpu' else None
                 ft.evaluate(y, dx, ddx)
-                tolerance = {'fp32': 2e-5, 'fp16': 0.006, 'bf16': 0.08}[name]
+                tolerance = {'fp32': 2e-5, 'fp16': 0.003, 'bf16': 0.015}[name]
                 for result, oracle in ((y, reference), (dx, first), (ddx, second)):
                     self.assert_values(result, (3,), [oracle(value) for value in data], tolerance)
                 if self.device != 'cpu':
