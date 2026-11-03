@@ -1,5 +1,3 @@
-# FugaTensor
-
 <img src="docs/assets/fugatensor-logo-inverse.svg" alt="FugaTensor logo" width="420">
 
 [![Version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
