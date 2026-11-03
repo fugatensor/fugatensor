@@ -1,5 +1,10 @@
 # FugaTensor
 
+[![Version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab)](docs/安装.md#requirements)
+[![CPU / CUDA](https://img.shields.io/badge/backend-CPU%20%7C%20CUDA-76b900)](docs/API/设备与执行.md#default-device)
+[![Triton optional](https://img.shields.io/badge/Triton-optional-8b5cf6)](docs/安装.md#installation-variants)
+
 FugaTensor 是基于 [ASK](../ask/README.md) 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件、反向传播或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
 
 ```python
