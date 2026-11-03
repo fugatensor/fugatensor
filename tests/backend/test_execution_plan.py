@@ -21,7 +21,7 @@ from fugatensor._ask.gpu import CUDAKernel
 from fugatensor._ask.plan import CUDAProgram, validate_plan
 from fugatensor._ask.runtime import ExecutionSession
 import test_cuda_compilation as compilation_fixtures
-from test_runtime_and_cache import ArrayOwner, FakeNativeSession
+from test_runtime_and_cache import ArrayOwner, FakeEvent, FakeNativeSession
 
 
 def sample_plan():
@@ -151,6 +151,37 @@ class ExecutionPlanTests(unittest.TestCase):
             session.reap()
             gc.collect()
             self.assertIsNone(tracked())
+
+    def test_submission_retains_port_snapshot_when_caller_lists_change_during_launch(self):
+        for method in ("run", "submit"):
+            with self.subTest(method=method), tempfile.TemporaryDirectory() as directory, session_fixture() as session:
+                executable = self.make_program(Path(directory)).prepare(session)
+                owners = [ArrayOwner(typestr="<i4", data=(4096 + 4096 * index, False))
+                          for index in range(2 if method == "submit" else 1)]
+                tracked = [weakref.ref(owner) for owner in owners]
+                inputs = [session.from_cuda_array(owners[0])]
+                outputs = [session.from_cuda_array(owners[1])] if method == "submit" else []
+                del owners
+                completion = FakeEvent()
+
+                def launch(*buffers):
+                    inputs.clear()
+                    outputs.clear()
+                    gc.collect()
+                    self.assertTrue(all(owner() is not None for owner in tracked))
+                    return ([session._native.allocate(40)], completion) if method == "run" else completion
+
+                with patch.object(session._native.programs[0], method, create=True, side_effect=launch):
+                    if method == "run":
+                        executable.run(inputs)
+                    else:
+                        executable.submit_many(inputs, outputs)
+                gc.collect()
+                self.assertTrue(all(owner() is not None for owner in tracked))
+                completion.complete = True
+                session.reap()
+                gc.collect()
+                self.assertTrue(all(owner() is None for owner in tracked))
 
     def test_output_aliases_and_zero_step_identity(self):
         plan = sample_plan()

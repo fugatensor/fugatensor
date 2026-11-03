@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 import importlib.util
 import ctypes
 import json
@@ -12,6 +13,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +21,7 @@ ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resol
 __import__('sys').path.insert(0, str(Path(__file__).resolve().parent))
 
 from fugatensor._ask import Compiler, CompilerError, Module, ScalarType, TensorType, __version__
+from fugatensor._ask.compiler import _native_result, _result
 from fugatensor._ask.ir import mlir_string
 from fugatensor._ask.numerics import decode_float, encode_f32, encode_float, round_f32, round_float
 from support.host_runner import ask_opt_path
@@ -163,16 +166,63 @@ class BuilderAndCodecTests(unittest.TestCase):
 
 
 class ClientProtocolTests(unittest.TestCase):
+    def test_cli_result_envelopes_reject_missing_or_malformed_contracts(self):
+        valid = {"schema_version": 1, "phase": "prepared", "shape_snapshot": {}, "external_requests": []}
+        for missing in ("schema_version", "phase", "shape_snapshot", "external_requests"):
+            with self.subTest(missing=missing), self.assertRaises(CompilerError):
+                _result("prepare", "module {}", {key: value for key, value in valid.items() if key != missing})
+        for changes in ({"schema_version": True}, {"schema_version": 2}, {"phase": "partitioned"},
+                        {"shape_snapshot": []}, {"external_requests": {}}, {"external_requests": [1]}):
+            with self.subTest(changes=changes), self.assertRaises(CompilerError):
+                _result("prepare", "module {}", {**valid, **changes})
+        for ir in ("", " \n"):
+            with self.subTest(ir=ir), self.assertRaisesRegex(CompilerError, "nonempty IR"):
+                _result("prepare", ir, valid)
+
+        plan = {
+            "schema_version": 1, "kind": "ask.cuda.execution_plan", "inputs": ["x"], "outputs": ["y"],
+            "buffers": [{"id": name, "shape": [10], "element_type": "i32"} for name in ("x", "y")],
+            "steps": [{"id": "step0", "kind": "owned", "function": "main", "inputs": ["x"],
+                       "outputs": ["y"], "depends_on": []}],
+            "scheduling": {"policy": "sequential", "stream": "session"},
+        }
+        partition = {**valid, "phase": "partitioned", "execution_plan": plan,
+                     "step_sources": {"step0": "module {}"}}
+        self.assertEqual(_result("partition", "module {}", partition).execution_plan, plan)
+        for sources in ({}, {"step0": ""}, {"step0": "module {}", "unknown": "module {}"}):
+            with self.subTest(sources=sources), self.assertRaises(CompilerError):
+                _result("partition", "module {}", {**partition, "step_sources": sources})
+
+        from test_cuda_compilation import make_artifact
+        artifact = make_artifact()
+        cuda = {**valid, "phase": "cuda_llvm", "cuda_artifact": artifact}
+        self.assertEqual(_result("codegen", artifact["payload"], cuda, target="cuda-llvm").cuda_artifact, artifact)
+        with self.assertRaisesRegex(CompilerError, "payload differs"):
+            _result("codegen", artifact["payload"] + "; changed\n", cuda, target="cuda-llvm")
+
+    def test_native_result_contract_does_not_depend_on_diagnostic_fields(self):
+        native = SimpleNamespace(ir="module {}", shape_snapshot_json='{"shape_bindings": []}',
+                                 external_requests_json="[]", diagnostics_json="{}")
+        empty = _native_result("prepare", native)
+        native.diagnostics_json = '{"message": "new diagnostic format"}'
+        changed = _native_result("prepare", native)
+        self.assertEqual(empty, replace(changed, diagnostics={}))
+        self.assertEqual(changed.diagnostics, {"message": "new diagnostic format"})
+
     def test_cli_driver_protocol_and_error_handling(self):
         def fake_run(command, **kwargs):
             self.assertNotIn("shell", kwargs)
             Path(command[command.index("-o") + 1]).write_text("module {}\n", encoding="utf-8")
-            Path(command[command.index("--report-json") + 1]).write_text('{"phase": "prepared"}', encoding="utf-8")
+            Path(command[command.index("--report-json") + 1]).write_text(json.dumps({
+                "schema_version": 1, "phase": "prepared", "shape_snapshot": {}, "external_requests": [],
+            }), encoding="utf-8")
             return subprocess.CompletedProcess(command, 0, "", "")
 
         with patch("fugatensor._ask.compiler.subprocess.run", side_effect=fake_run):
             result = Compiler("/path with spaces/ask-opt").prepare("module {}")
-        self.assertEqual(result.report, {"phase": "prepared"})
+        self.assertEqual(result.diagnostics, {"schema_version": 1, "phase": "prepared"})
+        self.assertEqual(result.shape_snapshot, {})
+        self.assertEqual(result.external_requests, [])
 
         with patch("fugatensor._ask.compiler.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", "bad shape")):
             with self.assertRaises(CompilerError) as caught:
@@ -193,15 +243,15 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
         compiler = Compiler(ask_opt_path())
         owned = compiler.prepare(self_owned_module())
         self.assertNotIn('"ask.mark"', owned.ir)
-        self.assertIn("after_P", json.dumps(owned.report))
+        self.assertIn("after_P", json.dumps(owned.diagnostics))
 
         ext = compiler.prepare(external_module())
         self.assertIn('"ask.external"', ext.ir)
-        self.assertEqual(len(ext.report["external_requests"]), 1)
+        self.assertEqual(len(ext.external_requests), 1)
 
         marker_id = '引号"\\\n\x00'
         escaped = self_owned_module().to_mlir().replace('mark_id = "after_P"', 'mark_id = ' + mlir_string(marker_id))
-        self.assertEqual(compiler.prepare(escaped).report["markers"][0]["mark_id"], marker_id)
+        self.assertEqual(compiler.prepare(escaped).diagnostics["markers"][0]["mark_id"], marker_id)
 
         dtypes = ("bool", "i32", "i64", "f32", "f16", "bf16")
         cast_mod = Module()
@@ -224,7 +274,7 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
             root = Path(directory)
             with patch("fugatensor._ask.compiler.subprocess.run", side_effect=AssertionError("unexpected subprocess")):
                 cuda = native.emit_cuda_llvm(module, arch=86)
-                self.assertEqual(cuda.report["cuda_artifact"]["payload"], cuda.ir)
+                self.assertEqual(cuda.cuda_artifact["payload"], cuda.ir)
                 self.assertIn("9223372036854775807", cuda.ir)
                 self.assertIn("-0.000000e+00", cuda.ir)
                 with self.assertRaises(CompilerError):
@@ -235,7 +285,7 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
                     host = native.emit_host_llvm(module)
                     obj = native.emit_host_object(module, root / "native.o")
                     self.assertEqual(obj.ir, "")
-                    self.assertEqual(obj.report["phase"], "host_object")
+                    self.assertEqual(obj.diagnostics["phase"], "host_object")
                     self.assertEqual((root / "native.o").read_bytes()[:4], b"\x7fELF")
             if native.capabilities()["host_codegen"]:
                 from support.host_runner import link_object_to_cdll
@@ -246,12 +296,20 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
                 function(ctypes.byref(source), ctypes.byref(integer_output), ctypes.byref(float_output))
                 self.assertEqual(integer_output.value, -(2**63))
                 self.assertEqual(float_output.value, 0x80000000)
+                from fugatensor.backends.host import HostExecutable, HostStorage
+                executable = HostExecutable(root / "native.so", replace(obj, diagnostics={}), module.to_mlir(), root)
+                outputs = executable.run([HostStorage.from_flat([1], shape=(1,), dtype="i64")])
+                self.assertEqual(outputs[0].to_flat(), [-(2**63)])
+                self.assertEqual(outputs[1].to_buffer().tobytes(), b"\0\0\0\x80")
+                self.assertEqual(executable.report, {})
             if os.environ.get("ASK_OPT"):
                 cli = Compiler(os.environ["ASK_OPT"])
                 self.assertEqual(cuda, cli.emit_cuda_llvm(module, arch=86))
                 if native.capabilities()["host_codegen"]:
                     self.assertEqual(host, cli.emit_host_llvm(module))
-                    self.assertEqual(obj.report, cli.emit_host_object(module, root / "cli.o").report)
+                    cli_object = cli.emit_host_object(module, root / "cli.o")
+                    self.assertEqual(cli_object.output_path, str(root / "cli.o"))
+                    self.assertEqual(obj, replace(cli_object, output_path=obj.output_path))
 
     @unittest.skipUnless(NATIVE_AVAILABLE, "build fugatensor._native for C++ binding checks")
     def test_in_process_bindings_and_cli_parity(self):
@@ -264,14 +322,14 @@ class NativeCompilerAndBindingTests(unittest.TestCase):
                 native.prepare("module { unknown }")
         self.assertNotIn("python_bindings", caps)
         self.assertEqual(caps["ask_version"], __version__)
-        self.assertEqual(prepared.report["phase"], "prepared")
-        self.assertEqual(optimized.report["phase"], "optimized")
+        self.assertEqual(prepared.diagnostics["phase"], "prepared")
+        self.assertEqual(optimized.diagnostics["phase"], "optimized")
         self.assertIn("<ask-source>", caught.exception.diagnostics)
 
         source = mixed_f16_module().to_mlir()
         with ThreadPoolExecutor(max_workers=4) as pool:
             outputs = list(pool.map(native.prepare, [source] * 8))
-        self.assertTrue(all(r.ir == outputs[0].ir and r.report == outputs[0].report for r in outputs))
+        self.assertTrue(all(result == outputs[0] for result in outputs))
 
         if os.environ.get("ASK_OPT"):
             cli = Compiler(os.environ["ASK_OPT"])

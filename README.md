@@ -40,7 +40,7 @@ print((x + y).reshape(-1).tolist())  # [2.0, 3.0, 4.0, 5.0]
 
 ## 独立构建与安装
 
-先安装 ASK C++ SDK，再通过 `CMAKE_PREFIX_PATH` 构建 FugaTensor。生成的 wheel 携带 ASK 编译器和运行时共享库。
+先安装 ASK C++ SDK，再通过 `CMAKE_PREFIX_PATH` 构建 FugaTensor。生成的 wheel 携带 ASK 编译器和运行时共享库。原生扩展通过 [ASK 的具名阶段结果](docs/architecture/ASK桥接与多后端执行.md#compiler-results)接收编译产物与诊断。
 
 ```bash
 CMAKE_PREFIX_PATH=/absolute/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist
@@ -96,7 +96,8 @@ engine = x.engine                # 需要诊断时查看框架管理的引擎
 print(engine.cache_info())       # 图缓存条目、编译次数与内存命中统计
 print(engine.last_fuga_ir)        # 最近执行的 Fuga IR
 print(engine.last_ask_ir)         # 提交给 ASK 的 MLIR 文本
-print(engine.last_report)        # ASK 编译报告
+print(engine.last_report)        # 编译诊断与缓存统计
+print(engine.last_execution_plan) # CUDA 分区计划；此 CPU 示例为 None
 print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 ```
 

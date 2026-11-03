@@ -6,12 +6,13 @@ import json
 import os
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .ir import Module
 from ._version import __version__
+from .cuda import CUDAError
+from .results import PrepareResult, PartitionResult, CodegenResult, split_report, stage_result
 
 
 class CompilerError(RuntimeError):
@@ -21,12 +22,39 @@ class CompilerError(RuntimeError):
         super().__init__(message + ("\n" + diagnostics.strip() if diagnostics.strip() else ""))
 
 
-@dataclass(frozen=True)
-class PreparedModule:
-    """Verified/prepared or optimized IR and diagnostics, not an executed kernel."""
+def _result(stage, ir, report, **options):
+    """Convert a CLI wire response into the same stage contract as native calls."""
+    try:
+        report = json.loads(report) if isinstance(report, str) else report
+        contracts, diagnostics = split_report(report)
+        if type(report.get("schema_version")) is not int or report["schema_version"] != 1:
+            raise ValueError("unsupported ASK compiler result schema")
+        phases = {"prepare": ("prepared", "optimized"), "partition": ("partitioned",),
+                  "codegen": (options.get("target", "").replace("-", "_"),)}
+        if stage not in phases or report.get("phase") not in phases[stage]:
+            raise ValueError("ASK wire result phase differs from its requested stage")
+        return stage_result(stage, ir, contracts, diagnostics, **options)
+    except (ValueError, TypeError, KeyError, CUDAError) as error:
+        raise CompilerError(f"invalid ASK {stage} result: {error}") from error
 
-    ir: str
-    report: dict[str, Any]
+
+def _native_result(stage, result, **options):
+    try:
+        contracts = {"shape_snapshot": json.loads(result.shape_snapshot_json),
+                     "external_requests": json.loads(result.external_requests_json)}
+        if stage == "partition":
+            contracts.update(execution_plan=json.loads(result.execution_plan_json),
+                             step_sources=result.step_sources)
+        elif stage == "codegen":
+            if result.abi_json is not None:
+                contracts["abi"] = json.loads(result.abi_json)
+            if result.cuda_artifact_json is not None:
+                contracts["cuda_artifact"] = json.loads(result.cuda_artifact_json)
+            if result.output_path != options["output_path"]:
+                raise ValueError("native object output path differs from the requested path")
+        return stage_result(stage, result.ir, contracts, json.loads(result.diagnostics_json), **options)
+    except (ValueError, TypeError, KeyError, AttributeError, CUDAError) as error:
+        raise CompilerError(f"invalid ASK {stage} result: {error}") from error
 
 
 class Compiler:
@@ -97,10 +125,10 @@ class Compiler:
             raise CompilerError("native ASK capability report must be a JSON object")
         return capabilities
 
-    def prepare(self, module: Module | str) -> PreparedModule:
+    def prepare(self, module: Module | str) -> PrepareResult:
         return self._process(module, ["--prepare"])
 
-    def partition(self, module: Module | str, *, optimize=True) -> PreparedModule:
+    def partition(self, module: Module | str, *, optimize=True) -> PartitionResult:
         """Partition a verified graph into a sequential CUDA execution plan."""
         source = module.to_mlir() if isinstance(module, Module) else module
         if not isinstance(source, str):
@@ -109,10 +137,10 @@ class Compiler:
             raise TypeError("partition options must be bool values")
         if self._native is not None:
             try:
-                ir, report = self._native.partition(source, optimize=optimize)
+                result = self._native.partition_typed(source, optimize=optimize)
             except RuntimeError as exc:
                 raise CompilerError("native ASK compiler rejected partitioning", diagnostics=str(exc)) from exc
-            return PreparedModule(ir, json.loads(report))
+            return _native_result("partition", result)
         with tempfile.TemporaryDirectory(prefix="ask-partition-") as directory:
             root = Path(directory)
             (root / "input.mlir").write_text(source, encoding="utf-8")
@@ -121,7 +149,7 @@ class Compiler:
                 flags.append("--no-optimize")
             self._run([str(root / "input.mlir"), *flags, "-o", str(root / "output.mlir"),
                        "--report-json", str(root / "report.json")])
-            return PreparedModule((root / "output.mlir").read_text(), json.loads((root / "report.json").read_text()))
+            return _result("partition", (root / "output.mlir").read_text(), (root / "report.json").read_text())
 
     def compile_cuda(self, module: Module | str, *, cache_dir, output_dir,
                      llc=None, ptxas=None, compilers=None, target=None, block_size=128,
@@ -137,16 +165,16 @@ class Compiler:
                              compilers=compilers, llc=llc, ptxas=ptxas, target=target,
                              block_size=block_size, ptx_version=ptx_version)
 
-    def emit_host_object(self, module: Module | str, output, *, optimize=True) -> PreparedModule:
-        """Write a native host object and return its ABI/preparation report."""
+    def emit_host_object(self, module: Module | str, output, *, optimize=True) -> CodegenResult:
+        """Write a native host object and return its ABI and diagnostics separately."""
         return self._codegen(module, "host-object", output=os.fspath(output), optimize=optimize)
 
-    def emit_host_llvm(self, module: Module | str, *, optimize=True) -> PreparedModule:
+    def emit_host_llvm(self, module: Module | str, *, optimize=True) -> CodegenResult:
         """Lower a self-owned graph to native host LLVM assembly in process."""
         return self._codegen(module, "host-llvm", optimize=optimize)
 
     def emit_cuda_llvm(self, module: Module | str, *, arch, block_size=128,
-                       ptx_version=80, optimize=True) -> PreparedModule:
+                       ptx_version=80, optimize=True) -> CodegenResult:
         """Lower a self-owned graph and return LLVM assembly with its CUDA ABI."""
         for name, value, lower, upper in (("arch", arch, 10, 999),
                                           ("block_size", block_size, 1, 1024),
@@ -168,12 +196,17 @@ class Compiler:
                 raise ValueError("host object generation requires an output path")
             output = str(Path(output).expanduser().resolve())
         if self._native is not None:
+            native_target = {"host-llvm": self._native.CodegenTarget.HostLLVM,
+                             "host-object": self._native.CodegenTarget.HostObject,
+                             "cuda-llvm": self._native.CodegenTarget.CUDALLVM}[target]
             try:
-                ir, report = self._native.codegen(source, target, output=output, arch=arch,
+                result = self._native.codegen_typed(source, native_target, output=output, arch=arch,
                     block_size=block_size, ptx_version=ptx_version, optimize=optimize)
             except RuntimeError as exc:
                 raise CompilerError("native ASK code generation failed", diagnostics=str(exc)) from exc
-            return PreparedModule(ir, json.loads(report))
+            if result.target != native_target:
+                raise CompilerError("native code generation result has an unexpected target")
+            return _native_result("codegen", result, target=target, output_path=output)
         with tempfile.TemporaryDirectory(prefix="ask-codegen-") as directory:
             root = Path(directory)
             source_path, report_path = root / "input.mlir", root / "report.json"
@@ -188,12 +221,12 @@ class Compiler:
                 flags.extend(["--cuda-arch", str(arch), "--cuda-block-size", str(block_size),
                               "--cuda-ptx-version", str(ptx_version)])
             self._run([str(source_path), *flags])
-            return PreparedModule("" if target == "host-object" else result_path.read_text(encoding="utf-8"),
-                                  json.loads(report_path.read_text(encoding="utf-8")))
+            return _result("codegen", "" if target == "host-object" else result_path.read_text(encoding="utf-8"),
+                           report_path.read_text(encoding="utf-8"), target=target, output_path=output)
 
     def optimize(self, module: Module | str, *, fold_constants: bool = True,
                  eliminate_dead_code: bool = True,
-                 fuse_elementwise: bool = True) -> PreparedModule:
+                 fuse_elementwise: bool = True) -> PrepareResult:
         """Prepare and optimize ASK IR using the native compiler's explicit passes."""
         options = ["--optimize"]
         for enabled, flag in ((fold_constants, "--no-constant-fold"),
@@ -205,7 +238,7 @@ class Compiler:
                 options.append(flag)
         return self._process(module, options)
 
-    def _process(self, module: Module | str, options: list[str]) -> PreparedModule:
+    def _process(self, module: Module | str, options: list[str]) -> PrepareResult:
         if isinstance(module, Module):
             source = module.to_mlir()
         elif isinstance(module, str):
@@ -214,14 +247,14 @@ class Compiler:
             raise TypeError("prepare/optimize expects a Module or MLIR string")
         if self._native is not None:
             try:
-                ir, report = self._native.prepare(
+                result = self._native.prepare_typed(
                     source, optimize="--optimize" in options,
                     fold_constants="--no-constant-fold" not in options,
                     eliminate_dead_code="--no-dce" not in options,
                     fuse_elementwise="--no-fusion" not in options)
             except RuntimeError as exc:
                 raise CompilerError("native ASK compiler rejected the request", diagnostics=str(exc)) from exc
-            return PreparedModule(ir=ir, report=json.loads(report))
+            return _native_result("prepare", result)
         with tempfile.TemporaryDirectory(prefix="ask-prepare-") as directory:
             path = Path(directory)
             input_path = path / "input.mlir"
@@ -238,4 +271,4 @@ class Compiler:
                                     diagnostics=result.stderr) from exc
             if not isinstance(report, dict):
                 raise CompilerError("native ASK preparation report must be a JSON object")
-            return PreparedModule(ir=ir, report=report)
+            return _result("prepare", ir, report)

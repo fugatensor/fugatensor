@@ -11,10 +11,12 @@
 | 层级 | 代码位置 | 职责 |
 | --- | --- | --- |
 | **Python 框架与 IR 层** | `src/fugatensor/*.py`、`src/fugatensor/ir/*.py` | `Tensor` / `ft.evaluate` / `ft.fun` / `ft.triton` 接口、Tensor 自动组图、按需执行与隔离追踪、Fuga IR 对象结构、JVP/VJP 求导规则展开、向 ASK IR 降级及 `Engine` 后端编排。 |
-| **FugaTensor C++ 扩展** | `cpp/graph.*`、`cpp/compiler.cpp`、`cpp/ask_runtime.cpp`、`cpp/runtime.cpp`（`fugatensor._native`） | 扁平化 SSA 图输入校验、前向微分可达性分析、带副作用保活的逆向死代码分析、微分子图活跃性交集计算与逆拓扑反向求导序列生成；绑定 ASK C++ 接口，并一次提交原生执行计划。 |
+| **FugaTensor C++ 扩展** | `cpp/graph.*`、`cpp/compiler.cpp`、`cpp/ask_runtime.cpp`（`fugatensor._native`） | 扁平化 SSA 图输入校验、前向微分可达性分析、带副作用保活的逆向死代码分析、微分子图活跃性交集计算与逆拓扑反向求导序列生成；绑定 ASK 具名编译结果和 `PreparedProgram`，通过原生计划提交执行。 |
 | **ASK C++ 编译与运行时** | ASK C++ SDK 的 `ASK::Compiler` / `ASK::Runtime` 共享库 | `ask` dialect 校验与优化、CPU / 自有 CUDA 原生 LLVM IR 代码生成、图切分、原生执行计划、缓冲区与事件复用、CUDA Graph replay；FugaTensor 的私有 `_ask/` 负责图转换、worker 调用、产物验证和磁盘缓存。 |
 
 `ir/transforms.py` 调用 `_native` 做图分析；编译和执行绑定也通过这个扩展调用 ASK 共享库。构建流程见[安装文档](../安装.md#build-fugatensor)。
+
+`cpp/compiler.cpp` 绑定 ASK `PrepareResult`、`PartitionResult`、`CodegenResult`；内部 Python Compiler 将版本化 JSON 字段解码成对应阶段的具名结果，编译输入来自独立契约字段。CLI 完整报告在桥接入口做同样拆分。字段用途见[编译阶段结果](ASK桥接与多后端执行.md#compiler-results)。执行绑定由 `cpp/ask_runtime.cpp` 调用 `PreparedProgram.run` / `submit`，缓冲区、调度与在途资源由 ASK 管理。
 
 <a id="native-analyze"></a>
 

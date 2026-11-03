@@ -234,6 +234,17 @@ delay:
                     executable.submit(x, y).wait()
                     self.assertEqual(y.to_host(), [2 * n for n in range(10)])
                     self.assertEqual(session.stats["launches"] - before, 1)
+                    automatic = executable.run([x])
+                    self.assertEqual(len(automatic), 1)
+                    self.assertEqual(automatic[0].to_host(), [2 * n for n in range(10)])
+                    self.assertNotEqual(automatic[0].data_ptr, x.data_ptr)
+                    self.assertNotEqual(automatic[0].data_ptr, y.data_ptr)
+                    before = session.stats["launches"]
+                    for inputs in ([], [object()], [session.tensor((5, 2), "i32")],
+                                   [session.tensor((10,), "f32")]):
+                        with self.assertRaises(CUDAError):
+                            executable.run(inputs)
+                    self.assertEqual(session.stats["launches"], before)
                     hits = session.stats["module_hits"]
                     kernel.prepare(session)
                     self.assertEqual(session.stats["module_hits"], hits + 1)
@@ -347,7 +358,7 @@ delay:
                     worker.write_text(WORKER)
                     source = json.dumps({"format": format_, "payload": self.payload(format_, root)})
                     module = external_graph(self.arch, source, branches=branches)
-                    plan = validate_plan(self.compiler.partition(module).report["execution_plan"])
+                    plan = validate_plan(self.compiler.partition(module).execution_plan)
                     external_steps = [step for step in plan["steps"] if step["kind"] == "external"]
                     if branches:
                         self.assertEqual(len(external_steps), 2)
@@ -378,6 +389,15 @@ delay:
                         executable.submit(x, y).wait()
                         self.assertEqual(y.to_host(), [2 * n + 5 for n in range(10)])
                     self.assertEqual(session.stats["launches"] - before, len(plan["steps"]))
+                    automatic = executable.run([x])
+                    if branches:
+                        self.assertEqual(automatic[0].to_host(), [2 * (n + 1) for n in range(10)])
+                        self.assertEqual(automatic[1].to_host(), [4 * n + 2 for n in range(10)])
+                        self.assertIs(automatic[1], automatic[2])
+                        self.assertIs(automatic[3], x)
+                    else:
+                        self.assertEqual(automatic[0].to_host(), [2 * n + 5 for n in range(10)])
+                    self.assertEqual(session.stats["launches"] - before, 2 * len(plan["steps"]))
 
 
 if __name__ == "__main__":

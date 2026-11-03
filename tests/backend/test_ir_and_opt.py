@@ -177,7 +177,7 @@ class GraphOptimizationTests(unittest.TestCase):
         optimized = self.compiler.optimize(module)
         prepared_ref = self.compiler.prepare(reference)
         self.assertNotIn('"ask.cast"', optimized.ir)
-        self.assertEqual(optimized.report["optimization"]["constant_folds"], len(DTYPES) ** 2 * 12)
+        self.assertEqual(optimized.diagnostics["optimization"]["constant_folds"], len(DTYPES) ** 2 * 12)
         extract = lambda ir: re.findall(r"\bvalue = ([^},]+)", ir)
         self.assertEqual(extract(optimized.ir), extract(prepared_ref.ir))
 
@@ -207,7 +207,7 @@ class GraphOptimizationTests(unittest.TestCase):
         g.mark(x, mark_id="live_value")
         g.return_(x)
         result = self.compiler.optimize(dce_mod, fold_constants=False)
-        markers = {m["mark_id"]: m for m in result.report["markers"]}
+        markers = {m["mark_id"]: m for m in result.diagnostics["markers"]}
         self.assertEqual(markers["dead_input"]["status"], "eliminated")
         self.assertEqual(markers["live_value"]["status"], "exact")
 

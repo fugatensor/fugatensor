@@ -88,7 +88,7 @@ class LoweringBoundaryTests(unittest.TestCase):
                 fuga_mod = ctx.finish((out, x))
                 self.assertIsInstance(x.value, Value)
                 prepared = self.compiler.prepare(lower_to_ask(fuga_mod))
-                self.assertEqual(prepared.report["phase"], "prepared")
+                self.assertEqual(prepared.diagnostics["phase"], "prepared")
                 self.assertIn(f"tensor<2x3x{dtype}>", prepared.ir)
 
         bctx = TraceContext([((3,), "bool")])
@@ -145,8 +145,8 @@ class LoweringBoundaryTests(unittest.TestCase):
         g.return_(g.external(g.inputs["x"], spec=spec, result_types=[out]))
         translated = lower_to_ask(mod, target={"backend": "host"})
         self.assertIn('shape_rule = "fixed"', translated.to_mlir())
-        report = self.compiler.prepare(translated).report
-        self.assertEqual(report["external_requests"][0]["source"], "opaque source")
+        prepared = self.compiler.prepare(translated)
+        self.assertEqual(prepared.external_requests[0]["source"], "opaque source")
 
         dyn_cf = Module()
         cg = dyn_cf.graph("dyn", inputs={"p": ScalarType("bool"), "x": inc}, results=[inc])

@@ -57,10 +57,15 @@ class _Prepared:
         _require(len(self._outputs) == 1, "multiple outputs have separate dtypes; use outputs")
         return self._outputs[0]["element_type"]
 
-    def _check_ports(self, inputs, outputs):
+    def _check_ports(self, **bindings):
         from .runtime import DeviceTensor
-        for kind, tensors, ports in (("inputs", inputs, self._inputs), ("outputs", outputs, self._outputs)):
-            _require(isinstance(tensors, (tuple, list)) and len(tensors) == len(ports),
+        for kind, tensors in bindings.items():
+            ports = getattr(self, "_" + kind)
+            _require(isinstance(tensors, (tuple, list)), "program ports must be a list or tuple")
+            # Native calls release the GIL. Bind and retain the same snapshot
+            # even if another thread changes the caller's lists during launch.
+            tensors = bindings[kind] = tuple(tensors)
+            _require(len(tensors) == len(ports),
                      f"program expects {len(ports)} {kind}")
             for tensor, port in zip(tensors, ports):
                 _require(isinstance(tensor, DeviceTensor), "program ports require DeviceTensor values")
@@ -68,8 +73,33 @@ class _Prepared:
                          "program port shape/dtype differs from its compiled type")
         # The native program checks sizes, session ownership, writable outputs
         # and aliases together before enqueueing any kernel.
-        for tensor in (*inputs, *outputs):
-            tensor._prepare_access(self._session)
+        for tensors in bindings.values():
+            for tensor in tensors:
+                tensor._prepare_access(self._session)
+        return bindings
+
+    def run(self, inputs):
+        """Allocate outputs and enqueue the program, returning device tensors.
+
+        Input aliases and repeated outputs retain the same tensor handles.
+        The session keeps external input owners until the submission completes;
+        synchronize the session before an external producer reuses its memory.
+        """
+        from .runtime import DeviceTensor
+        session = self._session
+        with session._lock:
+            session._check_open()
+            inputs = self._check_ports(inputs=inputs)["inputs"]
+            session.reap()
+            buffers, event = self._native.run([value._buffer for value in inputs])
+            session._retain(event, inputs)
+            bound = {value._buffer: value for value in inputs}
+            outputs = []
+            for buffer, port in zip(buffers, self._outputs):
+                if buffer not in bound:
+                    bound[buffer] = DeviceTensor(session, buffer, tuple(port["shape"]), port["element_type"])
+                outputs.append(bound[buffer])
+            return outputs
 
     def submit(self, input, output):
         return self.submit_many([input], [output])
@@ -78,7 +108,8 @@ class _Prepared:
         session = self._session
         with session._lock:
             session._check_open()
-            self._check_ports(inputs, outputs)
+            bindings = self._check_ports(inputs=inputs, outputs=outputs)
+            inputs, outputs = bindings["inputs"], bindings["outputs"]
             session.reap()
             event = self._native.submit([value._buffer for value in inputs],
                                         [value._buffer for value in outputs])
@@ -102,8 +133,8 @@ class PreparedCUDAKernel(_Prepared):
     def _parameters(self, inputs, outputs):
         # Low-level diagnostic access to the frozen ABI; normal submission
         # binds these indices entirely in C++.
-        self._check_ports(inputs, outputs)
-        tensors = (*inputs, *outputs)
+        bindings = self._check_ports(inputs=inputs, outputs=outputs)
+        tensors = (*bindings["inputs"], *bindings["outputs"])
         return [tensors[arg] if type(arg) is int else arg for arg in self._step["arguments"]]
 
 

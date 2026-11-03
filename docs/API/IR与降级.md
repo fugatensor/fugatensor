@@ -85,4 +85,4 @@ lowered = ft.lower_to_ask(module, target={"backend": "host"}, source_map=mapping
 print(lowered.to_mlir())
 ```
 
-图的编译和执行使用 [Tensor 求值入口](设备与执行.md#execution)；直接编译 ASK IR 可用 [ASK C++ 编译接口](../../../ask/docs/用户API.md#compiler-api)。
+图的编译和执行使用 [Tensor 求值入口](设备与执行.md#execution)；直接编译 ASK IR 可用 [ASK C++ 编译接口](../../../ask/docs/用户API.md#compiler-api)。该接口分别返回准备、分区和代码生成结果，形状快照、执行计划、ABI 与产物通过具名字段读取；诊断用于查看阶段、溯源和优化统计。框架内部的对应关系见[编译阶段结果](../architecture/ASK桥接与多后端执行.md#compiler-results)。

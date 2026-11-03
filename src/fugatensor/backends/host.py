@@ -179,14 +179,16 @@ def _ports(function, field, start):
 class HostExecutable:
     """A loaded ASK function whose ABI was checked before exposing run()."""
 
-    def __init__(self, library, report, source, artifact_dir):
-        self.report = report
+    execution_plan = None
+
+    def __init__(self, library, compiled, source, artifact_dir):
+        self.report = compiled.diagnostics
         self.source = source
         self.artifact_dir = Path(artifact_dir)
-        abi = report.get("abi", {})
-        functions = abi.get("functions")
-        if report.get("phase") != "host_object" or abi.get("schema_version") != 1:
+        abi = compiled.abi
+        if compiled.target != "host-object" or not isinstance(abi, dict) or abi.get("schema_version") != 1:
             raise CompilerError("ASK did not produce the supported host object ABI")
+        functions = abi.get("functions")
         if not isinstance(functions, list) or len(functions) != 1:
             raise CompilerError("FugaTensor host JIT requires exactly one graph function")
         function = functions[0]
@@ -258,7 +260,8 @@ class HostBackend:
         source_path, obj = directory / "graph.mlir", directory / "graph.o"
         report_path, library = directory / "report.json", directory / "graph.so"
         source_path.write_text(source, encoding="utf-8")
-        report = self.compiler.emit_host_object(source, obj).report
-        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        compiled = self.compiler.emit_host_object(source, obj)
+        report_path.write_text(json.dumps(compiled.diagnostics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        (directory / "abi.json").write_text(json.dumps(compiled.abi, indent=2) + "\n", encoding="utf-8")
         self._run([cc, "-shared", str(obj), "-o", str(library)])
-        return HostExecutable(library, report, source, directory)
+        return HostExecutable(library, compiled, source, directory)

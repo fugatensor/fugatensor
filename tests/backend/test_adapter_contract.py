@@ -109,8 +109,8 @@ else:
     def test_generic_compiler_is_accepted_by_the_native_frontend(self):
         source = (ROOT / "tests/ir/pipeline.mlir").read_text().replace('compiler = "triton"', 'compiler = "new_vendor"')
         result = Compiler().partition(source)
-        self.assertEqual(result.report["external_requests"][0]["compiler"], "new_vendor")
-        self.assertEqual([s["kind"] for s in result.report["execution_plan"]["steps"]],
+        self.assertEqual(result.external_requests[0]["compiler"], "new_vendor")
+        self.assertEqual([s["kind"] for s in result.execution_plan["steps"]],
                          ["owned", "external", "owned"])
 
     def test_dependencies_changing_during_export_are_not_cached(self):
@@ -131,7 +131,7 @@ else:
     Path(a.output).write_text(json.dumps(RESPONSE))
     revision.write_text('changed')
 '''.replace('RESPONSE', repr(response())))
-            prepared = SimpleNamespace(report={"external_requests": [{**request(), "compiler": "fixture"}]})
+            prepared = SimpleNamespace(external_requests=[{**request(), "compiler": "fixture"}])
             with self.assertRaisesRegex(CompilerError, "dependencies changed"):
                 _compile_external_graph(SimpleNamespace(timeout=10), prepared,
                     {"fixture": CompilerEnvironment(python=sys.executable, worker=worker)},

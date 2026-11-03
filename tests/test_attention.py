@@ -119,7 +119,7 @@ class AttentionCUDAExecutionTests(EngineTestCase):
         if output_scale != 1:
             output = output * output_scale
         actual = flatten(output.tolist())
-        forward_steps = [step['kind'] for step in self.engine.last_report['execution_plan']['steps']]
+        forward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
         self.assertEqual(forward_steps, ['external'] if composition == 'plain' else ['owned', 'external', 'owned'])
         self.assertEqual(output.shape, (batch, heads, m, dv))
         self.assertIs(output.dtype, dtype)
@@ -129,7 +129,7 @@ class AttentionCUDAExecutionTests(EngineTestCase):
         self.assert_values(actual, expected, dtype=dtype)
         seed = ft.tensor(input_data(output.shape, period=13, scale=0.0625), dtype=dtype)
         output.backward(seed)
-        backward_steps = [step['kind'] for step in self.engine.last_report['execution_plan']['steps']]
+        backward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
         self.assertEqual(backward_steps.count('external'), 5)
         expected_gradients = reference_backward(*values,
             [output_scale * value for value in flatten(seed.tolist())], **parameters)

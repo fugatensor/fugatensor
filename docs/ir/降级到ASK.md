@@ -4,6 +4,8 @@
 
 [`lower_to_ask`](../../src/fugatensor/lowering.py) 接收 Fuga `Module` 和目标设备，返回内部 `_ask.Module`。其 `to_mlir()` 方法生成提交给 ASK C++ 的文本，`source_map` 参数可接收逐值映射。
 
+降级后的图由内部 Compiler 桥接层提交给 ASK。准备结果分别保存 `ir`、`shape_snapshot`、`external_requests` 和 `diagnostics`；分区结果再提供 `execution_plan` 与 `step_sources`，代码生成结果按目标提供 `abi` 或 `cuda_artifact`。图转换、编译契约与诊断各自通过对应字段传递，字段用途见[编译阶段结果](../architecture/ASK桥接与多后端执行.md#compiler-results)。
+
 API：[IR 与降级](../API/IR与降级.md)
 
 <a id="static-simplification"></a>
@@ -50,4 +52,4 @@ API：[IR 与降级](../API/IR与降级.md)
 
 `source_map` 的结构为 `{"schema_version": 1, "values": [...]}`。每个值记录函数名、Fuga 名称与 `value_id`、`origin_value_id`、ASK 名称与 `value_id`。多函数输入使用函数名前缀，避免 ASK 模块内的身份冲突。
 
-`Engine` 补充 `input_bindings`，记录输入裁剪前后的序号，再将映射写入 `fuga-to-ask.json`，供追踪值与 ASK 报告关联查询。
+`Engine` 补充 `input_bindings`，记录输入裁剪前后的序号，再将映射写入 `fuga-to-ask.json`，供追踪值与 ASK 诊断中的溯源记录关联查询。

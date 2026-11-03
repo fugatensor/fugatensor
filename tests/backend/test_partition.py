@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from fugatensor._ask import Compiler, CompilerError, Module, TensorType
+from fugatensor._ask.compiler import _result
 from support.host_runner import ask_opt_path
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[3] / 'ask'))
@@ -20,7 +21,7 @@ class PartitionTests(unittest.TestCase):
         return Compiler().partition(source, **options)
 
     def assert_plan(self, result):
-        plan = result.report["execution_plan"]
+        plan = result.execution_plan
         self.assertEqual((plan["schema_version"], plan["kind"]), (1, "ask.cuda.execution_plan"))
         self.assertEqual(plan["scheduling"], {"policy": "sequential", "stream": "session"})
         buffers = {buffer["id"]: buffer for buffer in plan["buffers"]}
@@ -32,7 +33,7 @@ class PartitionTests(unittest.TestCase):
             self.assertFalse(set(step["outputs"]) & available)
             available.update(step["outputs"])
             completed.add(step["id"])
-            source = result.report["step_sources"][step["id"]]
+            source = result.step_sources[step["id"]]
             self.assertIn(f'ask.kernel_id = "{step["id"]}"', source)
             self.assertIn(f'ask.kernel_kind = "{step["kind"]}"', source)
             Compiler().prepare(source)
@@ -61,10 +62,10 @@ class PartitionTests(unittest.TestCase):
         plan = self.assert_plan(result)
         self.assertEqual([step["kind"] for step in plan["steps"]], ["owned", "external", "owned"])
         self.assertEqual(plan["steps"][1]["external_id"], "F")
-        self.assertEqual(len(result.report["markers"]), 2)
+        self.assertEqual(len(result.diagnostics["markers"]), 2)
         self.assertIn("ask.source_markers", result.ir)
-        self.assertEqual(result.report["external_requests"][0]["protocol_version"], 2)
-        self.assertEqual(result.report["external_requests"][0]["port_shapes"],
+        self.assertEqual(result.external_requests[0]["protocol_version"], 2)
+        self.assertEqual(result.external_requests[0]["port_shapes"],
                          {"input:0": [10], "output:0": [10]})
 
     def test_fanout_preserves_public_outputs(self):
@@ -91,7 +92,7 @@ class PartitionTests(unittest.TestCase):
         self.assertEqual(step["kind"], "external")
         self.assertEqual(step["inputs"], [plan["inputs"][0]] * 2)
         self.assertEqual(len(step["outputs"]), 2)
-        self.assertEqual(result.report["external_requests"][0]["port_shapes"],
+        self.assertEqual(result.external_requests[0]["port_shapes"],
                          {"input:0": [4], "input:1": [4], "output:0": [2], "output:1": [1]})
 
     def test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip(self):
@@ -121,7 +122,7 @@ class PartitionTests(unittest.TestCase):
         compiled = self.partition(module)
         plan = self.assert_plan(compiled)
         self.assertEqual(len(plan["steps"][0]["outputs"]), 2)
-        request = compiled.report["external_requests"][0]
+        request = compiled.external_requests[0]
         self.assertEqual(request["source_bindings"], bindings)
         self.assertEqual(request["constants"], constants)
         self.assertEqual(request["fixed_options"], options)
@@ -133,7 +134,7 @@ class PartitionTests(unittest.TestCase):
         for compiler in (Compiler(), Compiler(executable=ask_opt_path())):
             for method in (compiler.prepare, compiler.partition):
                 with self.subTest(compiler=compiler.executable, method=method.__name__):
-                    restored = method(module).report["external_requests"][0]
+                    restored = method(module).external_requests[0]
                     self.assertEqual(restored, request)
                     self.assertIs(type(restored["constants"]["one"]), float)
                     self.assertIs(type(restored["constants"]["minus_one"]), float)
@@ -163,8 +164,7 @@ class PartitionTests(unittest.TestCase):
                                      "--report-json", str(report), "-o", str(output)],
                                     input=source, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(report.read_text()), native.report)
-            self.assertEqual(output.read_text(), native.ir)
+            self.assertEqual(_result("partition", output.read_text(), json.loads(report.read_text())), native)
         with self.assertRaisesRegex(CompilerError, "concrete"):
             self.partition('module { func.func @main(%x: tensor<?xi32>) -> tensor<?xi32> { return %x : tensor<?xi32> } }')
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
@@ -43,6 +43,7 @@ class CUDAKernel:
     codegen: dict
     report: dict
     cache: dict
+    execution_plan: dict | None = None
 
     def prepare(self, session, *, graph=False):
         """Validate and load once for repeated asynchronous device execution."""
@@ -67,13 +68,13 @@ def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=No
     if not isinstance(source, str):
         raise TypeError("compile_cuda expects a Module or MLIR string")
     prepared = compiler.prepare(source)
-    requests = prepared.report.get("external_requests", [])
+    requests = prepared.external_requests
     if not requests:
         return _compile_owned_graph(compiler, source, prepared, caps, target=target,
                                     block_size=block_size, ptx_version=ptx_version,
                                     cache_dir=cache_dir, output_dir=output_dir,
                                     llc=llc, ptxas=ptxas)
-    from .plan import CUDAProgram, validate_plan
+    from .plan import CUDAProgram
     for request in requests:
         if request.get("compiler") not in environments:
             raise CompilerError(f"provide CompilerEnvironment for compiler {request.get('compiler')!r}")
@@ -89,10 +90,8 @@ def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=No
     if destination.exists() and any(destination.iterdir()):
         raise CompilerError("output_dir must be empty; use a fresh destination")
     partitioned = compiler.partition(source)
-    plan = validate_plan(partitioned.report.get("execution_plan"))
-    sources = partitioned.report.get("step_sources")
-    if not isinstance(sources, dict) or set(sources) != {s["id"] for s in plan["steps"]}:
-        raise CompilerError("partition report must provide exactly one source per step")
+    plan = partitioned.execution_plan
+    sources = partitioned.step_sources
     # Validate local tool requirements before starting external work.
     if any(step["kind"] == "owned" for step in plan["steps"]) and (llc is None or ptxas is None):
         raise CompilerError("ASK-owned CUDA steps require explicit llc and ptxas paths")
@@ -116,12 +115,11 @@ def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=No
     if len(plan["steps"]) == 1:
         step = plan["steps"][0]
         if step["inputs"] == plan["inputs"] and step["outputs"] == plan["outputs"]:
-            kernel = kernels[step["id"]]
-            kernel.report["execution_plan"] = plan
+            kernel = replace(kernels[step["id"]], execution_plan=plan)
             (destination / "execution_plan.json").write_bytes(_json(plan) + b"\n")
             (destination / "report.json").write_bytes(_json(kernel.report) + b"\n")
             return kernel
-    report = {"phase": "compiled_plan", "execution_plan": plan,
+    report = {"phase": "compiled_plan",
               "steps": {name: kernel.report for name, kernel in kernels.items()}}
     program = CUDAProgram(plan, kernels, report, {"steps": {name: kernel.cache for name, kernel in kernels.items()}})
     program.save(destination)
@@ -130,7 +128,7 @@ def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=No
 
 
 def _compile_external_graph(compiler, prepared, environments, *, cache_dir, output_dir):
-    requests = prepared.report.get("external_requests", [])
+    requests = prepared.external_requests
     if len(requests) != 1 or not isinstance(requests[0], dict):
         raise CompilerError("each external partition must contain exactly one external operation")
     original = requests[0]
@@ -194,7 +192,7 @@ def _compile_owned_graph(compiler, source, prepared, caps, *, target, block_size
         "config": {"block_size": block_size, "ptx_version": ptx_version},
         "llvm_revision": caps["llvm_revision"], "producer": {"name": "ask"},
         "adapter": None, "tools": tools, "target": target,
-        "shape": prepared.report["shape_snapshot"],
+        "shape": prepared.shape_snapshot,
         "numerics": {"fp_contract": "off"},
         "orchestrator_sha256": _sha(Path(__file__).read_bytes()),
     }
@@ -206,8 +204,8 @@ def _compile_owned_graph(compiler, source, prepared, caps, *, target, block_size
     def build():
         lowered = compiler.emit_cuda_llvm(source, arch=target["arch"],
             block_size=block_size, ptx_version=ptx_version)
-        report = lowered.report
-        artifact = report.pop("cuda_artifact")
+        report = lowered.diagnostics
+        artifact = lowered.cuda_artifact
         return {"kernel.ll": lowered.ir.encode("utf-8"),
                 "kernel.artifact.json": _json(artifact), "report.json": _json(report)}
 

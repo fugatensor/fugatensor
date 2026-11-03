@@ -138,6 +138,10 @@ class CUDAProgram:
         self.report = copy.deepcopy(report or {})
         self.cache = copy.deepcopy(cache or {})
 
+    @property
+    def execution_plan(self):
+        return copy.deepcopy(self.plan)
+
     def prepare(self, session, *, graph=False):
         from .executable import PreparedCUDAProgram
         return PreparedCUDAProgram(self, session, graph=graph)

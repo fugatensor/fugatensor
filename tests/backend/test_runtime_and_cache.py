@@ -102,6 +102,11 @@ class FakeEvent:
         self.complete = True
 
 
+class FakeBuffer:
+    def __init__(self, pointer, nbytes, readonly=False):
+        self.data_ptr, self.nbytes, self.readonly = pointer, nbytes, readonly
+
+
 class FakeNativeProgram:
     """Record the Python/native boundary without reimplementing the scheduler."""
     def __init__(self, session, buffer_sizes, inputs, outputs, steps, graph):
@@ -135,11 +140,11 @@ class FakeNativeSession:
     def allocate(self, nbytes):
         ptr = self.next_pointer
         self.next_pointer += max(nbytes, 64)
-        return SimpleNamespace(data_ptr=ptr, nbytes=nbytes, readonly=False)
+        return FakeBuffer(ptr, nbytes)
 
     def import_buffer(self, pointer, nbytes, readonly):
         self.log.append(("import", pointer, nbytes, readonly))
-        return SimpleNamespace(data_ptr=pointer, nbytes=nbytes, readonly=readonly)
+        return FakeBuffer(pointer, nbytes, readonly)
 
     def wait_for_external_stream(self, stream):
         self.log.append(("wait", stream))
@@ -168,6 +173,70 @@ class FakeNativeSession:
 
 
 class RuntimeOwnershipTests(unittest.TestCase):
+    def prepare_identity(self, session):
+        return ask.CUDAProgram({
+            "schema_version": 1, "kind": "ask.cuda.execution_plan",
+            "inputs": ["input"], "outputs": ["input", "input"],
+            "buffers": [{"id": "input", "shape": [2, 5], "element_type": "f32"}],
+            "steps": [], "scheduling": {"policy": "sequential", "stream": "session"},
+        }, {}).prepare(session)
+
+    def test_prepared_run_preserves_aliases_and_retains_external_owner_until_completion(self):
+        native = FakeNativeSession()
+        ext = SimpleNamespace(CUDASession=SimpleNamespace(create=lambda device: native))
+        with patch.object(ask, "_native", ext, create=True), ExecutionSession() as session:
+            prepared = self.prepare_identity(session)
+            owner = ArrayOwner()
+            weak_owner = weakref.ref(owner)
+            borrowed = session.from_cuda_array(owner)
+            owner.description["stream"] = 19
+            completion = FakeEvent()
+            with patch.object(native.programs[0], "run", create=True,
+                              return_value=([borrowed._buffer, borrowed._buffer], completion)) as run:
+                outputs = prepared.run([borrowed])
+                run.assert_called_once_with([borrowed._buffer])
+            self.assertIs(outputs[0], borrowed)
+            self.assertIs(outputs[1], borrowed)
+            self.assertIn(("wait", 19), native.log)
+            del outputs, owner, borrowed
+            gc.collect()
+            self.assertIsNotNone(weak_owner())
+            completion.complete = True
+            session.reap()
+            gc.collect()
+            self.assertIsNone(weak_owner())
+
+    def test_prepared_entrypoints_reject_invalid_ports_before_native_submission(self):
+        native = FakeNativeSession()
+        ext = SimpleNamespace(CUDASession=SimpleNamespace(create=lambda device: native))
+        with patch.object(ask, "_native", ext, create=True), ExecutionSession() as session:
+            prepared = self.prepare_identity(session)
+            borrowed = session.from_cuda_array(ArrayOwner())
+            wrong_shape = session.tensor((10,), "f32")
+            wrong_dtype = session.tensor((2, 5), "i32")
+            before = list(native.log)
+            with patch.object(native.programs[0], "run", create=True) as run, \
+                 patch.object(native.programs[0], "submit") as submit:
+                for values in (None, [], [object()], [wrong_shape], [wrong_dtype]):
+                    with self.subTest(inputs=values):
+                        with self.assertRaises(CUDAError):
+                            prepared.run(values)
+                        with self.assertRaises(CUDAError):
+                            prepared.submit_many(values, [borrowed, borrowed])
+                for values in (None, [], [borrowed], [borrowed, object()],
+                               [borrowed, wrong_shape], [borrowed, wrong_dtype]):
+                    with self.subTest(outputs=values), self.assertRaises(CUDAError):
+                        prepared.submit_many([borrowed], values)
+                self.assertEqual(native.log, before, "invalid ports must be rejected before external stream waits")
+                with ExecutionSession() as other:
+                    foreign = other.tensor((2, 5), "f32")
+                    for call in (lambda: prepared.run([foreign]),
+                                 lambda: prepared.submit_many([foreign], [borrowed, borrowed])):
+                        with self.assertRaisesRegex(CUDAError, "different execution session"):
+                            call()
+                run.assert_not_called()
+                submit.assert_not_called()
+
     def test_cuda_array_interface_v2_v3_and_invalid_descriptors(self):
         for stream in (None, 1, 2, 7340032):
             self.assertEqual(_cuda_array_description(ArrayOwner(strides=(20, 4), stream=stream)),

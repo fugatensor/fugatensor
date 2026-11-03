@@ -318,6 +318,7 @@ def materialize(engine, tensors):
         engine.last_ir = engine.last_ask_ir = executable.source
         engine.last_fuga_ir = program.fuga_text
         engine.last_report, engine.last_artifact_dir = executable.report, executable.artifact_dir
+        engine.last_execution_plan = executable.execution_plan
     for value in tensors:
         if value._storage is None:
             value._storage = _source(value)._storage

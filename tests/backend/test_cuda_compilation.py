@@ -225,7 +225,7 @@ class CUDAContractAndRoutingTests(unittest.TestCase):
             "external_execution": True, "external_formats": ["cubin", "ptx"],
             "cuda_graph_codegen": True, "llvm_revision": "rev",
         }
-        owned_compiler.prepare.return_value = SimpleNamespace(report={"external_requests": [], "shape_snapshot": {}})
+        owned_compiler.prepare.return_value = SimpleNamespace(external_requests=[], shape_snapshot={})
         stats = {"status": "hit", "counters": {"hits": 1}}
         with tempfile.TemporaryDirectory() as directory, \
              patch("fugatensor._ask.gpu._tool", return_value={"path": "/t", "sha256": "a" * 64}), \
@@ -249,9 +249,9 @@ class CUDAContractAndRoutingTests(unittest.TestCase):
             library.write_bytes(b"compiler-version-one")
             compiler = Mock(_native=SimpleNamespace(compiler_library_path=lambda: str(library)))
             compiler.capabilities.return_value = {"cuda_graph_codegen": True, "llvm_revision": "rev"}
-            compiler.prepare.return_value = SimpleNamespace(report={"external_requests": [], "shape_snapshot": {}})
+            compiler.prepare.return_value = SimpleNamespace(external_requests=[], shape_snapshot={})
             compiler.emit_cuda_llvm.side_effect = lambda *args, **kwargs: SimpleNamespace(
-                ir=make_artifact()["payload"], report={"cuda_artifact": make_artifact()})
+                ir=make_artifact()["payload"], cuda_artifact=make_artifact(), diagnostics={})
             with patch("fugatensor._ask.gpu._tool", return_value={"path": "/tool", "sha256": "tool"}), \
                  patch("fugatensor._ask.gpu.compile_cuda", return_value={"executable_cache": {"status": "hit"}}):
                 first = compile_graph(compiler, "module {}", cache_dir=root / "cache", output_dir=root / "first",
@@ -264,6 +264,8 @@ class CUDAContractAndRoutingTests(unittest.TestCase):
             self.assertEqual(compiler.emit_cuda_llvm.call_count, 2)
             self.assertEqual((first.cache["status"], second.cache["status"], third.cache["status"]),
                              ("miss", "miss", "hit"))
+            self.assertEqual(first.artifact, make_artifact())
+            self.assertNotIn("cuda_artifact", first.report)
             self.assertNotEqual(first.report["ir_cache_key_inputs"]["tools"]["ask-compiler"]["sha256"],
                                 second.report["ir_cache_key_inputs"]["tools"]["ask-compiler"]["sha256"])
 

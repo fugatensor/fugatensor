@@ -95,7 +95,7 @@ class TritonRegistrationTests(unittest.TestCase):
         ctx = self.context() if ctx is None else ctx
         mod = ctx.finish(op(ctx.inputs[0]))
         target = {"backend": "cuda", "arch": 86} if ctx.engine.device != "cpu" else None
-        return self.compiler.prepare(lower_to_ask(mod, target=target)).report["external_requests"][0]
+        return self.compiler.prepare(lower_to_ask(mod, target=target)).external_requests[0]
 
     def test_verbatim_snapshot_without_importing_triton_and_frozen_metadata(self):
         crlf_src = AFFINE_SRC.replace("\n", "\r\n")
@@ -163,7 +163,7 @@ class TritonRegistrationTests(unittest.TestCase):
                         module = ft.ir.specialize(context.module)
                         request = self.compiler.prepare(lower_to_ask(
                             module, target={"backend": "cuda", "arch": 86}
-                        )).report["external_requests"][0]
+                        )).external_requests[0]
                         requests.append(request)
                         # Inspect the queued compiler contract without requiring a GPU.
                         raise CapturedGraph("captured pending graph")
@@ -218,7 +218,7 @@ class TritonRegistrationTests(unittest.TestCase):
         self.assertEqual((result.shape, result.dtype), ((2, 4), 'f32'))
         prepared = self.compiler.prepare(lower_to_ask(context.finish(result),
                                                       target={'backend': 'cuda', 'arch': 86}))
-        request = prepared.report['external_requests'][0]
+        request = prepared.external_requests[0]
         self.assertEqual(request['source_bindings'], {'Q': 'input:0', 'K': 'input:1', 'O': 'output:0'})
         self.assertEqual(request['signature'], {'Q': '*fp16', 'K': '*bf16', 'O': '*fp32'})
         self.assertEqual(observed, [((2, 3), (3, 4))])
@@ -241,7 +241,7 @@ class TritonRegistrationTests(unittest.TestCase):
         mod = ctx.finish(self.registration()(ctx.inputs[0]))
         before = mod.to_text()
         for arch in (80, 86):
-            req = self.compiler.prepare(lower_to_ask(mod, target={"backend": "cuda", "arch": arch})).report["external_requests"][0]
+            req = self.compiler.prepare(lower_to_ask(mod, target={"backend": "cuda", "arch": arch})).external_requests[0]
             self.assertEqual((req["target"]["arch"], mod.to_text()), (arch, before))
 
         with self.assertRaisesRegex(ValueError, "no implementation"):
@@ -273,7 +273,7 @@ class TritonRegistrationTests(unittest.TestCase):
         self.assertEqual(tuple(result.dtype for result in results), ('f32', 'i32'))
         module = ctx.finish(results)
         prepared = self.compiler.prepare(lower_to_ask(module, target={'backend': 'cuda', 'arch': 86}))
-        req = prepared.report['external_requests'][0]
+        req = prepared.external_requests[0]
         self.assertEqual(req['source_bindings'], {'X': 'input:0', 'Y': 'output:0', 'Z': 'output:1', 'N': 10, 'scale': 2.5})
         self.assertEqual(req['signature']['scale'], 'fp32')
         self.assertEqual(req['constants']['TYPE'], {'__triton_dtype__': 'float32'})
@@ -327,7 +327,7 @@ def types(X, Y, enabled, count, wide, half, bfloat, scale,
         self.assertIs(output.dtype, ft.fp16)
         module = context.finish(output)
         request = self.compiler.prepare(lower_to_ask(
-            module, target={"backend": "cuda", "arch": 86})).report["external_requests"][0]
+            module, target={"backend": "cuda", "arch": 86})).external_requests[0]
         self.assertEqual(request["signature"], {"X": "*fp32", "Y": "*fp16", "enabled": "i1",
             "count": "i32", "wide": "i64", "half": "fp16", "bfloat": "bf16", "scale": "fp32"})
         self.assertEqual(request["constants"], {"TYPE": {"__triton_dtype__": "float16"},
@@ -404,8 +404,11 @@ def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
         x = ft.tensor([0, 1, 2, 3, 4, 5])
         y = operation((x + 1).reshape(2, 3)).reshape(3, 2) + 1
         self.assertEqual(y.tolist(), [[4, 5], [6, 7], [8, 9]])
-        self.assertEqual([step['kind'] for step in self.engine.last_report['execution_plan']['steps']],
+        self.assertEqual([step['kind'] for step in self.engine.last_execution_plan['steps']],
                          ['owned', 'external', 'owned'])
+        self.assertNotIn('execution_plan', self.engine.last_report)
+        self.engine.clear_cache()
+        self.assertIsNone(self.engine.last_execution_plan)
 
     device = "cuda"
     enable_triton = True
@@ -540,7 +543,7 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
             # Two external nodes + one owned add; unused second output remains
             # allocated for the second kernel's physical ABI.
             self.assertEqual(self.engine.session.stats['launches'] - before, 3)
-            self.assertEqual(self.engine.last_report['execution_plan']['steps'][0]['kind'], 'external')
+            self.assertEqual(self.engine.last_execution_plan['steps'][0]['kind'], 'external')
 
     def test_scheduled_forward_across_precisions_algorithms_and_custom_backward(self):
         scale, identity, polynomial = self.scale, self.identity, self.polynomial
@@ -563,7 +566,7 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
                 self.assertEqual(self.engine.session.stats["launches"], launches + 3)
                 self.assertEqual(mixed(ft.tensor([[5, 6], [7, 8]], dtype=dtype)).tolist(), [[15, 17], [19, 21]])
                 self.assertEqual(self.engine.last_report["phase"], "compiled_plan")
-                self.assertEqual([step["kind"] for step in self.engine.last_report["execution_plan"]["steps"]],
+                self.assertEqual([step["kind"] for step in self.engine.last_execution_plan["steps"]],
                                  ["owned", "external", "owned"])
                 self.assertEqual(len(list((Path(self.engine.last_artifact_dir) / "package").rglob("kernel.cubin"))), 3)
 
@@ -611,7 +614,7 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
         self.assertEqual(outputs[0].tolist(), [14, 18, 22])
         self.assertEqual(outputs[1].tolist(), [14, 18, 22])
         self.assertIs(outputs[2], x)
-        plan = self.engine.last_report['execution_plan']
+        plan = self.engine.last_execution_plan
         self.assertGreaterEqual(len(plan['steps']), 2)
         self.assertEqual(sum(step['kind'] == 'external' for step in plan['steps']), 2)
 
@@ -631,13 +634,15 @@ def subtract(out, N: tl.constexpr, rhs, lhs, BLOCK: tl.constexpr):
         # Omit ASK codegen tools: the external worker returns finished machine code.
         with ft.Engine(device="cuda", compilers=self.engine.compilers,
                        cache_dir=self.cache_dir / "external-only") as engine:
+            self.assertIsNone(engine.last_execution_plan)
             engine.llc = engine.ptxas = None
             x = ft.tensor([10, 20, 30], dtype="i32")
             y = ft.tensor([1, 3, 5], dtype="i32")
             before = engine.session.stats["launches"]
             self.assertEqual(subtract(x, y).tolist(), [9, 17, 25])
             self.assertEqual(engine.session.stats["launches"], before + 1)
-            self.assertEqual([step["kind"] for step in engine.last_report["execution_plan"]["steps"]], ["external"])
+            self.assertEqual([step["kind"] for step in engine.last_execution_plan["steps"]], ["external"])
+        self.assertIsNone(engine.last_execution_plan)
 
 
 

@@ -158,6 +158,7 @@ class Engine:
         self._stats = {'compilations': 0, 'executions': 0, 'cache_hits': 0}
         self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
         self.last_report = self.last_artifact_dir = None
+        self.last_execution_plan = None
 
     @property
     def closed(self):
@@ -270,6 +271,7 @@ class Engine:
             self._graph_cache.clear()
             self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
             self.last_report = self.last_artifact_dir = None
+            self.last_execution_plan = None
 
     def _compile(self, context):
         with self._lock:
@@ -370,6 +372,7 @@ class Engine:
             self._jit_functions.clear()
             self._operations.clear()
             self._graph_cache.clear()
+            self.last_execution_plan = None
         for function in functions:
             function._drop_engine(self)
 
@@ -391,33 +394,11 @@ class _CUDAExecutable:
     def __init__(self, kernel, session, directory, source):
         self.kernel = kernel
         self.prepared = kernel.prepare(session, graph=True)
-        self._inputs, self._outputs = self.prepared.inputs, self.prepared.outputs
-        self.session = session
         self.source, self.report, self.artifact_dir = source, kernel.report, directory
+        self.execution_plan = kernel.execution_plan
 
     def run(self, inputs):
-        from . import _native
-        from fugatensor._ask.runtime import DeviceTensor
-        if len(inputs) != len(self._inputs):
-            raise ValueError('CUDA input count differs from the compiled graph')
-        with self.session._lock:
-            self.session._check_open()
-            for tensor, port in zip(inputs, self._inputs):
-                if tuple(tensor.shape) != tuple(port['shape']) or tensor.dtype != port['element_type']:
-                    raise ValueError('CUDA input shape/dtype differs from the compiled graph')
-                tensor._prepare_access(self.session)
-            self.session.reap()
-            buffers, event = _native.run_program(self.prepared._native, [value._buffer for value in inputs])
-            self.session._retain(event, tuple(inputs))
-            # Preserve logical aliases and external owners without copying any
-            # device data. ASK allocated the remaining outputs inside run().
-            bound = {value._buffer: value for value in inputs}
-            outputs = []
-            for buffer, port in zip(buffers, self._outputs):
-                if buffer not in bound:
-                    bound[buffer] = DeviceTensor(self.session, buffer, tuple(port['shape']), port['element_type'])
-                outputs.append(bound[buffer])
-            return outputs
+        return self.prepared.run(inputs)
 
 
 class _InputProjection:
