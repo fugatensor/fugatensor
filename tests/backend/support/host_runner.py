@@ -22,7 +22,6 @@ STORAGE = {
     "i64": ctypes.c_int64,
     "f32": ctypes.c_float,
     "f16": ctypes.c_uint16,
-    "bf16": ctypes.c_uint16,
 }
 
 
@@ -121,13 +120,13 @@ def compile_llvm_to_cdll(llvm_text_or_path: str | Path, work_dir: Path, stem: st
 
 
 def encode_scalar(value, dtype: str):
-    if dtype in ("f16", "bf16"):
+    if dtype == "f16":
         return int.from_bytes(encode_float(value, dtype), "little")
     return value
 
 
 def decode_scalar(value, dtype: str):
-    if dtype in ("f16", "bf16"):
+    if dtype == "f16":
         return decode_float(int(value).to_bytes(2, "little"), dtype)
     return bool(value) if dtype == "bool" else value
 
@@ -141,7 +140,7 @@ def make_buffer(values, dtype: str):
 
 def read_buffer(buf, count: int, dtype: str) -> list:
     raw = list(buf)[:count]
-    if dtype in ("f16", "bf16"):
+    if dtype == "f16":
         return [decode_float(int(v).to_bytes(2, "little"), dtype) for v in raw]
     if dtype == "bool":
         return [bool(v) for v in raw]

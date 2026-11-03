@@ -4,7 +4,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from fugatensor._ask import CompilerError
 from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from tests._helpers import TRITON_KERNELS, EngineTestCase, requires_cuda, requires_triton
@@ -19,9 +18,8 @@ class SharedHigherOrderMixin:
         for dtype in ("f32", "f16", "bf16"):
             with self.subTest(dtype=dtype):
                 if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*support"):
-                        x = ft.tensor(2, dtype=dtype)
-                        ft.grad(quartic(x), x).tolist()
+                    with self.assertRaisesRegex((TypeError, CUDAError), "CPU tensors support only|bf16.*support"):
+                        ft.tensor(2, dtype=dtype)
                     continue
                 x = ft.tensor(2, dtype=dtype)
                 val = quartic(x)

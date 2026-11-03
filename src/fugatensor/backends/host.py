@@ -13,11 +13,11 @@ import math
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 
 from fugatensor._ask import Compiler, CompilerError, Module, TensorType
 from fugatensor._ask.numerics import decode_float, encode_float
+from fugatensor._buffers import contiguous_bytes
 
 _STORAGE = {
     "bool": ctypes.c_uint8,
@@ -25,8 +25,14 @@ _STORAGE = {
     "i64": ctypes.c_int64,
     "f32": ctypes.c_uint32,
     "f16": ctypes.c_uint16,
-    "bf16": ctypes.c_uint16,
 }
+
+
+def _storage_type(dtype):
+    try:
+        return _STORAGE[dtype]
+    except KeyError:
+        raise TypeError('CPU tensors support only bool/i32/i64/f32/f16') from None
 
 
 @dataclass(frozen=True, init=False)
@@ -41,13 +47,14 @@ class HostStorage:
         tensor = TensorType(tuple(shape), dtype)
         if any(dim is None for dim in tensor.shape):
             raise ValueError("host storage needs a concrete shape")
+        ctype = _storage_type(tensor.dtype)
         count = math.prod(tensor.shape)
-        if count > (2**63 - 1) // ctypes.sizeof(_STORAGE[tensor.dtype]):
+        if count > (2**63 - 1) // ctypes.sizeof(ctype):
             raise ValueError("tensor byte count overflows the host ABI")
         object.__setattr__(self, "shape", tensor.shape)
         object.__setattr__(self, "dtype", tensor.dtype)
         # An empty tensor owns a valid pointer, but exposes zero logical bytes.
-        object.__setattr__(self, "_buffer", (_STORAGE[tensor.dtype] * max(count, 1))())
+        object.__setattr__(self, "_buffer", (ctype * max(count, 1))())
 
     @classmethod
     def from_flat(cls, values, *, shape, dtype):
@@ -82,41 +89,25 @@ class HostStorage:
         """
         if type(copy) is not bool:
             raise TypeError("copy must be bool")
-        view = memoryview(data)
-        if not view.c_contiguous:
-            raise ValueError("tensor buffers must be C-contiguous")
         tensor = TensorType(tuple(shape), dtype)
-        if any(dim is None for dim in tensor.shape):
-            raise ValueError("host storage needs a concrete shape")
-        width = ctypes.sizeof(_STORAGE[tensor.dtype])
-        count = math.prod(tensor.shape)
-        nbytes = count * width
-        if nbytes > 2**63 - 1 or view.nbytes != nbytes:
-            raise ValueError("buffer byte count does not match the tensor shape and dtype")
-        format_ = view.format
-        prefix = format_[0] if format_ and format_[0] in "@=<>!" else "@"
-        format_ = format_[1:] if format_ and format_[0] in "@=<>!" else format_
-        raw = format_ in ("B", "b", "c") and view.itemsize == 1
-        formats = {"bool": ("?",), "i32": ("i", "l"), "i64": ("q", "l"),
-                   "f32": ("f",), "f16": ("e",), "bf16": ()}
-        native_endian = prefix in ("@", "=") or prefix == ("<" if sys.byteorder == "little" else ">")
-        if not raw and (format_ not in formats[tensor.dtype] or view.itemsize != width or not native_endian):
-            raise TypeError("typed buffer format must match the tensor dtype and native byte order; use bytes for raw bits")
-        raw_view = view.cast("B")
+        ctype = _storage_type(tensor.dtype)
+        raw_view = contiguous_bytes(data, shape=tensor.shape, dtype=tensor.dtype)
+        width = ctypes.sizeof(ctype)
+        count, nbytes = math.prod(tensor.shape), raw_view.nbytes
         if copy:
             result = cls(tensor.shape, tensor.dtype)
             # Bulk copies preserve NaN payloads and low-precision bits. A
             # writable exporter exposes its pointer without a staging copy.
             if nbytes:
-                source = ((ctypes.c_char * nbytes).from_buffer(raw_view) if not view.readonly
+                source = ((ctypes.c_char * nbytes).from_buffer(raw_view) if not raw_view.readonly
                           else data if type(data) is bytes else raw_view.tobytes())
                 ctypes.memmove(result.data_ptr, source, nbytes)
             return result
-        if view.readonly:
+        if raw_view.readonly:
             raise ValueError("copy=False requires a writable buffer")
         if not nbytes:
             return cls(tensor.shape, tensor.dtype)
-        borrowed = (_STORAGE[tensor.dtype] * count).from_buffer(raw_view)
+        borrowed = (ctype * count).from_buffer(raw_view)
         if ctypes.addressof(borrowed) % width:
             raise ValueError("borrowed buffer is not aligned for its tensor dtype")
         result = cls.__new__(cls)

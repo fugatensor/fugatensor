@@ -113,7 +113,7 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 | 项目 | 当前行为 |
 | --- | --- |
-| **数据类型** | 默认 `ft.fp32`；支持 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`，用 `.astype(...)` 显式转换；bf16 计算使用 CUDA |
+| **数据类型** | 默认 `ft.fp32`；支持 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`，用 `.astype(...)` 显式转换；bf16 Tensor 使用 CUDA |
 | **张量创建与基础运算** | `tensor`、`zeros`、`ones`、`empty`、`full`；加减乘除、指数/对数/平方根、比较选择、显式广播与转置、归约、矩阵乘法（静态形状，含 0-D 与空张量） |
 | **控制流** | Fuga IR 静态 `if` 选择与有界 `for` 展开；普通 Python 支持 0-D Tensor 的 `if`/`while`，条件读取触发按需执行 |
 | **自动微分** | `ft.grad(outputs, inputs, seed=...)` 延迟求导、`detach()` / `stop_gradient()`、`ft.fun` 纯 VJP、导数图组合与高阶求导 |

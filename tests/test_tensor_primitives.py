@@ -271,9 +271,9 @@ class HostTensorPrimitiveMatrix(SharedTensorPrimitiveMatrix, EngineTestCase):
         capabilities = self.engine.compiler.capabilities()
         self.assertNotIn('bf16', capabilities['host_supported_element_types'])
         self.assertNotIn('host_bf16_hardware_supported', capabilities)
-        x = ft.tensor([[1, 2], [3, 4]], dtype=ft.bf16)
+        x = ft.tensor([[1, 2], [3, 4]], dtype=ft.fp32).astype(ft.bf16)
         for operation in (ft.exp, lambda value: value.sum(), lambda value: value @ value):
-            with self.subTest(operation=operation), self.assertRaisesRegex(CompilerError, 'bf16 is not supported by the Host backend'):
+            with self.subTest(operation=operation), self.assertRaisesRegex(CompilerError, 'Host backend supports only bool/i32/i64/f32/f16'):
                 operation(x).tolist()
 
 

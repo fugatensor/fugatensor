@@ -19,7 +19,8 @@ from .devices import normalize_device as _device_name, resolve_device
 from .backends.host import HostBackend, HostStorage
 from .tensor import Tensor, normalize_data, normalize_dtype
 from .lowering import lower_to_ask
-from .ir import prune, specialize
+from .ir import TensorType, prune, specialize
+from ._buffers import contiguous_bytes
 
 _current = contextvars.ContextVar('fugatensor_engine', default=None)
 _default_device = contextvars.ContextVar('fugatensor_default_device', default='cpu')
@@ -215,11 +216,16 @@ class Engine:
         require_not_tracing()
         with self._lock:
             self._check_open()
-            if self._ordinal is not None and copy is False:
-                raise ValueError('CUDA from_buffer requires copy=True for host-to-device transfer')
-            host = HostStorage.from_buffer(data, shape=shape, dtype=normalize_dtype(dtype), copy=copy)
-            storage = host if self._ordinal is None else self.session.tensor(host.shape, host.dtype).copy_from_buffer(
-                host.to_buffer(copy=False))
+            if self._ordinal is None:
+                storage = HostStorage.from_buffer(data, shape=shape, dtype=normalize_dtype(dtype), copy=copy)
+            else:
+                if type(copy) is not bool:
+                    raise TypeError('copy must be bool')
+                if not copy:
+                    raise ValueError('CUDA from_buffer requires copy=True for host-to-device transfer')
+                tensor = TensorType(tuple(shape), dtype)
+                source = contiguous_bytes(data, shape=tensor.shape, dtype=tensor.dtype)
+                storage = self.session.tensor(tensor.shape, tensor.dtype).copy_from_buffer(source)
             return Tensor(self, storage)
 
     def _check_tensor(self, tensor):

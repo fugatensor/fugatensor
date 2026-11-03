@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import ctypes
+import math
 
 from ._shape import normalize_size
 from ._state import require_not_tracing
 from .backends.host import HostStorage
+from ._ask.runtime import _encode
 from .dtypes import bool as bool_dtype, fp32
 from .engine import current_engine
 from .ir import TensorType
@@ -17,28 +19,26 @@ _UNINITIALIZED = object()
 def _create(size, fill_value, *, dtype, device):
     require_not_tracing()
     tensor_type = TensorType(normalize_size(size), dtype)
-    scalar = (None if fill_value is _UNINITIALIZED else
-              HostStorage.from_flat((fill_value,), shape=(), dtype=tensor_type.dtype))
     engine = current_engine(device)
     with engine._lock:
         engine._check_open()
-        if scalar is None and engine._ordinal is not None:
+        if engine._ordinal is not None:
+            encoded = None if fill_value is _UNINITIALIZED else _encode((fill_value,), tensor_type.dtype, 1)
             storage = engine.session.tensor(tensor_type.shape, tensor_type.dtype)
+            if encoded is not None:
+                storage.copy_from_buffer(encoded * math.prod(tensor_type.shape))
         else:
+            scalar = (None if fill_value is _UNINITIALIZED else
+                      HostStorage.from_flat((fill_value,), shape=(), dtype=tensor_type.dtype))
             storage = HostStorage(tensor_type.shape, tensor_type.dtype)
             if scalar is not None and storage.nbytes and any(scalar.to_buffer(copy=False)):
-                # Seed one encoded element, then double the initialized prefix.
-                # The destination owns a single allocation, without a full-size
-                # temporary byte array or one Python object per element.
+                # Fill one CPU allocation by doubling the initialized prefix.
                 copied = scalar.nbytes
                 ctypes.memmove(storage.data_ptr, scalar.data_ptr, copied)
                 while copied < storage.nbytes:
                     amount = min(copied, storage.nbytes - copied)
                     ctypes.memmove(storage.data_ptr + copied, storage.data_ptr, amount)
                     copied += amount
-            if engine._ordinal is not None:
-                storage = engine.session.tensor(storage.shape, storage.dtype).copy_from_buffer(
-                    storage.to_buffer(copy=False))
         return Tensor(engine, storage)
 
 

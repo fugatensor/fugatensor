@@ -16,7 +16,7 @@
   - Tensor 自动组图生成独立于 ASK 的 Fuga IR（`src/fugatensor/ir/`），框架层的控制流化简、C++ 活跃性分析与 JVP/VJP 自动微分均作用于 Fuga IR，最后通过 `lowering.py` 降级为高层 ASK IR。
   - Fuga IR 不包装或依赖后端的 Value、Type 或 MLIR 字符串；`fugatensor._ask` 仅作为图降级与产物协议的内部桥接层。
   - 实际张量算术统一编译后交由 ASK 执行，不在 Python 中实现张量数值计算回退。
-  - CPU 计算支持 bool、i32、i64、f32、f16；bf16 计算使用 CUDA。矩阵乘法在 CUDA 走 cuBLASLt，静态描述与工作区由 ASK Runtime 在准备阶段管理。
+  - CPU Tensor 支持 bool、i32、i64、f32、f16；bf16 Tensor 使用 CUDA。矩阵乘法在 CUDA 走 cuBLASLt，静态描述与工作区由 ASK Runtime 在准备阶段管理。
 - **自动组图、执行边界与 `ft.fun` 契约**：
   - 常规 API 直接使用 `ft.tensor(...)`，默认 CPU 与 `ft.fp32`，不要求显式 `Engine` 或上下文。`ft.set_default_device` 只改变当前上下文后续创建的设备，默认引擎按设备复用并在正常退出时清理；独立 Engine 属于高级资源管理接口。
   - `tensor(data)` 从规则嵌套数据推断形状；`zeros`、`ones`、`empty` 按尺寸创建，`full(size, value)` 按值填充。改变形状使用延迟原语 `reshape`，保持元素次序，JVP/VJP 保留对应形状；不承诺共享存储，也不提供 `view`。

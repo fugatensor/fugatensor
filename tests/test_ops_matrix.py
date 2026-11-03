@@ -4,7 +4,6 @@ from __future__ import annotations
 import unittest
 
 import fugatensor as ft
-from fugatensor._ask import CompilerError
 from fugatensor._ask.cuda import CUDAError
 from tests._helpers import EngineTestCase, requires_cuda
 from tests.support.ops_matrix import DTYPES, input_values, nested_values, plan_matrix
@@ -24,8 +23,8 @@ class SharedOperationMatrix:
             dtype = DTYPES[name]
             with self.subTest(dtype=name, shape=shape):
                 if dtype is ft.bf16 and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), 'bf16.*support'):
-                        ft.square(ft.tensor([1], dtype=dtype)).tolist()
+                    with self.assertRaisesRegex((TypeError, CUDAError), 'CPU tensors support only|bf16.*support'):
+                        ft.tensor([1], dtype=dtype)
                     continue
                 # Four ports per case (two inputs and two gradients), plus
                 # derivative seeds, remain below the CUDA 64-buffer ABI limit.

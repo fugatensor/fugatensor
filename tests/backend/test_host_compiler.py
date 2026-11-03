@@ -149,7 +149,7 @@ class HostCodegenAndFusionTests(unittest.TestCase):
                 if dtype not in supported:
                     rejected = run_ask_opt("-", "--emit-object", "-o", work / "bad.o", source=mod.to_mlir())
                     self.assertNotEqual(rejected.returncode, 0)
-                    self.assertIn("bf16 is not supported by the Host backend", rejected.stderr)
+                    self.assertIn("Host backend supports only bool/i32/i64/f32/f16", rejected.stderr)
                     continue
                 values = input_values(count, dtype)
                 expected = expected_values(values, 1, 2, dtype=dtype, external=False, compute_dtype=compute)

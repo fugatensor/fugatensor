@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 import fugatensor as ft
+from fugatensor._ask.cuda import CUDAError
 from fugatensor.weights import WeightsError
 from tests._helpers import EngineTestCase, requires_cuda
 
@@ -21,7 +22,6 @@ class WeightExportTests(EngineTestCase):
             "i64": ft.tensor([-(2 ** 40), 2 ** 40], dtype="i64"),
             "f32": ft.tensor([1.5, -2.25], dtype=ft.fp32),
             "f16": ft.tensor([[1.5, -2.0], [3.25, 4.0]], dtype="f16"),
-            "bf16": ft.tensor([1.5, -2.0], dtype="bf16"),
             "nested": [{"weight": ft.tensor([[1.0, 2.0]], dtype="f32")},
                        (ft.tensor(3.0, dtype="f32"),)],
             "empty": ft.empty(2, 0, 3),
@@ -35,7 +35,7 @@ class WeightExportTests(EngineTestCase):
         self.assertIn("tree", schema["properties"])
         self.assertIn("array", schema["$defs"])
 
-    def test_roundtrip_all_dtypes_nested_tree_and_metadata(self):
+    def test_roundtrip_cpu_dtypes_nested_tree_and_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "weights"
             tree = self.make_tree()
@@ -47,13 +47,13 @@ class WeightExportTests(EngineTestCase):
             loaded = ft.weights.load(target, engine=self.engine)
             self.assertIsInstance(loaded["nested"], list)
             self.assertIsInstance(loaded["nested"][1], tuple)
-            for name in ("bool", "i32", "i64", "f32", "f16", "bf16"):
+            for name in ("bool", "i32", "i64", "f32", "f16"):
                 self.assertIs(loaded[name].dtype, ft.DType(name))
                 self.assertEqual(loaded[name].dtype, tree[name].dtype)
                 self.assertEqual(loaded[name].shape, tree[name].shape)
                 self.assertEqual(loaded[name].tolist(), tree[name].tolist())
             self.assertEqual({record["dtype"] for record in manifest["arrays"].values()},
-                             {"bool", "i32", "i64", "f32", "f16", "bf16"})
+                             {"bool", "i32", "i64", "f32", "f16"})
             self.assertEqual(loaded["nested"][0]["weight"].tolist(), [[1.0, 2.0]])
             self.assertEqual(loaded["nested"][1][0].tolist(), 3.0)
             self.assertEqual(loaded["empty"].shape, (2, 0, 3))
@@ -157,12 +157,22 @@ class CUDAWeightExportTests(EngineTestCase):
     def test_gpu_tensors_roundtrip_through_host_blobs(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "weights"
-            tree = {"w": ft.tensor([1.5, -2.0, 3.25], dtype="f16"),
-                    "b": ft.tensor([0.25, -0.5], dtype="f32")}
+            dtypes = ("f16", "f32", "bf16") if self.supports_bf16 else ("f16", "f32")
+            if not self.supports_bf16:
+                with self.assertRaisesRegex(CUDAError, "bf16.*support"):
+                    ft.tensor([1], dtype=ft.bf16)
+            tree = {dtype: ft.tensor([1.5, -2.0, 3.25], dtype=dtype)
+                    for dtype in dtypes}
             ft.weights.save(target, tree)
             loaded = ft.weights.load(target, engine=self.engine)
-            self.assertEqual(loaded["w"].tolist(), tree["w"].tolist())
-            self.assertEqual(loaded["b"].tolist(), tree["b"].tolist())
+            for dtype, value in tree.items():
+                with self.subTest(dtype=dtype):
+                    self.assertEqual(loaded[dtype].tolist(), value.tolist())
+                    self.assertEqual(loaded[dtype].dtype, value.dtype)
+                    self.assertEqual(loaded[dtype].device, value.device)
+            if self.supports_bf16:
+                with self.assertRaisesRegex(TypeError, "CPU tensors support only bool/i32/i64/f32/f16"):
+                    ft.weights.load(target, device="cpu")
 
 
 if __name__ == "__main__":

@@ -26,7 +26,6 @@ class HostStorageTests(unittest.TestCase):
             'i64': b'\x00\x00\x00\x00\x00\x00\x00\x80' + b'\xff' * 7 + b'\x7f',
             'f32': b'\x01\x00\xc0\x7f\x00\x00\x00\x80',
             'f16': b'\x01\x7e\x00\x80',
-            'bf16': b'\xc1\x7f\x00\x80',
         }
         for dtype, bits in bit_patterns.items():
             with self.subTest(dtype=dtype):
@@ -64,13 +63,12 @@ class HostStorageTests(unittest.TestCase):
             ("i64", [-(2**63), 2**63 - 1]),
             ("f32", [1.5, -0.0]),
             ("f16", [1.5, -0.0]),
-            ("bf16", [1.5, -0.0]),
         ):
             with self.subTest(dtype=dtype):
                 s = HostStorage.from_flat(values, shape=(1, 2), dtype=dtype)
                 self.assertEqual(s.to_flat(), values)
                 self.assertGreater(s.data_ptr, 0)
-                if dtype in ("f32", "f16", "bf16"):
+                if dtype in ("f32", "f16"):
                     self.assertEqual(math.copysign(1, s.to_flat()[1]), -1)
         self.assertEqual(HostStorage.from_flat([], shape=(0,), dtype="f32").nbytes, 0)
         self.assertEqual(HostStorage.from_flat([1], shape=(), dtype="fp16").dtype, "f16")
@@ -86,7 +84,7 @@ class TensorCreationTests(EngineTestCase):
     def test_size_factories_create_buffers_without_compiling(self):
         before = self.engine.cache_info()['compilations']
         self.assertEqual(ft.tensor(data=[[1, 2], [3, 4]]).shape, (2, 2))
-        for dtype in (ft.bool, ft.int32, ft.int64, ft.fp32, ft.fp16, ft.bf16):
+        for dtype in (ft.bool, ft.int32, ft.int64, ft.fp32, ft.fp16):
             with self.subTest(dtype=dtype):
                 zero = ft.zeros(2, 3, dtype=dtype)
                 one = ft.ones((2, 3), dtype=dtype)
@@ -403,8 +401,8 @@ class SharedJITExecutionMixin:
                 vals = [True, False, True, False] if dtype == "bool" else [1, -2, 3, 4]
                 other = [True, True, False, False] if dtype == "bool" else [2, 3, 4, -5]
                 if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*support"):
-                        ft.evaluate(*pair(ft.tensor(vals, dtype=dtype), ft.tensor(other, dtype=dtype)))
+                    with self.assertRaisesRegex((TypeError, CUDAError), "CPU tensors support only|bf16.*support"):
+                        ft.tensor(vals, dtype=dtype)
                     continue
                 s, m = ft.evaluate(*pair(ft.tensor(vals, dtype=dtype), ft.tensor(other, dtype=dtype)))
                 conv = bool if dtype == "bool" else (lambda v: v)
