@@ -197,8 +197,9 @@ class ReverseAndForwardIRTests(unittest.TestCase):
         m_splat = Module()
         g_splat = m_splat.graph("bcast", inputs={"x": ScalarType("f16")})
         g_splat.return_(g_splat.splat(g_splat.cast(g_splat.inputs["x"], dtype="f32"), (3,)))
-        with self.assertRaisesRegex(DifferentiationError, "sum reduction"):
-            vjp(m_splat)
+        splat_vjp = vjp(m_splat)
+        self.assertEqual(splat_vjp.functions[0].outputs[0].type, ScalarType('f16'))
+        self.assertIn('fuga.reduce_sum', splat_vjp.to_text())
         splat_jvp = jvp(m_splat)
         self.assertEqual([v.type for v in splat_jvp.functions[0].outputs], [TensorType((3,), "f32")] * 2)
 

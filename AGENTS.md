@@ -16,6 +16,7 @@
   - Tensor 自动组图生成独立于 ASK 的 Fuga IR（`src/fugatensor/ir/`），框架层的控制流化简、C++ 活跃性分析与 JVP/VJP 自动微分均作用于 Fuga IR，最后通过 `lowering.py` 降级为高层 ASK IR。
   - Fuga IR 不包装或依赖后端的 Value、Type 或 MLIR 字符串；`fugatensor._ask` 仅作为图降级与产物协议的内部桥接层。
   - 实际张量算术统一编译后交由 ASK 执行，不在 Python 中实现张量数值计算回退。
+  - CPU 计算支持 bool、i32、i64、f32、f16；bf16 计算使用 CUDA。矩阵乘法在 CUDA 走 cuBLASLt，静态描述与工作区由 ASK Runtime 在准备阶段管理。
 - **自动组图、执行边界与 `ft.fun` 契约**：
   - 常规 API 直接使用 `ft.tensor(...)`，默认 CPU 与 `ft.fp32`，不要求显式 `Engine` 或上下文。`ft.set_default_device` 只改变当前上下文后续创建的设备，默认引擎按设备复用并在正常退出时清理；独立 Engine 属于高级资源管理接口。
   - `tensor(data)` 从规则嵌套数据推断形状；`zeros`、`ones`、`empty` 按尺寸创建，`full(size, value)` 按值填充。改变形状使用延迟原语 `reshape`，保持元素次序，JVP/VJP 保留对应形状；不承诺共享存储，也不提供 `view`。
@@ -31,7 +32,7 @@
   - 内置 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 实现，支持 CUDA fp16/bf16 前向与一阶反向。复杂算子的反向由 `ft.fun` 的显式 `vjp` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
 - **自动微分与原语闭合**：
   - 公开自动微分接口为 `ft.grad(outputs, inputs, *, seed=None)`：纯 IR 变换返回待计算 Tensor，输入为 tuple/list 时返回 tuple。输出可为 Tensor 或 tuple/list，非标量须显式提供匹配单项/序列结构、长度、shape、dtype 和 Engine 的 seed（tuple/list 可互换）；标量默认种子为 1。重复求导与高阶求导通过组合导数表达式完成，未连接到输出的输入返回零梯度。张量创建和权重加载只负责数据与资源，不持有梯度开关或累加状态。
-  - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
+  - 新增基础原语时，在 `ir/primitives.py` 注册规则，几何、归约和初等函数规则放在 `ir/tensor_rules.py`，提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
   - 对缺少可组合原语规则的不透明外部算子（如活跃裸 `fuga.external` 或导数图中的未定义微分外部 kernel），在构造导数 IR 时校验并报错拒绝。
 - **权重格式**：
   - `weights.py` 只序列化由嵌套 dict/list/tuple 与 Tensor 组成的 PyTree，不记录模型类、算子或设备；数组使用 dtype/shape/布局加数据的内容寻址身份。

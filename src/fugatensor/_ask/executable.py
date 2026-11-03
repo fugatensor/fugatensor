@@ -144,9 +144,14 @@ class PreparedCUDAProgram(_Prepared):
             setattr(self, "_" + kind, [dict(logical_port=f"{kind[:-1]}:{index}",
                 shape=list(buffers[name]["shape"]), element_type=buffers[name]["element_type"],
                 layout="contiguous_row_major") for index, name in enumerate(self._plan[kind])])
-        steps = [_load_step(validate_kernel_package(program.kernels[step["id"]]), session,
-                            [indices[name] for name in step["inputs"]],
-                            [indices[name] for name in step["outputs"]]) for step in self._plan["steps"]]
+        steps = []
+        for step in self._plan['steps']:
+            inputs = [indices[name] for name in step['inputs']]
+            outputs = [indices[name] for name in step['outputs']]
+            if step['kind'] == 'library':
+                steps.append({'matmul': dict(step['matmul']), 'inputs': inputs, 'outputs': outputs})
+            else:
+                steps.append(_load_step(validate_kernel_package(program.kernels[step['id']]), session, inputs, outputs))
         self._native = session._native.prepare_program(
             [_nbytes(buffer) for buffer in buffers.values()],
             [indices[name] for name in self._plan["inputs"]],

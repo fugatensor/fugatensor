@@ -36,7 +36,7 @@ Fuga IR 由 `ScalarType`、`TensorType`、`Value`、`Operation`、`Block`、`Reg
 
 `ir/primitives.py` 集中定义各基础算子的抽象类型推导（`abstract_eval`）、前向切线规则（`jvp`）与反向余切规则（`vjp`）：
 
-- 算术、类型转换和形状变换使用 `constant`、`splat`、`add`、`mul`、`cast`、`reshape`；`stop_gradient` 保留数值并停止微分传播。`subtract`、`negative`、`square` 在追踪期由基础算子组合展开；
+- 算术、类型转换和形状变换使用 `constant`、`splat`、`add`、`mul`、`div`、`cast`、`reshape`、`exp/log/sqrt`、`compare/select`、`broadcast_in_dim/transpose`、`reduce_sum/reduce_max` 与 `matmul`；`stop_gradient` 保留数值并停止微分传播。`subtract`、`negative`、`square` 在追踪期由基础算子组合展开；
 - `ir.jvp(module)` 与 `ir.vjp(module)` 生成新的 Fuga IR `Module`。在已有规则范围内，可以嵌套 `vjp(vjp(module))`、`jvp(vjp(module))`、`vjp(jvp(module))`，`ft.grad` 使用 VJP 生成新的导数表达式，导数求值后仍保留来源。
 
 工程细节：[控制流与可组合变换](控制流与可组合变换.md) · [函数式自动微分与高阶求导](../architecture/自动微分与自定义算子.md#higher-order)

@@ -30,6 +30,7 @@ from fugatensor._ask.cuda import (
 from fugatensor._ask.gpu import CUDAKernel, compile_graph
 from fugatensor._ask.runtime import DeviceTensor, ExecutionSession, _encode, _decode
 from support.host_runner import run_ask_opt
+from support.compilation import owned_partition
 from support.pointwise import DTYPES, build_module
 from test_runtime_and_cache import FakeNativeSession
 
@@ -219,13 +220,52 @@ class CUDAContractAndRoutingTests(unittest.TestCase):
             self.assertEqual(dec[:2], [1.0, 1.0 + 2**(1 - bits)])
             self.assertEqual(math.copysign(1.0, dec[2]), -1.0)
 
+    def test_conditional_libdevice_linking_and_dependency_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {name: root / name for name in ('llc', 'ptxas', 'llvm-link', 'libdevice.bc')}
+            for name, path in paths.items():
+                path.write_text(name)
+            artifact = make_artifact()
+            artifact['payload'] += 'declare float @__nv_expf(float)\n'
+            source = root / 'input.ll'
+            source.write_text(artifact['payload'])
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append(command)
+                Path(command[command.index('-o') + 1]).write_bytes(b'compiled')
+                return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+            with patch('fugatensor._ask.cuda.subprocess.run', side_effect=run):
+                results = []
+                for index, changed in enumerate((None, None, 'libdevice.bc', 'llvm-link')):
+                    if changed:
+                        paths[changed].write_text(changed + ' updated')
+                    results.append(compile_cuda(source, artifact, root / str(index),
+                        llc=paths['llc'], ptxas=paths['ptxas'], llvm_link=paths['llvm-link'],
+                        libdevice=paths['libdevice.bc'], cache_dir=root / 'cache'))
+                self.assertEqual([result['compiler_invocations'] for result in results], [3, 0, 3, 3])
+                self.assertEqual(Path(commands[0][0]).name, 'llvm-link')
+                self.assertIn('--only-needed', commands[0])
+                self.assertIn('kernel.linked.bc', ' '.join(commands[1]))
+                plain = make_artifact()
+                source.write_text(plain['payload'])
+                result = compile_cuda(source, plain, root / 'plain', llc=paths['llc'], ptxas=paths['ptxas'],
+                                      llvm_link=root / 'missing-link', libdevice=root / 'missing-libdevice')
+                self.assertEqual(result['compiler_invocations'], 2)
+            source.write_text(artifact['payload'])
+            with self.assertRaisesRegex(CUDAError, 'requires libdevice'):
+                compile_cuda(source, artifact, root / 'missing', llc=paths['llc'], ptxas=paths['ptxas'],
+                             libdevice=root / 'missing-libdevice')
+
     def test_owned_graph_routing(self):
         owned_compiler = Mock(executable="ask-opt", _native=None)
         owned_compiler.capabilities.return_value = {
             "external_execution": True, "external_formats": ["cubin", "ptx"],
             "cuda_graph_codegen": True, "llvm_revision": "rev",
         }
-        owned_compiler.prepare.return_value = SimpleNamespace(external_requests=[], shape_snapshot={})
+        owned_compiler.partition.return_value = owned_partition("graph")
         stats = {"status": "hit", "counters": {"hits": 1}}
         with tempfile.TemporaryDirectory() as directory, \
              patch("fugatensor._ask.gpu._tool", return_value={"path": "/t", "sha256": "a" * 64}), \
@@ -249,7 +289,7 @@ class CUDAContractAndRoutingTests(unittest.TestCase):
             library.write_bytes(b"compiler-version-one")
             compiler = Mock(_native=SimpleNamespace(compiler_library_path=lambda: str(library)))
             compiler.capabilities.return_value = {"cuda_graph_codegen": True, "llvm_revision": "rev"}
-            compiler.prepare.return_value = SimpleNamespace(external_requests=[], shape_snapshot={})
+            compiler.partition.return_value = owned_partition("module {}")
             compiler.emit_cuda_llvm.side_effect = lambda *args, **kwargs: SimpleNamespace(
                 ir=make_artifact()["payload"], cuda_artifact=make_artifact(), diagnostics={})
             with patch("fugatensor._ask.gpu._tool", return_value={"path": "/tool", "sha256": "tool"}), \

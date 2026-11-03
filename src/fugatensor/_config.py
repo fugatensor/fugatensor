@@ -24,7 +24,7 @@ def runtime_defaults(device):
     if device == 'cpu':
         return {}
     result = {}
-    for name in ('llc', 'ptxas'):
+    for name in ('llc', 'ptxas', 'llvm_link', 'libdevice'):
         value = config.get(name)
         if value is not None:
             if not isinstance(value, str) or not value:

@@ -144,7 +144,7 @@ class Tensor:
         if isinstance(other, Tensor):
             self.engine._check_tensor(other)
             if other.shape != self.shape:
-                raise ValueError("tensor operands require equal shapes; broadcasting is not supported")
+                raise ValueError("tensor operands require equal shapes; use broadcast_to explicitly")
             if other.dtype != self.dtype:
                 raise TypeError("tensor operands require equal dtypes; use astype explicitly")
         elif type(other) not in (bool, int, float):
@@ -187,11 +187,69 @@ class Tensor:
             raise TypeError('control-flow conditions require a scalar Tensor with shape=()')
         return bool(self.tolist())
 
+    def __truediv__(self, other):
+        from .ops import divide
+        return divide(self, other)
+
+    def __rtruediv__(self, other):
+        from .ops import divide
+        return divide(other, self)
+
+    def __matmul__(self, other):
+        from .ops import matmul
+        return matmul(self, other)
+
+    def __rmatmul__(self, other):
+        from .ops import matmul
+        return matmul(other, self)
+
     def __eq__(self, other):
-        raise TypeError("tensor comparisons are not implemented; compare downloaded values explicitly")
+        from .ops import compare
+        return compare(self, other, 'eq')
 
     def __ne__(self, other):
-        return self.__eq__(other)
+        from .ops import compare
+        return compare(self, other, 'ne')
+
+    def __lt__(self, other):
+        from .ops import compare
+        return compare(self, other, 'lt')
+
+    def __le__(self, other):
+        from .ops import compare
+        return compare(self, other, 'le')
+
+    def __gt__(self, other):
+        from .ops import compare
+        return compare(self, other, 'gt')
+
+    def __ge__(self, other):
+        from .ops import compare
+        return compare(self, other, 'ge')
+
+    def sum(self, axis=None, *, keepdims=False, dtype=None):
+        from .ops import sum
+        return sum(self, axis, keepdims=keepdims, dtype=dtype)
+
+    def amax(self, axis=None, *, keepdims=False):
+        from .ops import amax
+        return amax(self, axis, keepdims=keepdims)
+
+    def mean(self, axis=None, *, keepdims=False, dtype=None):
+        from .ops import mean
+        return mean(self, axis, keepdims=keepdims, dtype=dtype)
+
+    def transpose(self, permutation=None):
+        from .ops import transpose
+        return transpose(self, permutation)
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    def broadcast_to(self, shape):
+        from .ops import broadcast_to
+        return broadcast_to(self, shape)
 
     def __repr__(self):
         return f"Tensor(shape={self.shape!r}, dtype={self.dtype!r}, device={self.device!r})"

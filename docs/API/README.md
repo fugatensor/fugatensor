@@ -26,7 +26,7 @@ print(y.tolist())  # [4.0, 6.0, 8.0]
 | 分类 | 主要接口 |
 | --- | --- |
 | [张量与数据交换](张量与数据交换.md) | `tensor`、`zeros`、`ones`、`empty`、`full`、`reshape`、buffer 读写 |
-| [基础运算](基础运算.md) | 加减乘、负号、`square`、`cast`、`zeros_like`、`ones_like` |
+| [基础运算](基础运算.md) | 逐元素计算、比较选择、广播转置、归约、矩阵乘法 |
 | [设备与执行](设备与执行.md) | `device`、默认设备、`evaluate`、`synchronize`、可选配置与高级引擎管理 |
 | [自动微分与自定义函数](自动微分与自定义函数.md) | `grad`、`detach`、`stop_gradient`、`fun` 与纯 VJP |
 | [Triton 算子接入](Triton算子接入.md) | `triton.kernel`、`from_source`、`from_jit`、配置回调与编译环境 |

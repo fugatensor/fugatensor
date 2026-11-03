@@ -38,6 +38,8 @@ module.verify()
 print(module.to_text())
 ```
 
+张量原语构建器还提供 `div(a,b)`、`exp/log/sqrt(x)`、`compare(a,b,predicate)`、`select(condition,a,b)`、`broadcast_in_dim(x,shape,dimensions)`、`transpose(x,permutation)`、`reduce_sum/reduce_max(x,axes)` 和 `matmul(a,b,transpose_a=False,transpose_b=False)`，均可传 `id=`。类型与静态属性见[对象模型](../ir/对象模型与验证.md#ops-and-regions)。全归约产生 ScalarType；需要 0-D 张量时用 `graph.splat(result, ())`。
+
 IR 内部用字符串编码 dtype，构建器接受 `ft.DType` 类型对象。图由 `Value`、`Operation`、`Block`、`BlockBuilder`、`Region`、`Function` 组成。
 
 | 控制流接口（均可传 `id=None`） | 回调签名与结果 |

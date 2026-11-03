@@ -32,7 +32,8 @@ def _environment_options(device, *, include_compilers=True, use_config=True):
     if not include_compilers:
         options.pop('compilers', None)
     for name, variable in (('ask_opt', 'ASK_OPT'), ('cache_dir', 'FUGATENSOR_CACHE_DIR'),
-                           ('llc', 'FUGATENSOR_LLC'), ('ptxas', 'FUGATENSOR_PTXAS')):
+                           ('llc', 'FUGATENSOR_LLC'), ('ptxas', 'FUGATENSOR_PTXAS'),
+                           ('llvm_link', 'FUGATENSOR_LLVM_LINK'), ('libdevice', 'FUGATENSOR_LIBDEVICE')):
         if os.environ.get(variable):
             options[name] = os.environ[variable]
     if device != 'cpu' and include_compilers:
@@ -126,7 +127,7 @@ class Engine:
     """Own an ASK compiler and, on CUDA, one resident execution session."""
 
     def __init__(self, device='cpu', *, ask_opt=None, cache_dir=None,
-                 compilers=None, llc=None, ptxas=None, cc='cc'):
+                 compilers=None, llc=None, ptxas=None, llvm_link=None, libdevice=None, cc='cc'):
         device = _device_name(device)
         # An explicit compiler path selects a separate installation. Do not
         # attach this environment's saved workers or SDK to that installation.
@@ -135,6 +136,8 @@ class Engine:
             ask_opt = defaults.get('ask_opt')
             llc = llc if llc is not None else defaults.get('llc')
             ptxas = ptxas if ptxas is not None else defaults.get('ptxas')
+            llvm_link = llvm_link if llvm_link is not None else defaults.get('llvm_link')
+            libdevice = libdevice if libdevice is not None else defaults.get('libdevice')
             cache_dir = cache_dir if cache_dir is not None else defaults.get('cache_dir')
             compilers = compilers if compilers is not None else defaults.get('compilers')
         ordinal = None if device == 'cpu' else (0 if device == 'cuda' else int(device[5:]))
@@ -147,6 +150,7 @@ class Engine:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.compilers = dict(compilers or {})
         self.llc, self.ptxas = llc, ptxas
+        self.llvm_link, self.libdevice = llvm_link, libdevice
         self._host = HostBackend(self.compiler, self.cache_dir / 'host', cc=cc) if ordinal is None else None
         self._session = None
         self._closed = False
@@ -329,7 +333,7 @@ class Engine:
                 directory = Path(tempfile.mkdtemp(prefix='cuda-', dir=artifacts))
                 options = {'target': target}
                 kernel = self.compiler.compile_cuda(source, compilers=self.compilers,
-                    llc=self.llc, ptxas=self.ptxas, cache_dir=self.cache_dir / 'ask', output_dir=directory,
+                    llc=self.llc, ptxas=self.ptxas, llvm_link=self.llvm_link, libdevice=self.libdevice, cache_dir=self.cache_dir / 'ask', output_dir=directory,
                     **options)
                 executable = _CUDAExecutable(kernel, self.session, directory, source)
             (executable.artifact_dir / 'fuga.ir').write_text(context.module.to_text(), encoding='utf-8')

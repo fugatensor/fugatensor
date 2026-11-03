@@ -20,6 +20,7 @@ from fugatensor._ask.cuda import CUDAError, install_external
 from fugatensor._ask.gpu import CUDAKernel
 from fugatensor._ask.plan import CUDAProgram, validate_plan
 from fugatensor._ask.runtime import ExecutionSession
+from support.compilation import matmul_plan
 import test_cuda_compilation as compilation_fixtures
 from test_runtime_and_cache import ArrayOwner, FakeEvent, FakeNativeSession
 
@@ -47,6 +48,36 @@ class ExecutionPlanTests(unittest.TestCase):
     def make_program(self, directory, plan=None):
         kernel, _ = compilation_fixtures.PreparedExecutableContractTests().make_kernel_package(directory)
         return CUDAProgram(plan or sample_plan(), {"first": kernel, "second": kernel})
+
+    def test_library_package_and_static_contract(self):
+        from itertools import product
+        for dtype, batch, ta, tb in product(('f32', 'f16', 'bf16'), ((), (2,)), (False, True), (False, True)):
+            with self.subTest(dtype=dtype, batch=batch, ta=ta, tb=tb), tempfile.TemporaryDirectory() as directory:
+                plan = matmul_plan(dtype, batch=batch, transpose_a=ta, transpose_b=tb)
+                program = CUDAProgram(plan, {})
+                program.save(Path(directory) / 'package')
+                shutil.move(Path(directory) / 'package', Path(directory) / 'relocated')
+                loaded = CUDAProgram.load(Path(directory) / 'relocated')
+                with session_fixture() as session:
+                    loaded.prepare(session, graph=True)
+                    native = session._native.programs[0]
+                    self.assertEqual(native.steps, [{'inputs': [0, 1], 'outputs': [2],
+                                                    'matmul': plan['steps'][0]['matmul']}])
+                    self.assertEqual(loaded.kernels, {})
+        mutations = (
+            lambda p: p['steps'][0].pop('matmul'),
+            lambda p: p['steps'][0].update(kind='owned'),
+            lambda p: p['steps'][0].update(library='unknown'),
+            lambda p: p['steps'][0]['matmul'].update(m=7),
+            lambda p: p['steps'][0]['matmul'].update(transpose_a=1),
+            lambda p: p['steps'][0]['matmul'].update(batch_count=-1),
+            lambda p: p['buffers'][1].update(element_type='f16'),
+        )
+        for mutate in mutations:
+            plan = matmul_plan()
+            mutate(plan)
+            with self.subTest(plan=plan), self.assertRaises(CUDAError):
+                validate_plan(plan)
 
     def test_schema_ssa_dependency_and_abi_rejections(self):
         mutations = [

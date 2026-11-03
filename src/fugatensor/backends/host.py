@@ -263,5 +263,5 @@ class HostBackend:
         compiled = self.compiler.emit_host_object(source, obj)
         report_path.write_text(json.dumps(compiled.diagnostics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         (directory / "abi.json").write_text(json.dumps(compiled.abi, indent=2) + "\n", encoding="utf-8")
-        self._run([cc, "-shared", str(obj), "-o", str(library)])
+        self._run([cc, "-shared", str(obj), "-o", str(library), "-lm"])
         return HostExecutable(library, compiled, source, directory)

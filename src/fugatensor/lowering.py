@@ -97,6 +97,9 @@ def lower_to_ask(module, *, target=None, max_unroll=10000, source_map=None):
                 result = operands[0]
             elif op.opcode in ('add', 'mul'):
                 result = getattr(graph, op.opcode)(*operands, **kwargs)
+            elif op.opcode in ('div', 'compare', 'select', 'exp', 'log', 'sqrt',
+                               'broadcast_in_dim', 'transpose', 'reduce_sum', 'reduce_max', 'matmul'):
+                result = graph.primitive(op.opcode, operands, _ask_type(op.results[0].type), dict(op.attrs), **kwargs)
             elif op.opcode == 'external':
                 spec = op.attrs['spec']
                 if spec.effects:

@@ -189,14 +189,16 @@ def _derivative_graph(function, memo):
     keep their operand edges; stop_gradient and custom calls provide their
     semantic derivative edges without changing the numerical IR.
     """
+    from .primitives import PRIMITIVE_RULES
     values = list(function.inputs.values())
     indices = {value: index for index, value in enumerate(values)}
     operands = []
     for operation in function.operations:
         if operation.opcode == "return":
             continue
-        if operation.opcode == "stop_gradient":
-            edges = ((),)
+        rule = PRIMITIVE_RULES.get(operation.opcode)
+        if rule is not None and rule.derivative_inputs is not None:
+            edges = (rule.derivative_inputs,) * len(operation.results)
         elif operation.opcode == "call":
             spec = operation.attrs["spec"]
             spec.verify()

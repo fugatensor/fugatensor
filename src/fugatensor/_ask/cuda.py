@@ -182,7 +182,7 @@ def _codegen_tool(path):
         raise CUDAError(f"cannot fingerprint CUDA compiler tool {path}: {exc}") from exc
 
 
-def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=None):
+def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=None, llvm_link=None, libdevice=None):
     """Compile supplied LLVM bytes, optionally reusing ASK's verified disk artifacts.
 
     llc and ptxas are explicit executable paths. No target or launch policy is
@@ -212,11 +212,33 @@ def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=N
     options = [["-march=nvptx64", f"-mcpu=sm_{arch}", f"-mattr=+ptx{ptx_version}", "--fp-contract=" + fp_contract],
                [f"--gpu-name=sm_{arch}", "-v"]]
 
-    def commands_for(directory):
-        return [[str(llc), *options[0], str(llvm_ir), "-o", str(directory / "kernel.ptx")],
-                [str(ptxas), *options[1], str(directory / "kernel.ptx"), "-o", str(directory / "kernel.cubin")]]
+    needs_libdevice = b'@__nv_' in source
+    tool_paths = {'llc': llc, 'ptxas': ptxas}
+    if needs_libdevice:
+        llvm_link = Path(llvm_link or os.environ.get('FUGATENSOR_LLVM_LINK') or llc.with_name('llvm-link')).resolve()
+        configured = libdevice or os.environ.get('FUGATENSOR_LIBDEVICE')
+        if configured:
+            libdevice = Path(configured).expanduser().resolve()
+        else:
+            roots = [Path(os.environ.get('CUDA_HOME', '/usr/local/cuda'))]
+            roots.extend(sorted(Path('/usr/local').glob('cuda-*'), reverse=True))
+            candidates = [root / 'nvvm/libdevice/libdevice.10.bc' for root in roots]
+            libdevice = next((path.resolve() for path in candidates if path.is_file()), None)
+        _require(libdevice is not None and libdevice.is_file(),
+                 'exp/log CUDA code generation requires libdevice; configure libdevice or FUGATENSOR_LIBDEVICE')
+        tool_paths.update(llvm_link=llvm_link, libdevice=libdevice)
 
-    tools = {"llc": _codegen_tool(llc), "ptxas": _codegen_tool(ptxas)} if cache_dir is not None else None
+    def commands_for(directory):
+        linked = directory / 'kernel.linked.bc'
+        prefix = ([[str(llvm_link), '--only-needed', str(llvm_ir), str(libdevice), '-o', str(linked)]]
+                  if needs_libdevice else [])
+        return prefix + [[str(llc), *options[0], str(linked if needs_libdevice else llvm_ir), '-o', str(directory / 'kernel.ptx')],
+                         [str(ptxas), *options[1], str(directory / 'kernel.ptx'), '-o', str(directory / 'kernel.cubin')]]
+
+    def fingerprints():
+        return {name: _codegen_tool(path) for name, path in tool_paths.items()}
+
+    tools = fingerprints() if cache_dir is not None else None
 
     def build():
         # Failed tool invocations never leave an apparently complete local
@@ -235,7 +257,7 @@ def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=N
                 logs.append(result.stdout + result.stderr)
             _require(llvm_ir.read_bytes() == source, "LLVM input changed during compilation")
             if tools is not None:
-                _require(tools == {"llc": _codegen_tool(llc), "ptxas": _codegen_tool(ptxas)},
+                _require(tools == fingerprints(),
                          "CUDA compiler tool changed during compilation")
             return {"kernel.ptx": (staging / "kernel.ptx").read_bytes(),
                     "kernel.cubin": (staging / "kernel.cubin").read_bytes(),
@@ -264,7 +286,7 @@ def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=N
         built, stats = IRCache(cache_dir).get_or_create(key, build)
     _require(llvm_ir.read_bytes() == source, "LLVM input changed during compilation")
     if tools is not None:
-        _require(tools == {"llc": _codegen_tool(llc), "ptxas": _codegen_tool(ptxas)},
+        _require(tools == fingerprints(),
                  "CUDA compiler tool changed during cache access")
     logs = json.loads(built["build.json"])["compiler_logs"]
     result = {"schema_version": 1, "entry": entry, "arch": arch, "element_type": dtype,
@@ -274,7 +296,7 @@ def compile_cuda(llvm_ir, artifact, output_directory, *, llc, ptxas, cache_dir=N
               "ptx": str(ptx), "ptx_sha256": _digest(built["kernel.ptx"]),
               "cubin": str(cubin), "cubin_sha256": _digest(built["kernel.cubin"]),
               "commands": commands_for(output_directory), "compiler_logs": logs,
-              "commands_role": "reproduction", "compiler_invocations": 0 if stats["status"] == "hit" else 2,
+              "commands_role": "reproduction", "compiler_invocations": 0 if stats["status"] == "hit" else len(commands_for(output_directory)),
               "executable_cache": stats,
               "invocation": invocation, "original_producer_binary_used": False}
     created = []

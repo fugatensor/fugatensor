@@ -54,17 +54,18 @@ def validate_plan(plan):
     producers = dict.fromkeys(plan["inputs"])
     steps = set()
     for step in plan["steps"]:
-        _require(isinstance(step, dict) and set(step) in (
-            {"id", "kind", "function", "inputs", "outputs", "depends_on"},
-            {"id", "kind", "function", "inputs", "outputs", "depends_on", "external_id"}),
-            "invalid execution plan step fields")
-        name, kind = step["id"], step["kind"]
-        _require(_identifier(name) and name not in steps, "invalid or duplicate plan step ID")
-        _require(kind in ("owned", "external") and _identifier(step["function"]),
-                 "invalid plan step kind or function symbol")
-        _require((kind == "owned" and "external_id" not in step)
-                 or (kind != "owned" and isinstance(step.get("external_id"), str) and bool(step["external_id"])),
-                 "external steps require an external_id; owned steps must omit it")
+        _require(isinstance(step, dict), 'execution plan step must be an object')
+        kind = step.get('kind')
+        extra = {'owned': set(), 'external': {'external_id'}, 'library': {'library', 'matmul'}}
+        _require(isinstance(kind, str) and kind in extra and set(step) ==
+                 {'id', 'kind', 'function', 'inputs', 'outputs', 'depends_on'} | extra[kind],
+                 'invalid execution plan step fields')
+        name = step['id']
+        _require(_identifier(name) and name not in steps, 'invalid or duplicate plan step ID')
+        _require(_identifier(step['function']), 'invalid plan function symbol')
+        if kind == 'external':
+            _require(isinstance(step['external_id'], str) and bool(step['external_id']),
+                     'external steps require an external_id')
         for port in ("inputs", "outputs", "depends_on"):
             _require(isinstance(step[port], list) and all(isinstance(n, str) for n in step[port]),
                      f"step {port} must be an array of IDs")
@@ -72,6 +73,8 @@ def validate_plan(plan):
         _require(bool(step["outputs"]) and len(set(step["outputs"])) == len(step["outputs"])
                  and all(n in buffers and n not in producers for n in step["outputs"]),
                  "step outputs must define fresh, declared SSA buffers")
+        if kind == 'library':
+            _validate_matmul(step, buffers)
         dependencies = {producers[n] for n in step["inputs"]} - {None}
         _require(len(set(step["depends_on"])) == len(step["depends_on"])
                  and set(step["depends_on"]) == dependencies,
@@ -83,12 +86,39 @@ def validate_plan(plan):
     return copy.deepcopy(plan)
 
 
+def _kernel_steps(plan):
+    return {step['id'] for step in plan['steps'] if step['kind'] != 'library'}
+
+
+def _validate_matmul(step, buffers):
+    description = step['matmul']
+    _require(step['library'] == 'cublaslt' and isinstance(description, dict) and set(description) == {
+        'element_type', 'm', 'n', 'k', 'batch_count', 'transpose_a', 'transpose_b'}, 'invalid library matmul description')
+    _require(description['element_type'] in ('f32', 'f16', 'bf16') and
+             all(type(description[key]) is int and 0 <= description[key] < 2**63 for key in ('m', 'n', 'k', 'batch_count')) and
+             all(type(description[key]) is bool for key in ('transpose_a', 'transpose_b')), 'invalid matmul types or dimensions')
+    _require(len(step['inputs']) == 2 and len(step['outputs']) == 1, 'matmul requires two inputs and one output')
+    left, right = (buffers[name] for name in step['inputs'])
+    output = buffers[step['outputs'][0]]
+    _require(all(value['element_type'] == description['element_type'] for value in (left, right, output)),
+             'matmul ports require matching element types')
+    _require(len(left['shape']) >= 2 and len(right['shape']) >= 2 and left['shape'][:-2] == right['shape'][:-2],
+             'matmul batch dimensions must match')
+    m, k = left['shape'][-2:][::-1] if description['transpose_a'] else left['shape'][-2:]
+    kb, n = right['shape'][-2:][::-1] if description['transpose_b'] else right['shape'][-2:]
+    _require(k == kb and (m, n, k, math.prod(left['shape'][:-2])) ==
+             tuple(description[key] for key in ('m', 'n', 'k', 'batch_count')) and
+             output['shape'] == [*left['shape'][:-2], m, n], 'matmul dimensions disagree with its buffer types')
+
+
 def validate_kernels(plan, kernels):
-    _require(isinstance(kernels, dict) and set(kernels) == {s["id"] for s in plan["steps"]},
+    _require(isinstance(kernels, dict) and set(kernels) == _kernel_steps(plan),
              "compiled kernels must cover exactly the execution plan steps")
     buffers = {b["id"]: b for b in plan["buffers"]}
     architectures = set()
     for step in plan["steps"]:
+        if step["kind"] == "library":
+            continue
         artifact = kernels[step["id"]].artifact
         _, _, inputs, outputs = _kernel_contract(artifact)
         architectures.add(artifact["target"]["arch"])
@@ -164,6 +194,8 @@ class CUDAProgram:
         receipt = {"schema_version": 1, "kind": "ask.cuda.program",
                    "plan": write("execution_plan.json", _json(plan)), "steps": {}}
         for step in plan["steps"]:
+            if step["kind"] == "library":
+                continue
             name = step["id"]
             kernel = self.kernels[name]
             codegen = copy.deepcopy(kernel.codegen)
@@ -194,7 +226,7 @@ class CUDAProgram:
                      and type(receipt["schema_version"]) is int and receipt["schema_version"] == 1
                      and receipt["kind"] == "ask.cuda.program", "unsupported CUDA program receipt")
             plan = validate_plan(json.loads(_read_reference(root, receipt["plan"])[0]))
-            _require(isinstance(receipt["steps"], dict) and set(receipt["steps"]) == {s["id"] for s in plan["steps"]},
+            _require(isinstance(receipt["steps"], dict) and set(receipt["steps"]) == _kernel_steps(plan),
                      "program receipt step set differs from its plan")
             kernels = {}
             for name, item in receipt["steps"].items():

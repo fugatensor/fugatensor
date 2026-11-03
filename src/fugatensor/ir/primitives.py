@@ -29,6 +29,7 @@ class PrimitiveRule:
     jvp: object
     description: str
     floating_values: bool = True
+    derivative_inputs: tuple | None = None
 
 
 def _constant_type(inputs, attrs):
@@ -89,9 +90,7 @@ def _constant_vjp(builder, operation, primals, cotangent, active):
 
 
 def _splat_vjp(builder, operation, primals, cotangent, active):
-    if active[0]:
-        raise DifferentiationError("scalar-input splat VJP requires a sum reduction, which is not implemented")
-    return (None,)
+    return (builder.reduce_sum(cotangent, tuple(range(len(cotangent.type.shape)))) if active[0] else None,)
 
 
 def _add_vjp(builder, operation, primals, cotangent, active):
@@ -144,11 +143,15 @@ def _jvp_cast(*args):
     return _cast_jvp(*args)
 
 
+from .tensor_rules import rules as tensor_rules
+
+
 PRIMITIVE_RULES = MappingProxyType({
+    **tensor_rules(PrimitiveRule),
     "constant": PrimitiveRule("constant", _constant_type, _constant_vjp, _jvp_constant,
                               "A literal has zero derivative.", False),
     "splat": PrimitiveRule("splat", _splat_type, _splat_vjp, _jvp_splat,
-                           "Broadcast a scalar; transposing an active scalar input needs a sum reduction."),
+                           "Broadcast a scalar; sum cotangents back to its scalar type."),
     "add": PrimitiveRule("add", _arithmetic_type, _add_vjp, _jvp_add,
                          "Sum tangents; send a cotangent to each active operand."),
     "mul": PrimitiveRule("mul", _arithmetic_type, _mul_vjp, _jvp_mul,
@@ -159,7 +162,7 @@ PRIMITIVE_RULES = MappingProxyType({
                              "Reshape tangents forward and cotangents back to the operand shape."),
     "stop_gradient": PrimitiveRule("stop_gradient", _stop_gradient_type,
                                    _stop_gradient_rule, _stop_gradient_rule,
-                                   "Preserve the value and stop derivative dependencies.", False),
+                                   "Preserve the value and stop derivative dependencies.", False, ()),
 })
 
 

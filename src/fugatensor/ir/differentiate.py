@@ -32,12 +32,8 @@ def vjp(module, *, argnums=None, max_unroll=10000):
     By default every floating input is selected. Original outputs and all
     selected inputs must be floating; integer/bool differentiation is rejected.
 
-    Implemented rules are add, mul, reshape and floating casts. The cast rule casts the
-    cotangent back to the input dtype: as in usual floating autodiff it treats
-    the cast as a real-valued identity and does not differentiate quantization.
-    A live external needs an explicit future VJP rule; it is never treated as
-    identity. Differentiating scalar-to-tensor splat needs a reduction and is
-    rejected until that operation has an execution path.
+    Primitive rules emit the same Fuga basis, including reductions and matmul.
+    Floating casts differentiate as real-valued identity conversions.
     """
     if not isinstance(module, Module):
         raise TypeError("vjp expects a Fuga IR Module")

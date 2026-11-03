@@ -336,6 +336,46 @@ class BlockBuilder:
         self._check_values((value,))
         return self.operation("stop_gradient", (value,), (value.type,), id=id).results[0]
 
+    def primitive(self, opcode, operands, attrs=None, *, id=None):
+        from .primitives import infer_result_types
+        self._check_values(operands)
+        attrs = dict(attrs or {})
+        types = infer_result_types(opcode, tuple(value.type for value in operands), attrs)
+        return self.operation(opcode, operands, types, attrs=attrs, id=id).results[0]
+
+    def div(self, lhs, rhs, *, id=None):
+        return self.primitive('div', (lhs, rhs), id=id)
+
+    def exp(self, value, *, id=None):
+        return self.primitive('exp', (value,), id=id)
+
+    def log(self, value, *, id=None):
+        return self.primitive('log', (value,), id=id)
+
+    def sqrt(self, value, *, id=None):
+        return self.primitive('sqrt', (value,), id=id)
+
+    def compare(self, lhs, rhs, predicate, *, id=None):
+        return self.primitive('compare', (lhs, rhs), {'predicate': predicate}, id=id)
+
+    def select(self, condition, lhs, rhs, *, id=None):
+        return self.primitive('select', (condition, lhs, rhs), id=id)
+
+    def broadcast_in_dim(self, value, shape, dimensions, *, id=None):
+        return self.primitive('broadcast_in_dim', (value,), {'shape': tuple(shape), 'dimensions': tuple(dimensions)}, id=id)
+
+    def transpose(self, value, permutation, *, id=None):
+        return self.primitive('transpose', (value,), {'permutation': tuple(permutation)}, id=id)
+
+    def reduce_sum(self, value, axes, *, id=None):
+        return self.primitive('reduce_sum', (value,), {'axes': tuple(axes)}, id=id)
+
+    def reduce_max(self, value, axes, *, id=None):
+        return self.primitive('reduce_max', (value,), {'axes': tuple(axes)}, id=id)
+
+    def matmul(self, lhs, rhs, *, transpose_a=False, transpose_b=False, id=None):
+        return self.primitive('matmul', (lhs, rhs), {'transpose_a': transpose_a, 'transpose_b': transpose_b}, id=id)
+
     def _binary(self, opcode, lhs, rhs, *, id=None):
         from .primitives import infer_result_types
         self._check_values((lhs, rhs))
@@ -670,12 +710,13 @@ def _verify_region(region, terminator, result_types, seen_values, seen_ids, seen
 
 def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
     operands, results, attrs = op.operands, op.results, op.attrs
-    kinds = {"constant", "splat", "cast", "reshape", "stop_gradient", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
+    from .primitives import PRIMITIVE_RULES
+    kinds = set(PRIMITIVE_RULES) | {"external", "call", "if", "for", "while", "return", "yield"}
     if op.opcode not in kinds:
         raise ValueError(f"unknown Fuga operation: {op.opcode}")
     if op.opcode not in ("if", "for", "while") and op.regions:
         raise ValueError(f"{op.opcode} cannot own regions")
-    if op.opcode in ("constant", "splat", "cast", "reshape", "stop_gradient", "add", "mul") and len(results) != 1:
+    if op.opcode in PRIMITIVE_RULES and len(results) != 1:
         raise TypeError(f"{op.opcode} requires one result")
     if op.opcode not in ("external", "call", "if", "for", "while") and op.effects:
         raise ValueError(f"{op.opcode} must be pure")
@@ -690,7 +731,7 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             equal = (type(raw) is float and math.isnan(raw)) if math.isnan(canonical) else raw == canonical
             if not equal or (canonical == 0 and math.copysign(1.0, raw) != math.copysign(1.0, canonical)):
                 raise ValueError("Fuga floating constants must already be rounded to their declared dtype")
-    elif op.opcode in ("splat", "cast", "reshape", "stop_gradient", "add", "mul"):
+    elif op.opcode in PRIMITIVE_RULES:
         from .primitives import validate_primitive
         validate_primitive(op)
     elif op.opcode == "external":

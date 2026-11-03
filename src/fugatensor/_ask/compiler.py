@@ -152,7 +152,7 @@ class Compiler:
             return _result("partition", (root / "output.mlir").read_text(), (root / "report.json").read_text())
 
     def compile_cuda(self, module: Module | str, *, cache_dir, output_dir,
-                     llc=None, ptxas=None, compilers=None, target=None, block_size=128,
+                     llc=None, ptxas=None, llvm_link=None, libdevice=None, compilers=None, target=None, block_size=128,
                      ptx_version=80):
         """Compile an ASK graph or a graph containing an external compiler node.
 
@@ -162,7 +162,7 @@ class Compiler:
         """
         from .gpu import compile_graph
         return compile_graph(self, module, cache_dir=cache_dir, output_dir=output_dir,
-                             compilers=compilers, llc=llc, ptxas=ptxas, target=target,
+                             compilers=compilers, llc=llc, ptxas=ptxas, llvm_link=llvm_link, libdevice=libdevice, target=target,
                              block_size=block_size, ptx_version=ptx_version)
 
     def emit_host_object(self, module: Module | str, output, *, optimize=True) -> CodegenResult:

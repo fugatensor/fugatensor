@@ -81,12 +81,26 @@ void bindAskRuntime(nb::module_ &module) {
         std::vector<PlanStep> steps;
         for(nb::handle definition:definitions) {
           auto item=nb::cast<nb::dict>(definition);PlanStep step;
+          step.inputs=nb::cast<std::vector<std::size_t>>(item["inputs"]);
+          step.outputs=nb::cast<std::vector<std::size_t>>(item["outputs"]);
+          if(item.contains("matmul")) {
+            auto description=nb::cast<nb::dict>(item["matmul"]);
+            MatmulDescription matmul;
+            matmul.elementType=nb::cast<std::string>(description["element_type"]);
+            matmul.m=nb::cast<std::uint64_t>(description["m"]);
+            matmul.n=nb::cast<std::uint64_t>(description["n"]);
+            matmul.k=nb::cast<std::uint64_t>(description["k"]);
+            matmul.batchCount=nb::cast<std::uint64_t>(description["batch_count"]);
+            matmul.transposeA=nb::cast<bool>(description["transpose_a"]);
+            matmul.transposeB=nb::cast<bool>(description["transpose_b"]);
+            step.matmul=std::move(matmul);
+            steps.push_back(std::move(step));
+            continue;
+          }
           step.kernel=nb::cast<std::shared_ptr<Kernel>>(item["kernel"]);
           step.grid=nb::cast<std::array<unsigned,3>>(item["grid"]);
           step.block=nb::cast<std::array<unsigned,3>>(item["block"]);
           step.sharedBytes=nb::cast<unsigned>(item["shared_bytes"]);
-          step.inputs=nb::cast<std::vector<std::size_t>>(item["inputs"]);
-          step.outputs=nb::cast<std::vector<std::size_t>>(item["outputs"]);
           for(nb::handle binding:nb::cast<nb::list>(item["arguments"])) {
             PlanArgument argument;
             if(nb::isinstance<nb::bytes>(binding)) {

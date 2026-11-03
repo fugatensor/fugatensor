@@ -10,7 +10,9 @@ from .lowering import lower_to_ask
 from .function import fun
 from .autograd import grad, stop_gradient
 from . import nn
-from .ops import add, multiply, subtract, negative, square, cast, reshape, zeros_like, ones_like
+from .ops import (add, multiply, subtract, negative, square, cast, reshape, zeros_like, ones_like,
+                  divide, compare, where, exp, log, sqrt, broadcast_in_dim, broadcast_to,
+                  transpose, sum, amax, mean, matmul)
 
 save_weights = weights.save
 load_weights = weights.load
@@ -22,4 +24,6 @@ __all__ = ['configure', 'shutdown', 'Engine', 'Tensor', 'tensor', 'from_buffer',
            'set_default_device', 'get_default_device', 'synchronize',
            'ir', 'lower_to_ask', 'triton', 'weights', 'fun', 'grad', 'stop_gradient', 'nn',
            'save_weights', 'load_weights',
-           'add', 'multiply', 'subtract', 'negative', 'square', 'cast', 'zeros_like', 'ones_like']
+           'add', 'multiply', 'subtract', 'negative', 'square', 'cast', 'zeros_like', 'ones_like',
+           'divide', 'compare', 'where', 'exp', 'log', 'sqrt', 'broadcast_in_dim', 'broadcast_to',
+           'transpose', 'sum', 'amax', 'mean', 'matmul']

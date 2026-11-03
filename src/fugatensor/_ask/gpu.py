@@ -56,7 +56,7 @@ class CUDAKernel:
 
 
 def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=None,
-                  compilers=None, target=None, block_size=128, ptx_version=80):
+                  compilers=None, target=None, block_size=128, ptx_version=80, llvm_link=None, libdevice=None):
     """Compile owned regions; externally compiled kernels stay separate steps."""
     if compilers is not None and (not isinstance(compilers, Mapping) or any(
             not isinstance(key, str) or not key or not isinstance(value, CompilerEnvironment)
@@ -67,63 +67,56 @@ def compile_graph(compiler, module, *, cache_dir, output_dir, llc=None, ptxas=No
     source = module.to_mlir() if isinstance(module, Module) else module
     if not isinstance(source, str):
         raise TypeError("compile_cuda expects a Module or MLIR string")
-    prepared = compiler.prepare(source)
-    requests = prepared.external_requests
-    if not requests:
-        return _compile_owned_graph(compiler, source, prepared, caps, target=target,
-                                    block_size=block_size, ptx_version=ptx_version,
-                                    cache_dir=cache_dir, output_dir=output_dir,
-                                    llc=llc, ptxas=ptxas)
     from .plan import CUDAProgram
+    partitioned = compiler.partition(source)
+    requests = partitioned.external_requests
     for request in requests:
-        if request.get("compiler") not in environments:
+        if request.get('compiler') not in environments:
             raise CompilerError(f"provide CompilerEnvironment for compiler {request.get('compiler')!r}")
-    if target is None:
-        requested = requests[0].get("target", {})
-        target = {"backend": requested.get("backend"), "arch": requested.get("arch")}
-    if (not isinstance(target, dict) or set(target) != {"backend", "arch"}
-            or target["backend"] != "cuda" or type(target["arch"]) is not int):
+    if target is None and requests:
+        requested = requests[0].get('target', {})
+        target = {'backend': requested.get('backend'), 'arch': requested.get('arch')}
+    if (not isinstance(target, dict) or set(target) != {'backend', 'arch'}
+            or target['backend'] != 'cuda' or type(target['arch']) is not int):
         raise CompilerError("CUDA compilation requires target={'backend': 'cuda', 'arch': SM_NUMBER}")
-    if any(any(request["target"].get(key) != value for key, value in target.items()) for request in requests):
+    if any(any(request['target'].get(key) != value for key, value in target.items()) for request in requests):
         raise CompilerError("external graph target must match its compiler's fixed target")
     destination = Path(output_dir).resolve()
     if destination.exists() and any(destination.iterdir()):
-        raise CompilerError("output_dir must be empty; use a fresh destination")
-    partitioned = compiler.partition(source)
-    plan = partitioned.execution_plan
-    sources = partitioned.step_sources
-    # Validate local tool requirements before starting external work.
-    if any(step["kind"] == "owned" for step in plan["steps"]) and (llc is None or ptxas is None):
-        raise CompilerError("ASK-owned CUDA steps require explicit llc and ptxas paths")
+        raise CompilerError('output_dir must be empty; use a fresh destination')
+    plan, sources = partitioned.execution_plan, partitioned.step_sources
+    if any(step['kind'] == 'owned' for step in plan['steps']) and (llc is None or ptxas is None):
+        raise CompilerError('ASK-owned CUDA steps require explicit llc and ptxas paths')
     destination.mkdir(parents=True, exist_ok=True)
     kernels = {}
-    for step in plan["steps"]:
-        step_source = sources[step["id"]]
-        if not isinstance(step_source, str):
-            raise CompilerError("partition step source must be MLIR text")
-        step_prepared = compiler.prepare(step_source)
-        step_dir = destination if len(plan["steps"]) == 1 else destination / step["id"]
-        if step["kind"] == "owned":
+    for step in plan['steps']:
+        if step['kind'] == 'library':
+            continue
+        step_source = sources[step['id']]
+        step_dir = destination if len(plan['steps']) == 1 else destination / step['id']
+        if step['kind'] == 'owned':
             kernel = _compile_owned_graph(
-                compiler, step_source, step_prepared, caps, target=target,
+                compiler, step_source, partitioned, caps, target=target,
                 block_size=block_size, ptx_version=ptx_version, cache_dir=cache_dir,
-                output_dir=step_dir, llc=llc, ptxas=ptxas)
+                output_dir=step_dir, llc=llc, ptxas=ptxas, llvm_link=llvm_link, libdevice=libdevice)
         else:
+            step_prepared = compiler.prepare(step_source)
             kernel = _compile_external_graph(compiler, step_prepared, environments,
                                              cache_dir=cache_dir, output_dir=step_dir)
-        kernels[step["id"]] = kernel
-    if len(plan["steps"]) == 1:
-        step = plan["steps"][0]
-        if step["inputs"] == plan["inputs"] and step["outputs"] == plan["outputs"]:
-            kernel = replace(kernels[step["id"]], execution_plan=plan)
-            (destination / "execution_plan.json").write_bytes(_json(plan) + b"\n")
-            (destination / "report.json").write_bytes(_json(kernel.report) + b"\n")
+        kernels[step['id']] = kernel
+    if len(plan['steps']) == 1:
+        step = plan['steps'][0]
+        if step['kind'] != 'library' and step['inputs'] == plan['inputs'] and step['outputs'] == plan['outputs']:
+            kernel = replace(kernels[step['id']], execution_plan=plan)
+            (destination / 'execution_plan.json').write_bytes(_json(plan) + b'\n')
+            (destination / 'report.json').write_bytes(_json(kernel.report) + b'\n')
             return kernel
-    report = {"phase": "compiled_plan",
-              "steps": {name: kernel.report for name, kernel in kernels.items()}}
-    program = CUDAProgram(plan, kernels, report, {"steps": {name: kernel.cache for name, kernel in kernels.items()}})
+    report = {'phase': 'compiled_plan', 'steps': {
+        step['id']: ({'library': step['library'], 'matmul': step['matmul']} if step['kind'] == 'library'
+                     else kernels[step['id']].report) for step in plan['steps']}}
+    program = CUDAProgram(plan, kernels, report, {'steps': {name: kernel.cache for name, kernel in kernels.items()}})
     program.save(destination)
-    (destination / "report.json").write_bytes(_json(report) + b"\n")
+    (destination / 'report.json').write_bytes(_json(report) + b'\n')
     return program
 
 
@@ -165,7 +158,7 @@ def _compile_external_graph(compiler, prepared, environments, *, cache_dir, outp
 
 
 def _compile_owned_graph(compiler, source, prepared, caps, *, target, block_size,
-                         ptx_version, cache_dir, output_dir, llc, ptxas):
+                         ptx_version, cache_dir, output_dir, llc, ptxas, llvm_link=None, libdevice=None):
     if caps.get("cuda_graph_codegen") is not True:
         raise CompilerError("this ASK build does not support native ASK GPU lowering")
     if (not isinstance(target, dict) or set(target) != {"backend", "arch"}
@@ -216,7 +209,7 @@ def _compile_owned_graph(compiler, source, prepared, caps, *, target, block_size
     report = json.loads(artifacts["report.json"])
     report["ir_cache"], report["ir_cache_key_inputs"] = stats, key
     codegen = compile_cuda(destination / "kernel.ll", artifact, destination / "codegen",
-                           llc=tools["llc"]["path"], ptxas=tools["ptxas"]["path"],
+                           llc=tools["llc"]["path"], ptxas=tools["ptxas"]["path"], llvm_link=llvm_link, libdevice=libdevice,
                            cache_dir=Path(cache_dir) / "executables")
     report["executable_cache"] = codegen["executable_cache"]
     (destination / "report.json").write_bytes(_json(report) + b"\n")
