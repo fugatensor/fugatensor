@@ -332,7 +332,7 @@ class ExecutionSession:
                             producer_stream=producer_stream)
 
     @_serialized
-    def load(self, cubin, entry, *, required_types, arch, parameter_types=None, expected_parameters=None):
+    def load(self, cubin, entry, *, required_types, arch, parameter_types):
         self._check_open()
         _require(isinstance(cubin, bytes), "load expects cubin or PTX bytes")
         _require(isinstance(entry, str) and entry.isascii() and entry.isidentifier(), "invalid CUDA kernel entry")
@@ -340,18 +340,10 @@ class ExecutionSession:
         _require(isinstance(required_types, (list, tuple)) and
                  all(isinstance(dtype, str) and dtype in _WIDTH for dtype in required_types),
                  "required_types must name all kernel element types")
-        if expected_parameters is not None:
-            _require(type(expected_parameters) is int and 0 < expected_parameters <= 64,
-                     "expected_parameters must be an integer between 1 and 64")
-        if parameter_types is None:
-            _require(expected_parameters is not None, "load requires parameter_types or expected_parameters")
-            parameter_types = ["pointer"] * expected_parameters
         try:
             widths = parameter_widths(parameter_types)
         except ValueError as error:
             raise CUDAError(str(error)) from error
-        _require(expected_parameters is None or expected_parameters == len(widths),
-                 "expected_parameters differs from parameter_types")
         return self._native.load(cubin, entry, required_types, arch, widths)
 
     @_serialized

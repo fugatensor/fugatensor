@@ -25,6 +25,7 @@ import fugatensor._ask as ask
 from fugatensor._ask.cache import IRCache, fingerprint_file
 from fugatensor._ask.cuda import CUDAError, compile_cuda
 from fugatensor._ask.runtime import ExecutionSession, _cuda_array_description
+from support.storage_matrix import storage_matrix
 
 
 def sample_cache_key() -> dict:
@@ -236,6 +237,17 @@ class RuntimeOwnershipTests(unittest.TestCase):
                             call()
                 run.assert_not_called()
                 submit.assert_not_called()
+
+    def test_cuda_array_dtype_shape_layout_matrix(self):
+        for dtype, shape, layout, contiguous, description in storage_matrix():
+            with self.subTest(dtype=dtype, shape=shape, layout=layout):
+                owner = ArrayOwner(**description)
+                if contiguous:
+                    self.assertEqual(_cuda_array_description(owner),
+                                     (shape, dtype, description['data'][0], False, None))
+                else:
+                    with self.assertRaisesRegex(CUDAError, 'contiguous'):
+                        _cuda_array_description(owner)
 
     def test_cuda_array_interface_v2_v3_and_invalid_descriptors(self):
         for stream in (None, 1, 2, 7340032):

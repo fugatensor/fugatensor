@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
-from itertools import product
+from itertools import cycle, islice, product
+import math
 
 import fugatensor as ft
 
@@ -17,6 +18,8 @@ from .selection import select
 DTYPES = {name: getattr(ft, name) for name in ('fp32', 'fp16', 'bf16', 'int32', 'int64', 'bool')}
 FLOATS = ('fp32', 'fp16', 'bf16')
 NUMERIC = (*FLOATS, 'int32', 'int64')
+SHAPES = {'scalar': (), 'vector': (4,), 'matrix': (2, 2),
+          'singleton': (1, 4, 1), 'empty': (0, 2)}
 
 
 class Polynomial:
@@ -84,7 +87,7 @@ OPERATIONS = (
     Operation('multiply', ft.multiply, lambda x, y: x * y),
     Operation('negative', lambda x, y: ft.negative(x), lambda x, y: -x),
     Operation('square', lambda x, y: ft.square(x), lambda x, y: x * x),
-    Operation('reshape', lambda x, y: ft.reshape(x, (2, 2)).reshape(-1),
+    Operation('reshape', lambda x, y: ft.reshape(x, (math.prod(x.shape),)).reshape(x.shape),
               lambda x, y: x, tuple(DTYPES)),
     Operation('cast', lambda x, y: ft.cast(ft.cast(x, ft.fp32), x.dtype),
               lambda x, y: x, tuple(DTYPES)),
@@ -119,6 +122,7 @@ def plan_matrix():
     names = select('FUGATENSOR_TEST_OPS', [op.name for op in OPERATIONS])
     depths = select('FUGATENSOR_TEST_DEPTHS', ('1', '2', '3'), default=('1', '2'))
     dtypes = select('FUGATENSOR_TEST_DTYPES', DTYPES)
+    shapes = select('FUGATENSOR_TEST_SHAPES', SHAPES)
     orders = tuple(int(value) for value in select('FUGATENSOR_TEST_ORDERS', ('0', '1', '2', '3'),
                                                 default=('0', '1', '2')))
     selected = False
@@ -127,14 +131,26 @@ def plan_matrix():
         cases = tuple(Case(items) for depth in depths for items in product(operations, repeat=int(depth)))
         if cases:
             selected = True
-            yield dtype, cases, orders if dtype in FLOATS else (0,)
+            for shape in shapes:
+                yield dtype, SHAPES[shape], cases, orders if dtype in FLOATS else (0,)
     if not selected:
         raise ValueError('selected operations and dtypes have no supported combinations')
 
 
-def input_values(dtype):
+def input_values(dtype, shape):
     if dtype == 'bool':
-        return (True, False, False, True), (False, True, False, True)
-    if dtype in FLOATS:
-        return (-1, -0.5, 0.5, 1), (0.5, -1, 1, -0.5)
-    return (-2, -1, 1, 2), (1, 2, -2, -1)
+        values = (True, False, False, True), (False, True, False, True)
+    elif dtype in FLOATS:
+        values = (-1, -0.5, 0.5, 1), (0.5, -1, 1, -0.5)
+    else:
+        values = (-2, -1, 1, 2), (1, 2, -2, -1)
+    return tuple(tuple(islice(cycle(items), math.prod(shape))) for items in values)
+
+
+def nested_values(values, shape):
+    values = iter(values)
+    def build(dimensions):
+        if not dimensions:
+            return next(values)
+        return [build(dimensions[1:]) for _ in range(dimensions[0])]
+    return build(shape)

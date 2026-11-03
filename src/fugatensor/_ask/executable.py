@@ -6,19 +6,18 @@ import ctypes
 import math
 
 from ._abi import parameter_types, scalar_bytes
-from .cuda import (_kernel_contract, _validated_image, _required_types,
+from .cuda import (_validated_package, _required_types,
                    _require, _storage_dtype, _STORAGE_TYPES)
 
 
 def validate_kernel_package(kernel):
     artifact, codegen = copy.deepcopy(kernel.artifact), copy.deepcopy(kernel.codegen)
-    entry, invocation, inputs, outputs = _kernel_contract(artifact)
-    binary = _validated_image(artifact, codegen)
+    binary, entry, invocation, inputs, outputs = _validated_package(artifact, codegen)
     return artifact, codegen, binary, entry, invocation, inputs, outputs
 
 
-def _load_step(kernel, session, input_indices, output_indices):
-    artifact, _, binary, entry, invocation, inputs, outputs = validate_kernel_package(kernel)
+def _load_step(package, session, input_indices, output_indices):
+    artifact, _, binary, entry, invocation, inputs, outputs = package
     dtype = _storage_dtype(inputs, outputs)
     native = session.load(binary, entry, arch=artifact["target"]["arch"],
                           required_types=sorted(_required_types(artifact, dtype)),
@@ -120,22 +119,15 @@ class PreparedCUDAKernel(_Prepared):
     """One kernel using the same native program machinery as a multi-step plan."""
     def __init__(self, kernel, session, *, graph=False):
         _require(type(graph) is bool, "graph must be bool")
-        _, _, self._inputs, self._outputs = _kernel_contract(copy.deepcopy(kernel.artifact))
+        package = validate_kernel_package(kernel)
+        self._inputs, self._outputs = package[-2:]
         self._session = session
         ninputs = len(self._inputs)
         indices = list(range(ninputs + len(self._outputs)))
-        self._step = _load_step(kernel, session, indices[:ninputs], indices[ninputs:])
-        self._kernel = self._step["kernel"]
+        step = _load_step(package, session, indices[:ninputs], indices[ninputs:])
         self._native = session._native.prepare_program(
             [_nbytes(port) for port in (*self._inputs, *self._outputs)],
-            indices[:ninputs], indices[ninputs:], [self._step], graph)
-
-    def _parameters(self, inputs, outputs):
-        # Low-level diagnostic access to the frozen ABI; normal submission
-        # binds these indices entirely in C++.
-        bindings = self._check_ports(inputs=inputs, outputs=outputs)
-        tensors = (*bindings["inputs"], *bindings["outputs"])
-        return [tensors[arg] if type(arg) is int else arg for arg in self._step["arguments"]]
+            indices[:ninputs], indices[ninputs:], [step], graph)
 
 
 class PreparedCUDAProgram(_Prepared):
@@ -152,7 +144,7 @@ class PreparedCUDAProgram(_Prepared):
             setattr(self, "_" + kind, [dict(logical_port=f"{kind[:-1]}:{index}",
                 shape=list(buffers[name]["shape"]), element_type=buffers[name]["element_type"],
                 layout="contiguous_row_major") for index, name in enumerate(self._plan[kind])])
-        steps = [_load_step(program.kernels[step["id"]], session,
+        steps = [_load_step(validate_kernel_package(program.kernels[step["id"]]), session,
                             [indices[name] for name in step["inputs"]],
                             [indices[name] for name in step["outputs"]]) for step in self._plan["steps"]]
         self._native = session._native.prepare_program(

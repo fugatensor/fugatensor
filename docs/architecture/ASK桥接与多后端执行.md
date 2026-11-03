@@ -71,13 +71,9 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点分别排入[执
 
 `required_element_types` 记录端口存储类型。Triton 和 `ptxas` 检查内部指令的架构要求，ASK 检查产物与实际设备是否兼容。
 
-多输入外部算子使用 `inputs=("Q", "K", "V")` 绑定源码参数，并通过 `output_shape`、`output_dtype` 的静态值或回调声明输出；这些回调与 `constants` / `grid` 一样仅接收 TensorSpec 元数据。使用 `inputs=` 时回调接收按输入顺序排列的 TensorSpec tuple，原 `input=` 单输入接口仍接收单个 TensorSpec。多个输出使用 `outputs={"Y": {"shape": ..., "dtype": ...}, "Z": {...}}`，按声明顺序返回 tuple；每项的 shape/dtype 可省略，默认沿用首个输入。即使图中只使用一个结果，也会保留 kernel 其他输出所需的物理缓冲区。输入与输出不能原地别名。
+张量端口与标量在 `PreparedCUDAProgram` 构建时转换为原生 `PlanStep`。cubin/PTX 载入时提交完整的 `parameter_types`，ASK 用驱动报告的参数布局核对类型宽度。准备完成后，Python 每次只传入输出缓冲区，原生计划负责地址绑定和启动。参数 schema、产物摘要与文件内容在准备阶段校验。
 
-`scalars={"N": (ft.int32, 1024), "scale": (ft.fp32, 0.5)}` 或对应回调声明按值启动参数，值在每次调用时冻结，变化时生成新的图配置和缓存键。bool/int/float 字面量默认参数可推断标量类型，其他默认表达式通过 scalars 绑定。宿主校验类型和取值范围，ASK 运行时核对参数布局。
-
-`constants` 可传递有限浮点数、整数、bool、字符串、None、列表/tuple 与 JSON 配置字典；序列在 worker 中变为 tuple。kernel 内可使用的类型和操作仍遵循 Triton 本身的 constexpr 规则，例如不把任意 Python 字典自动转换成可索引的 Triton 值。dtype 直接传 `ft.fp16` 等类型对象，也可在调用方已导入 Triton 时传 `tl.float16`。constexpr 默认值由 Triton 函数签名补齐。`@triton.heuristics` 在 worker 中使用标量、constexpr 与张量静态元数据（shape、dtype、ndim、numel()、stride()）求值；`@triton.autotune` 需要显式 `config=索引` 选择其配置列表的一项，不执行 benchmark。配置中的 constexpr 和编译选项可由显式注册参数覆盖；涉及输入修改或自定义调优 hook 的配置仍报错。
-
-参数和双输出用法见 [Triton 接入示例](../API/Triton算子接入.md#example)。
+多输入、多输出、配置回调、按值标量和 constexpr 的写法见 [Triton 接入](../API/Triton算子接入.md#registration-arguments)。每个外部节点保留独立启动步骤；物理输出由 kernel 契约确定，前端只消费部分结果时仍分配全部物理输出。
 
 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 源码和 `ft.fun.vjp` 梯度规则。前向是一个外部节点，可与前后自有计算组图。VJP 从 `outputs` 取得前向公开输出 `O`，构造统计量、dQ、dK、dV 四个反向 kernel。当前导数 IR 重放前向以计算 `O`，因此梯度计算包含五个外部步骤。
 
@@ -91,7 +87,7 @@ C++ 计划保留 kernel 和在途缓冲区；Python 绑定保留外部框架的 
 
 桥接层 `prepared.run(inputs)` 由原生计划分配输出，异步返回设备张量列表；重复输出和输入别名保留相同张量句柄。`prepared.submit_many(inputs, outputs)` 使用调用方给定的输出并返回完成事件。两条入口统一校验端口、建立外部 stream 依赖并保留 owner；自动输出的完成事件由会话保留，外部生产者重用输入存储前须同步会话。
 
-ASK 同时提供普通 stream 提交和 Graph replay。FugaTensor JIT 默认使用后者，启动失败时返回错误。
+ASK 同时提供普通 stream 提交和 Graph replay。FugaTensor JIT 默认使用后者。
 
 <a id="cache-hierarchy"></a>
 

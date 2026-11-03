@@ -121,11 +121,11 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 | **权重导出** | 版本化 PyTree 权重目录，支持嵌套 dict/list/tuple、六种基础 dtype、内容寻址去重、原子导出与完整性校验 |
 | **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA、Triton cubin 与多 kernel 调度，支持多端口和按值标量 |
 
-暂未实现隐式广播、矩阵乘法与归约算子。外部 kernel 的微分通过纯 VJP 规则提供；高阶微分要求导数图的活跃路径具备相应规则。内置 FlashAttention 目前支持一阶导数。
+外部 kernel 的微分通过纯 VJP 规则提供；高阶微分沿导数图的活跃路径组合对应规则。内置 FlashAttention 提供一阶导数。
 
 ## 测试
 
-数值测试按算子、组合深度、精度和求导阶数生成用例。运行和扩展方式见[测试矩阵](docs/测试.md)。
+数值测试按算子、组合深度、精度、形状和求导阶数生成用例；设备存储契约按 dtype × shape × layout 交叉。运行和扩展方式见[测试矩阵](docs/测试.md)。
 
 ```bash
 # CPU 编译、C++ 原生图分析、Fuga IR / JVP / VJP 与降级测试

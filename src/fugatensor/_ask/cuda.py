@@ -138,11 +138,7 @@ def _kernel_contract(artifact):
 
 
 def _contract(artifact):
-    """Compatibility contract for the one-input, same-type host-buffer runner.
-
-    Multi-port and mixed-storage kernels use PreparedCUDAKernel.submit_many.
-    Code generation itself accepts the complete normalized pointer ABI.
-    """
+    """Check the matching input/output ports used by the host-value runner."""
     entry, invocation, inputs, outputs = _kernel_contract(artifact)
     _require(len(inputs) == len(outputs) == 1,
              "host-buffer execute requires one input and one output; use prepare().submit_many")
@@ -345,8 +341,8 @@ def install_external(artifact, output_directory):
     return result
 
 
-def _validated_image(artifact, codegen):
-    """Validate a package before any driver call, returning its exact code bytes."""
+def _validated_package(artifact, codegen):
+    """Validate a package and return its exact image and normalized contract."""
     entry, invocation, inputs, outputs = _kernel_contract(artifact)
     dtype = _storage_dtype(inputs, outputs)
     external = artifact["format"] != "llvm-ir"
@@ -374,7 +370,7 @@ def _validated_image(artifact, codegen):
                  "LLVM input digest differs from the compiled IR")
         binary = Path(codegen["cubin"]).read_bytes()
         _require(_digest(binary) == codegen.get("cubin_sha256"), "cubin digest mismatch")
-    return binary
+    return binary, entry, invocation, inputs, outputs
 
 
 def execute(artifact, codegen, values, *, device_ordinal=0):
@@ -383,7 +379,7 @@ def execute(artifact, codegen, values, *, device_ordinal=0):
     from .runtime import ExecutionSession, _encode
 
     entry, invocation, size, dtype = _contract(artifact)
-    binary = _validated_image(artifact, codegen)
+    binary, *_ = _validated_package(artifact, codegen)
     data = _encode(values, dtype, size)
     shape = next(port["shape"] for port in artifact["port_map"] if port["logical_port"] == "input:0")
     # Reject broken contracts, receipts and host values before opening a session.

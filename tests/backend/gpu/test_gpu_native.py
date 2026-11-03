@@ -258,7 +258,7 @@ class NativeCUDAHardwareTests(unittest.TestCase):
 
             # Oversized dynamic shared memory rejected cleanly without incrementing launch count.
             native_mod = session.load(Path(codegen["cubin"]).read_bytes(), "generic_kernel",
-                                      required_types=["i32"], arch=min(self.arch, 80), expected_parameters=5)
+                                      required_types=["i32"], arch=min(self.arch, 80), parameter_types=["pointer"] * 5)
             prev_launches = session.stats["launches"]
             with self.assertRaisesRegex(CUDAError, "dynamic shared memory"):
                 session.submit(native_mod, [None, dst, None, src, None],
