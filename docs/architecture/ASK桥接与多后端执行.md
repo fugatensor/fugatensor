@@ -46,6 +46,7 @@ Fuga Module -> lower_to_ask -> ASK::Compiler 原生代码生成 (graph.o + ABI�
 
 - **编译入口**：默认由 `_native` 调用 ASK C++ `ask::compiler::codegen`；`ask_opt` 参数可选择 CLI 路径。
 - **ABI 绑定**：从 `CodegenResult.abi` 读取入口及端口的 shape、dtype 和字节数，并独立写入 `abi.json`；`report.json` 保存编译诊断。后续调用校验输入、分配 `HostStorage` 输出，再调用已加载的函数指针。
+- **归约复用**：临时空间由 ASK 生成的函数管理，分配与生存期见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
 
 <a id="cuda-and-triton"></a>
 
