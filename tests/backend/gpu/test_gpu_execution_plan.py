@@ -163,7 +163,7 @@ class CUDAExecutionPlanHardwareTests(unittest.TestCase):
                     with self.assertRaisesRegex(CUDAError, "different CUDA execution session"):
                         program.submit([foreign], [second_outputs[0], second_outputs[0], foreign])
                 self.assertEqual(native.stats["launches"], after["launches"])
-                with self.assertRaisesRegex(CUDAError, "before it is produced"):
+                with self.assertRaisesRegex(CUDAError, "READ_0_0 FAIL"):
                     native.prepare_program([40, 40, 40], [0], [2], steps[::-1], graph=graph)
                 with self.assertRaisesRegex(CUDAError, "inputs must be unique"):
                     native.prepare_program([40, 40, 40], [0, 0], [2], steps, graph=graph)
