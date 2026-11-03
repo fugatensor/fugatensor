@@ -1,4 +1,4 @@
-<img src="docs/assets/fugatensor-logo-inverse.svg" alt="FugaTensor logo" width="420">
+<img src="docs/assets/fugatensor-logo-inverse.svg" alt="FugaTensor logo" width="100%">
 
 [![Version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab)](docs/安装.md#requirements)
