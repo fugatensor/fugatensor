@@ -8,6 +8,7 @@ from fugatensor.ir import ExternalSpec, Module, ScalarType, TensorType, Value
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tensor import Tensor, normalize_data, normalize_dtype
 from fugatensor.tracing import TraceContext
+from fugatensor._state import active_trace
 from tests._helpers import make_ask_compiler
 
 
@@ -52,8 +53,20 @@ class ShapeAndTracingTests(unittest.TestCase):
             bool(x)
         with self.assertRaisesRegex(TypeError, "while tracing"):
             x.tolist()
-        with self.assertRaisesRegex(TypeError, "data-dependent"):
-            _ = x == 0
+        token = active_trace.set(first)
+        try:
+            predicate = x == 0
+        finally:
+            active_trace.reset(token)
+        self.assertEqual(predicate.value.type, TensorType((2,), 'bool'))
+        self.assertEqual(predicate.value.producer.opcode, 'compare')
+        scalar = TraceContext([((), 'f32')])
+        token = active_trace.set(scalar)
+        try:
+            with self.assertRaisesRegex(TypeError, 'data-dependent'):
+                bool(scalar.inputs[0] == 0)
+        finally:
+            active_trace.reset(token)
 
         # Freezing after finish().
         ctx = TraceContext([((1,), "i32")])
