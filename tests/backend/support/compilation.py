@@ -26,3 +26,13 @@ def matmul_plan(dtype='f32', *, batch=(), m=2, n=3, k=4, transpose_a=False, tran
                        'library': 'cublaslt', 'matmul': {'element_type': dtype, 'm': m, 'n': n, 'k': k,
                            'batch_count': math.prod(batch), 'transpose_a': transpose_a, 'transpose_b': transpose_b}}],
             'scheduling': {'policy': 'sequential', 'stream': 'session'}}
+
+
+def scalar_module(dtype, mode):
+    from fugatensor._ask import Module, ScalarType
+    module = Module()
+    scalar = ScalarType(dtype)
+    graph = module.graph('public_scalar', inputs={'x': scalar} if mode == 'identity' else {}, results=[scalar])
+    value = graph.inputs['x'] if mode == 'identity' else graph.constant(True if dtype == 'bool' else 7, dtype=dtype)
+    graph.return_(value)
+    return module

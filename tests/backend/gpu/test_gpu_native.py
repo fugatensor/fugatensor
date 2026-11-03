@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import gc
+from itertools import product
 import math
 from pathlib import Path
 import sys
@@ -18,6 +19,7 @@ from fugatensor._ask import Compiler, ExecutionSession, Module, ScalarType, Tens
 from fugatensor._ask.cuda import CUDAError, compile_cuda, execute
 from fugatensor._ask.gpu import CUDAKernel
 from support.host_runner import ask_opt_path, llc_path, open_cuda_session, ptxas_path
+from support.compilation import scalar_module
 from support.pointwise import (
     DTYPES,
     arithmetic_reference,
@@ -174,6 +176,19 @@ class NativeCUDAHardwareTests(unittest.TestCase):
             self.assertEqual(outs[2].to_host(), [2])
             with self.assertRaises((CUDAError, ValueError)):
                 exe.submit_many(ins, [ins[0], outs[1], outs[2]])
+
+            for dtype, mode in product(dtypes, ('identity', 'constant')):
+                with self.subTest(public_scalar=dtype, mode=mode):
+                    package = self.compiler.compile_cuda(scalar_module(dtype, mode),
+                        target={'backend': 'cuda', 'arch': self.arch}, cache_dir=self.cache_dir,
+                        output_dir=self.work / f'scalar-{dtype}-{mode}', llc=self.llc, ptxas=self.ptxas)
+                    expected = True if dtype == 'bool' else 7
+                    inputs = [session.from_host([expected], shape=(), dtype=dtype)] if mode == 'identity' else []
+                    outputs = package.prepare(session, graph=True).run(inputs)
+                    self.assertEqual(outputs[0].shape, ())
+                    self.assertEqual(outputs[0].to_host(), [expected])
+                    if mode == 'identity':
+                        self.assertEqual(outputs[0].data_ptr, inputs[0].data_ptr)
 
     def test_raw_abi_v2_shared_memory_and_resident_session_lifecycle(self):
         with ExecutionSession() as session:
