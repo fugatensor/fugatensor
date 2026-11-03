@@ -1,5 +1,7 @@
 # FugaTensor
 
+<img src="docs/assets/fugatensor-logo.png" alt="FugaTensor logo" width="420">
+
 [![Version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab)](docs/安装.md#requirements)
 [![CPU / CUDA](https://img.shields.io/badge/backend-CPU%20%7C%20CUDA-76b900)](docs/API/设备与执行.md#default-device)
