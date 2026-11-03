@@ -16,32 +16,6 @@ from .tracing import TraceContext, TraceTensor
 _active_functions = ContextVar("fugatensor_active_functions", default=())
 
 
-class FunctionContext:
-    """Save explicit SSA residuals in forward and read them in backward."""
-
-    __slots__ = ("_trace", "_saved", "_backward", "_closed")
-
-    def __init__(self, trace, *, saved=None):
-        self._trace = trace
-        self._saved = () if saved is None else tuple(saved)
-        self._backward = saved is not None
-        self._closed = False
-
-    def save_for_backward(self, *values):
-        if self._backward or self._closed:
-            raise RuntimeError("save_for_backward is only available during forward tracing")
-        if any(not isinstance(value, TraceTensor) or value.context is not self._trace for value in values):
-            raise TypeError("save_for_backward requires tensors from this forward trace")
-        # As in the return statement, the last explicit call defines the tuple.
-        self._saved = tuple(values)
-
-    @property
-    def saved_tensors(self):
-        if not self._backward:
-            raise RuntimeError("saved_tensors is only available during backward tracing")
-        return self._saved
-
-
 def _method(cls, name):
     descriptor = inspect.getattr_static(cls, name, None)
     if isinstance(descriptor, JITFunction):
@@ -79,9 +53,9 @@ def _function_key(function, wrapper):
 def _fingerprint(key):
     """The text descriptor records code/configuration, never object reprs."""
     digest = hashlib.sha256()
-    configuration, forward, backward = key
+    configuration, forward, vjp = key
     digest.update(repr(configuration).encode())
-    for function in (forward, backward):
+    for function in (forward, vjp):
         if function is None:
             digest.update(b"no-rule")
         else:
@@ -102,31 +76,33 @@ def _outputs(result, context, where):
 
 
 class fun:
-    """Subclass with a plain forward and an optional explicit backward rule.
+    """Subclass with a forward and an optional explicit vector-Jacobian product.
 
-    ``backward(self, ctx, dy)`` receives a Tensor or tuple matching forward's
-    return structure. It returns a tuple of gradients for floating Tensor
-    arguments only, in input order, retaining each input's shape and dtype.
+    ``forward(self, *args)`` returns a Tensor or tuple of Tensors.
+    ``vjp(self, primals, outputs, cotangents)`` receives tuples and returns
+    gradients for floating Tensor inputs, in input order and with matching
+    shapes/dtypes. Integer/bool outputs have None cotangents. Without a custom
+    VJP the forward graph supplies the derivative.
     """
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         forward, wrapper = _method(cls, "forward")
         if forward is None:
-            raise TypeError("fun subclasses must define forward(self, ctx, ...)")
+            raise TypeError("fun subclasses must define forward(self, ...)")
         parameters = tuple(inspect.signature(forward).parameters.values())
-        if len(parameters) < 2 or any(parameter.kind not in
+        if not parameters or any(parameter.kind not in
                 (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-                for parameter in parameters[:2]):
-            raise TypeError("fun.forward must begin with self and ctx parameters")
-        cls.__signature__ = inspect.signature(forward).replace(parameters=parameters[2:])
-        backward, backward_wrapper = _method(cls, "backward")
-        if backward is not None:
-            backward_parameters = tuple(inspect.signature(backward).parameters.values())
-            if len(backward_parameters) != 3 or any(parameter.kind not in
+                for parameter in parameters[:1]):
+            raise TypeError("fun.forward must begin with a self parameter")
+        cls.__signature__ = inspect.signature(forward).replace(parameters=parameters[1:])
+        vjp, vjp_wrapper = _method(cls, "vjp")
+        if vjp is not None:
+            vjp_parameters = tuple(inspect.signature(vjp).parameters.values())
+            if len(vjp_parameters) != 4 or any(parameter.kind not in
                     (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-                    for parameter in backward_parameters):
-                raise TypeError("fun.backward must have the signature backward(self, ctx, dy)")
+                    for parameter in vjp_parameters):
+                raise TypeError("fun.vjp must have the signature vjp(self, primals, outputs, cotangents)")
 
     def _definition_key(self):
         state = {}
@@ -148,8 +124,8 @@ class fun:
         forward, forward_wrapper = _method(type(self), "forward")
         if forward is None:
             raise TypeError("fun.forward must remain an instance method")
-        backward, backward_wrapper = _method(type(self), "backward")
-        return configuration, _function_key(forward, forward_wrapper), _function_key(backward, backward_wrapper)
+        vjp, vjp_wrapper = _method(type(self), "vjp")
+        return configuration, _function_key(forward, forward_wrapper), _function_key(vjp, vjp_wrapper)
 
     def __call__(self, *args, **kwargs):
         if active_trace.get() is not None:
@@ -198,7 +174,6 @@ class fun:
             raise TypeError("a fun call requires at least one Tensor argument")
         context = TraceContext([(value.shape, value.dtype) for value in tensors], engine=outer.engine,
                                name="fun_forward")
-        ctx = FunctionContext(context)
         replacements = iter(context.inputs)
         for name, value in tuple(bound.arguments.items()):
             if isinstance(value, TraceTensor):
@@ -207,17 +182,15 @@ class fun:
         token = active_trace.set(context)
         recursion = _active_functions.set((*_active_functions.get(), self))
         try:
-            result = forward(self, ctx, *bound.args, **bound.kwargs)
+            result = forward(self, *bound.args, **bound.kwargs)
             visible = _outputs(result, context, "fun.forward")
-            module = context.finish((*visible, *ctx._saved))
+            module = context.finish(visible)
         finally:
-            ctx._closed = True
             _active_functions.reset(recursion)
             active_trace.reset(token)
         if self._definition_key() != definition:
             raise ValueError("fun.forward must not mutate function state while tracing")
-        backward, _ = _method(type(self), "backward")
-        output_count = len(visible)
+        vjp, _ = _method(type(self), "vjp")
         # Preserve tuple structure even when it has a single visible result.
         output_is_tuple = isinstance(result, tuple)
         input_types = tuple(value.value.type for value in tensors)
@@ -227,39 +200,38 @@ class fun:
             if self._definition_key() != definition:
                 raise ValueError("custom function definition changed after its forward graph was traced; retrace the call")
 
-        def build_backward(target_graph, operands, forward_results, cotangents, *, engine=None):
+        def build_vjp(target_graph, operands, forward_results, cotangents, *, engine=None):
             validate_definition()
-            backward_context = TraceContext.from_graph(target_graph, engine=engine)
-            backward_context.depend_on(self)
-            saved = tuple(backward_context.wrap(value) for value in forward_results[output_count:])
-            backward_ctx = FunctionContext(backward_context, saved=saved)
-            seeds = tuple(backward_context.wrap(value) for value in cotangents)
-            token = active_trace.set(backward_context)
+            vjp_context = TraceContext.from_graph(target_graph, engine=engine)
+            vjp_context.depend_on(self)
+            inputs = tuple(vjp_context.wrap(value) for value in operands)
+            outputs = tuple(vjp_context.wrap(value) for value in forward_results)
+            seeds = tuple(None if value is None else vjp_context.wrap(value) for value in cotangents)
+            token = active_trace.set(vjp_context)
             try:
-                gradients = backward(self, backward_ctx, seeds if output_is_tuple else seeds[0])
+                gradients = vjp(self, inputs, outputs, seeds)
                 if not isinstance(gradients, tuple):
-                    raise TypeError("fun.backward must return a tuple of gradients, including for one input; None is unsupported")
-                values = _outputs(gradients, backward_context, "fun.backward")
+                    raise TypeError("fun.vjp must return a tuple of gradients, including for one input; None is unsupported")
+                values = _outputs(gradients, vjp_context, "fun.vjp")
             finally:
-                backward_ctx._closed = True
                 active_trace.reset(token)
             expected = tuple(type_ for type_ in input_types if type_.dtype in FLOAT_DTYPES)
             if len(values) != len(expected):
-                raise ValueError(f"fun.backward must return {len(expected)} gradients for floating Tensor inputs; "
+                raise ValueError(f"fun.vjp must return {len(expected)} gradients for floating Tensor inputs; "
                                  f"received {len(values)}")
             for index, (value, type_) in enumerate(zip(values, expected)):
                 if value.value.type != type_:
-                    raise TypeError(f"fun.backward gradient {index} shape and dtype must match input {type_}")
+                    raise TypeError(f"fun.vjp gradient {index} shape and dtype must match input {type_}")
             if self._definition_key() != definition:
-                raise ValueError("fun.backward must not mutate function state while tracing")
+                raise ValueError("fun.vjp must not mutate function state while tracing")
             return tuple(value.value for value in values)
 
-        build_backward.validate_definition = validate_definition
-        spec = CallSpec(name=name, forward=module, output_count=output_count,
-                        backward_rule=build_backward if backward is not None else None,
-                        backward_name=f"{name}.backward" if backward is not None else None,
+        build_vjp.validate_definition = validate_definition
+        spec = CallSpec(name=name, forward=module,
+                        vjp_rule=build_vjp if vjp is not None else None,
+                        vjp_name=f"{name}.vjp" if vjp is not None else None,
                         definition_key=_fingerprint(definition))
         results = outer.graph.call(*(value.value for value in tensors), spec=spec)
         results = results if isinstance(results, tuple) else (results,)
-        outputs = tuple(outer.wrap(value) for value in results[:output_count])
+        outputs = tuple(outer.wrap(value) for value in results)
         return outputs if output_is_tuple else outputs[0]

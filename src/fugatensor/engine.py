@@ -190,7 +190,7 @@ class Engine:
                 result['runtime'] = self._session.stats
             return result
 
-    def tensor(self, values, *, dtype=fp32, shape=None, requires_grad=False):
+    def tensor(self, values, *, dtype=fp32, shape=None):
         require_not_tracing()
         flat, shape = normalize_data(values, shape=shape)
         dtype = normalize_dtype(dtype)
@@ -198,7 +198,7 @@ class Engine:
             self._check_open()
             storage = (HostStorage.from_flat(flat, shape=shape, dtype=dtype)
                        if self._ordinal is None else self.session.from_host(flat, shape=shape, dtype=dtype))
-            return Tensor(self, storage, requires_grad=requires_grad)
+            return Tensor(self, storage)
 
     def to_flat(self, tensor):
         require_not_tracing()
@@ -206,7 +206,7 @@ class Engine:
             self._check_tensor(tensor)
             return tensor.storage.to_flat() if self._ordinal is None else tensor.storage.to_host()
 
-    def from_buffer(self, data, *, dtype, shape, copy=True, requires_grad=False):
+    def from_buffer(self, data, *, dtype, shape, copy=True):
         """Import contiguous elements or raw bytes without Python element conversion."""
         require_not_tracing()
         with self._lock:
@@ -216,7 +216,7 @@ class Engine:
             host = HostStorage.from_buffer(data, shape=shape, dtype=normalize_dtype(dtype), copy=copy)
             storage = host if self._ordinal is None else self.session.tensor(host.shape, host.dtype).copy_from_buffer(
                 host.to_buffer(copy=False))
-            return Tensor(self, storage, requires_grad=requires_grad)
+            return Tensor(self, storage)
 
     def _check_tensor(self, tensor):
         self._check_open()
@@ -431,11 +431,11 @@ def _select_engine(engine, device):
     return selected
 
 
-def tensor(data, *, dtype=fp32, engine=None, device=None, requires_grad=False):
+def tensor(data, *, dtype=fp32, engine=None, device=None):
     selected = _select_engine(engine, device)
-    return selected.tensor(data, dtype=dtype, requires_grad=requires_grad)
+    return selected.tensor(data, dtype=dtype)
 
 
-def from_buffer(data, *, dtype, shape, copy=True, engine=None, device=None, requires_grad=False):
+def from_buffer(data, *, dtype, shape, copy=True, engine=None, device=None):
     selected = _select_engine(engine, device)
-    return selected.from_buffer(data, dtype=dtype, shape=shape, copy=copy, requires_grad=requires_grad)
+    return selected.from_buffer(data, dtype=dtype, shape=shape, copy=copy)

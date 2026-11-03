@@ -62,56 +62,28 @@ class Tensor:
     Arithmetic records expressions for the engine's JIT. Creating or printing
     a Tensor does not copy its values back from a device.
     """
-    __slots__ = ("_engine", "_storage", "_shape", "_dtype", "_pending", "_requires_grad", "_grad",
-                 "_history", "_history_index", "__weakref__")
+    __slots__ = ("_engine", "_storage", "_shape", "_dtype", "_pending", "_origin", "__weakref__")
 
-    def __init__(self, engine, storage, *, requires_grad=False):
-        if type(requires_grad) is not bool:
-            raise TypeError("requires_grad must be bool")
-        if requires_grad and storage.dtype not in ("f16", "bf16", "f32"):
-            raise TypeError("requires_grad is only supported for floating tensors")
+    def __init__(self, engine, storage):
         self._engine = engine
         self._storage = storage
         self._shape = tuple(storage.shape)
         self._dtype = DType(storage.dtype)
-        self._pending = None
-        self._requires_grad = requires_grad
-        self._grad = None
-        self._history = None
-        self._history_index = None
+        self._pending = self._origin = None
 
     @classmethod
     def _from_pending(cls, engine, shape, dtype, pending):
+        from ._lazy import Result
         result = cls.__new__(cls)
         result._engine, result._storage = engine, None
         result._shape, result._dtype = tuple(shape), DType(dtype)
         result._pending = pending
-        result._requires_grad = False
-        result._grad = result._history = result._history_index = None
+        # Provenance survives materialization; a detached alias has no origin.
+        result._origin = pending if isinstance(pending, Result) else None
         return result
 
-    @property
-    def requires_grad(self):
-        return self._requires_grad
-
-    @property
-    def grad(self):
-        return self._grad
-
-    @property
-    def is_leaf(self):
-        return self._history is None
-
-    def backward(self, gradient=None, *, retain_graph=None, create_graph=False):
-        from .autograd import backward
-        return backward(self, gradient, retain_graph=retain_graph, create_graph=create_graph)
-
-    def zero_grad(self, *, set_to_none=True):
-        from .autograd import zero_grad
-        zero_grad(self, set_to_none=set_to_none)
-
     def detach(self):
-        """Return a handle sharing this buffer, without gradient history."""
+        """Return a numerical alias that stops differentiation through this value."""
         require_not_tracing()
         self.engine._check_tensor(self)
         if self._storage is None:

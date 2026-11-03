@@ -171,7 +171,7 @@ class DefaultDeviceTests(unittest.TestCase):
         self.addCleanup(ft.shutdown)
 
     def test_direct_tensor_calls_reuse_engine_and_support_autograd(self):
-        x = ft.tensor(3.0, requires_grad=True)
+        x = ft.tensor(3.0)
         y = ft.tensor(2.0)
         self.assertEqual(x.dtype, "f32")
         self.assertEqual(ft.tensor([1, 2]).dtype, "f32")
@@ -179,9 +179,9 @@ class DefaultDeviceTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "shape"):
             ft.tensor([1, 2], shape=(1, 2))
         result = x * x + y
-        result.backward()
+        derivative = ft.grad(result, x)
         self.assertEqual(result.tolist(), 11.0)
-        self.assertEqual(x.grad.tolist(), 6.0)
+        self.assertEqual(derivative.tolist(), 6.0)
         ft.set_default_device("cuda:0")
         self.assertEqual(ft.get_default_device(), Device("cuda:0"))
         self.assertFalse(x.engine.closed)
@@ -236,7 +236,7 @@ class DefaultDeviceTests(unittest.TestCase):
         class Select(ft.fun):
             selected = Device("cuda")
 
-            def forward(self, ctx, value, requested=Device("cuda")):
+            def forward(self, value, requested=Device("cuda")):
                 return value + (1 if requested == self.selected else 2)
 
         operation = Select()

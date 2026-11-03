@@ -8,7 +8,7 @@
   <a href="docs/安装.md#installation-variants"><img src="https://img.shields.io/badge/Triton-optional-8b5cf6" alt="Triton optional"></a>
 </p>
 
-FugaTensor 是基于 [ASK](../ask/README.md) 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件、反向传播或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
+FugaTensor 是基于 [ASK](../ask/README.md) 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
 
 ```python
 import fugatensor as ft
@@ -52,31 +52,35 @@ CPU JIT 使用 `cc` 链接器，自有 CUDA 计算使用 `llc` / `ptxas`。构�
 
 ## 基本用法
 
-### 1. 自动微分、`ft.fun` 自定义反向与高阶求导
+### 1. 函数式自动微分与自定义 VJP
 
 ```python
 def loss(x):
     return ft.square(x) + 3 * x
 
-x = ft.tensor(2.0, requires_grad=True)
-loss(x).backward()
-print(x.grad.tolist())  # 7.0
+x = ft.tensor(2.0)
+y = loss(x)
+first = ft.grad(y, x)
+print(first.tolist())           # 7.0
+print(ft.grad(first, x).tolist()) # 2.0
 ```
 
-非标量输出调用 `.backward(dy)` 时，`dy` 须与输出同形状、同类型。自定义反向继承 `ft.fun`，通过 `ctx.save_for_backward(...)` 和 `ctx.saved_tensors` 保存、读取中间张量：
+`ft.grad` 返回待计算的导数 Tensor；读取后仍可继续求导。非标量输出须通过 `seed=` 传入同形状、同类型的余切种子。`ft.stop_gradient(x)` 或 `x.detach()` 显式断开求导路径，也可用于 `ft.fun` 的前向与 VJP。
+
+自定义函数继承 `ft.fun`，普通前向自动求导，也可提供纯 VJP 规则：
 
 ```python
 class CustomSquare(ft.fun):
-    def forward(self, ctx, x):
-        ctx.save_for_backward(x)
+    def forward(self, x):
         return ft.square(x)
 
-    def backward(self, ctx, dy):
-        (x,) = ctx.saved_tensors
+    def vjp(self, primals, outputs, cotangents):
+        (x,) = primals
+        (dy,) = cotangents
         return (2 * x * dy,)
 ```
 
-`y.backward(create_graph=True)` 会记录梯度的计算图。保存 `first = x.grad`，调用 `x.zero_grad()` 后再执行 `first.backward()`，可以继续求高阶导数。求导路径上的算子须有相应规则，详见[自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md)。
+三个 VJP 参数均为 tuple，返回浮点 Tensor 输入的梯度 tuple。梯度图可组合为更高阶导数，活跃路径须有对应规则。详见[自动微分 API](docs/API/自动微分与自定义函数.md)与[IR 变换](docs/architecture/自动微分与自定义算子.md)。
 
 ### 2. 接入用户 Triton 算子
 
@@ -112,12 +116,12 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 | **数据类型** | 默认 `ft.fp32`；支持 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`，用 `.astype(...)` 显式转换 |
 | **张量创建与基础运算** | `tensor`、`zeros`、`ones`、`empty`、`full`；加减乘、负号、`square`、`cast`、`reshape`、`zeros_like`、`ones_like`（静态形状，含 0-D 标量与空张量，无隐式广播） |
 | **控制流** | Fuga IR 静态 `if` 选择与有界 `for` 展开；普通 Python 支持 0-D Tensor 的 `if`/`while`，条件读取触发按需执行 |
-| **自动微分** | `requires_grad`、`.backward()`、`.grad` 累加、`detach()`、`no_grad()`、`ft.fun` 自定义前反向、`create_graph=True` 高阶求导 |
+| **自动微分** | `ft.grad(outputs, inputs, seed=...)` 延迟求导、`detach()` / `stop_gradient()`、`ft.fun` 纯 VJP、导数图组合与高阶求导 |
 | **注意力** | `nn.functional.scaled_dot_product_attention`，CUDA fp16/bf16、可选因果掩码、FlashAttention 前向及一阶反向 |
 | **权重导出** | 版本化 PyTree 权重目录，支持嵌套 dict/list/tuple、六种基础 dtype、内容寻址去重、原子导出与完整性校验 |
 | **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA、Triton cubin 与多 kernel 调度，支持多端口和按值标量 |
 
-暂未实现隐式广播、矩阵乘法与归约算子；含不透明 Triton 算子的路径支持一阶手写反向，不支持二阶及以上高阶微分。
+暂未实现隐式广播、矩阵乘法与归约算子。外部 kernel 的微分通过纯 VJP 规则提供；高阶微分要求导数图的活跃路径具备相应规则。内置 FlashAttention 目前支持一阶导数。
 
 ## 测试
 

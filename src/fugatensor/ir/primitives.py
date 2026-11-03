@@ -12,10 +12,6 @@ from .errors import DifferentiationError
 from .types import FLOAT_DTYPES, ScalarType, TensorType, as_type, cast_type, constant_value
 
 
-class HigherOrderError(DifferentiationError):
-    """A program has no executable composable rule for an operation."""
-
-
 @dataclass(frozen=True)
 class PrimitiveRule:
     """Typing and graph transforms for one primitive.
@@ -64,6 +60,16 @@ def _reshape_type(inputs, attrs):
     if math.prod(inputs[0].shape) != math.prod(result.shape):
         raise ValueError("reshape must preserve the number of elements")
     return (result,)
+
+
+def _stop_gradient_type(inputs, attrs):
+    if len(inputs) != 1 or attrs:
+        raise TypeError("stop_gradient requires one operand and no attributes")
+    return inputs
+
+
+def _stop_gradient_rule(*args):
+    return (None,)
 
 
 def _arithmetic_type(inputs, attrs):
@@ -151,6 +157,9 @@ PRIMITIVE_RULES = MappingProxyType({
                           "Floating casts cast the derivative too; rounding is ignored."),
     "reshape": PrimitiveRule("reshape", _reshape_type, _reshape_vjp, _reshape_jvp,
                              "Reshape tangents forward and cotangents back to the operand shape."),
+    "stop_gradient": PrimitiveRule("stop_gradient", _stop_gradient_type,
+                                   _stop_gradient_rule, _stop_gradient_rule,
+                                   "Preserve the value and stop derivative dependencies.", False),
 })
 
 
@@ -200,31 +209,3 @@ def primitive_vjp(builder, operation, primals, cotangent, active):
         if gradient is not None and gradient.type != operand.type:
             raise TypeError(f"fuga.{operation.opcode} VJP must preserve operand shape and dtype")
     return gradients
-
-
-def validate_composable(module, *, phase="forward"):
-    """Check executable rules, including nested custom forward computations."""
-    from .transforms import specialize
-    flat = specialize(module, expand_calls=False)
-    for function in flat.functions:
-        for operation in function.operations:
-            if operation.opcode == "return":
-                continue
-            if operation.opcode == "call":
-                spec = operation.attrs["spec"]
-                validate_composable(spec.forward, phase=f"{phase} in {spec.name}")
-                continue
-            if operation.opcode == "external":
-                compiler = operation.attrs["spec"].compiler
-                raise HigherOrderError(f"higher-order differentiation has no composable primitive rule for "
-                                       f"external compiler {compiler!r} ({phase}, {operation.id})")
-            rule = PRIMITIVE_RULES.get(operation.opcode)
-            if rule is None or not callable(rule.abstract_eval) or not callable(rule.vjp):
-                raise HigherOrderError(f"higher-order differentiation has no registered primitive rule for "
-                                       f"fuga.{operation.opcode} ({phase}, {operation.id})")
-            validate_primitive(operation)
-            if rule.floating_values and any(value.type.dtype not in FLOAT_DTYPES
-                                            for value in (*operation.operands, *operation.results)):
-                raise HigherOrderError(f"higher-order differentiation requires floating operands/results for "
-                                       f"fuga.{operation.opcode} ({phase}, {operation.id})")
-    return module

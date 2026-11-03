@@ -22,6 +22,7 @@
 | `graph.add(a, b, *, id=None)`、`graph.mul(a, b, *, id=None)` | 类型和形状匹配的基础运算。 |
 | `graph.cast(value, *, dtype, id=None)` | 显式类型转换。 |
 | `graph.reshape(value, shape, *, id=None)` | 保持张量 dtype 和元素次序，按静态形状重排相同数量的元素。 |
+| `graph.stop_gradient(value, *, id=None)` | 保持标量或张量的类型、形状和数值，停止 JVP/VJP 传播；降级到 ASK 时复用输入值。 |
 | `graph.return_(*values)` | 结束函数并指定返回值。 |
 | `module.verify()` | 校验模块，成功返回自身，非法图报错。 |
 | `module.to_text()` | 输出 Fuga IR 文本。 |
@@ -62,7 +63,7 @@ IR 内部用字符串编码 dtype，构建器接受 `ft.DType` 类型对象。�
 | `ft.ir.jvp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及选定输入的切线，输出原始结果及对应结果切线。 |
 | `ft.ir.vjp(module, *, argnums=None, max_unroll=10000)` | 新 Module 接收原始输入及每个结果的余切种子，输出选定输入的梯度。 |
 
-`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。变换规则见[可组合微分](../ir/控制流与可组合变换.md#jvp-and-vjp)。
+`argnums` 接受单个输入索引或无重复索引 list/tuple，默认选择全部浮点输入。JVP/VJP 当前要求单函数、浮点输出及具体的被微分张量形状；缺少微分规则的活跃外部节点会报错。普通 `fuga.call` 自动支持 JVP/VJP，提供显式 VJP 的调用当前拒绝活跃 JVP。变换规则见[可组合微分](../ir/控制流与可组合变换.md#jvp-and-vjp)。
 
 <a id="lowering"></a>
 

@@ -344,31 +344,28 @@ def _blob(root, identifier, record):
     return _decode_values(data, record["dtype"], _count(record["shape"]))
 
 
-def _restore(node, root, arrays, make_tensor, requires_grad):
+def _restore(node, root, arrays, make_tensor):
     kind = node["kind"]
     if kind == "array":
         identifier = node["array"]
         record = arrays[identifier]
         values = _blob(root, identifier, record)
-        return make_tensor(values, dtype=record["dtype"], shape=tuple(record["shape"]),
-                           requires_grad=requires_grad)
+        return make_tensor(values, dtype=record["dtype"], shape=tuple(record["shape"]))
     if kind == "dict":
-        return {item["key"]: _restore(item["value"], root, arrays, make_tensor, requires_grad)
+        return {item["key"]: _restore(item["value"], root, arrays, make_tensor)
                 for item in node["items"]}
-    values = [_restore(item, root, arrays, make_tensor, requires_grad) for item in node["items"]]
+    values = [_restore(item, root, arrays, make_tensor) for item in node["items"]]
     return values if kind == "list" else tuple(values)
 
 
-def load(directory, *, engine=None, device=None, requires_grad=False):
+def load(directory, *, engine=None, device=None):
     """Load a weight PyTree, creating Tensors on ``engine`` or the current Engine."""
-    if type(requires_grad) is not bool:
-        raise TypeError("requires_grad must be a bool")
     root, manifest = _manifest(directory)
     from .engine import _select_engine
     selected = _select_engine(engine, device)
-    def restore(values, *, dtype, shape, requires_grad):
-        return selected.tensor(values, dtype=dtype, shape=shape, requires_grad=requires_grad)
-    return _restore(manifest["tree"], root, manifest["arrays"], restore, requires_grad)
+    def restore(values, *, dtype, shape):
+        return selected.tensor(values, dtype=dtype, shape=shape)
+    return _restore(manifest["tree"], root, manifest["arrays"], restore)
 
 
 def read_manifest(directory):

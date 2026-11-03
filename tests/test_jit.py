@@ -83,7 +83,7 @@ class HostStorageTests(unittest.TestCase):
 
 
 class TensorCreationTests(EngineTestCase):
-    def test_size_factories_create_leaf_buffers_without_compiling(self):
+    def test_size_factories_create_buffers_without_compiling(self):
         before = self.engine.cache_info()['compilations']
         self.assertEqual(ft.tensor(data=[[1, 2], [3, 4]]).shape, (2, 2))
         for dtype in (ft.bool, ft.int32, ft.int64, ft.fp32, ft.fp16, ft.bf16):
@@ -93,7 +93,6 @@ class TensorCreationTests(EngineTestCase):
                 self.assertIs(zero.dtype, dtype)
                 self.assertEqual(zero.tolist(), [[0, 0, 0], [0, 0, 0]])
                 self.assertEqual(one.tolist(), [[1, 1, 1], [1, 1, 1]])
-                self.assertTrue(zero.is_leaf and one.is_leaf)
                 self.assertIs(zero.engine, self.engine)
         self.assertIs(ft.full((2,), 3).dtype, ft.fp32)
         self.assertEqual(ft.full((2, 3), -(2**63), dtype=ft.int64).tolist(),
@@ -109,22 +108,14 @@ class TensorCreationTests(EngineTestCase):
         allocated = ft.empty(2, 3)
         self.assertEqual(allocated.shape, (2, 3))
         self.assertEqual(allocated.to_buffer().nbytes, 24)
-        self.assertTrue(allocated.is_leaf)
         self.assertEqual(self.engine.cache_info()['compilations'], before)
 
     def test_factory_gradients_and_rejected_sizes(self):
-        x = ft.full((3,), 2, requires_grad=True)
-        (x * x).backward(ft.ones(3))
-        self.assertEqual(x.grad.tolist(), [4.0, 4.0, 4.0])
-        self.assertTrue(x.is_leaf)
+        x = ft.full((3,), 2)
+        self.assertEqual(ft.grad(x * x, x, seed=ft.ones(3)).tolist(), [4.0, 4.0, 4.0])
         for size in ((), (True,), (-1,), (1.5,), ((2,), 3), (2**63,), (2**61,)):
             with self.subTest(size=size), self.assertRaises((TypeError, ValueError)):
                 ft.zeros(*size)
-        for create in (ft.empty, ft.zeros, ft.ones):
-            with self.subTest(create=create), self.assertRaises(TypeError):
-                create(2, dtype=ft.int32, requires_grad=True)
-            with self.subTest(create=create, requires_grad=1), self.assertRaises(TypeError):
-                create(2, requires_grad=1)
         with self.assertRaises(TypeError):
             ft.full((2,), 1, dtype=ft.bool)
         with self.assertRaises(TypeError):
@@ -195,7 +186,7 @@ class SharedJITExecutionMixin:
 
     def test_public_buffer_import_and_export(self):
         source = array('f', [1.5, -0.0])
-        x = ft.from_buffer(source, shape=(2,), dtype=ft.fp32, engine=self.engine, requires_grad=True)
+        x = ft.from_buffer(source, shape=(2,), dtype=ft.fp32, engine=self.engine)
         self.assertIs(x.dtype, ft.fp32)
         source[0] = 9
         raw = (x * 2).to_buffer()
@@ -249,7 +240,7 @@ class SharedJITExecutionMixin:
         traces = []
 
         class Scale(ft.fun):
-            def forward(self, ctx, value):
+            def forward(self, value):
                 traces.append(True)
                 return value * 7
 
@@ -327,11 +318,11 @@ class SharedJITExecutionMixin:
     def test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions(self):
         class Scale(ft.fun):
             factor = 2
-            def forward(self, ctx, value):
+            def forward(self, value):
                 return value * self.factor
 
         class First(ft.fun):
-            def forward(self, ctx, value, unused):
+            def forward(self, value, unused):
                 return value + 3
 
         x = ft.tensor([1, 2], dtype="f32")
@@ -357,7 +348,7 @@ class SharedJITExecutionMixin:
 
     def test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions(self):
         class Pair(ft.fun):
-            def forward(self, ctx, first, second):
+            def forward(self, first, second):
                 return first * 2, second * 3
 
         x, y = ft.tensor([1, 2]), ft.tensor([4, 5])
@@ -368,13 +359,13 @@ class SharedJITExecutionMixin:
 
         class Scale(ft.fun):
             factor = 2
-            def forward(self, ctx, value):
+            def forward(self, value):
                 return value * self.factor
 
         scale = Scale()
 
         class NestedPair(ft.fun):
-            def forward(self, ctx, value):
+            def forward(self, value):
                 return value + 1, scale(value)
 
         selected, discarded = NestedPair()(x)

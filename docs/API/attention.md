@@ -31,18 +31,19 @@ ft.nn.functional.scaled_dot_product_attention(query, key, value, *, is_causal=Fa
 ```python
 import fugatensor as ft
 
-q = ft.ones(1, 2, 16, 32, dtype=ft.fp16, device="cuda", requires_grad=True)
-k = ft.ones(1, 2, 24, 32, dtype=ft.fp16, device="cuda", requires_grad=True)
-v = ft.ones(1, 2, 24, 64, dtype=ft.fp16, device="cuda", requires_grad=True)
+q = ft.ones(1, 2, 16, 32, dtype=ft.fp16, device="cuda")
+k = ft.ones(1, 2, 24, 32, dtype=ft.fp16, device="cuda")
+v = ft.ones(1, 2, 24, 64, dtype=ft.fp16, device="cuda")
 
 output = ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)
-output.backward(ft.ones_like(output))
+dq, dk, dv = ft.grad(output, (q, k, v), seed=ft.ones_like(output))
+ft.evaluate(output, dq, dk, dv)
 print(output.shape)  # (1, 2, 16, 64)
-print(q.grad.shape, k.grad.shape, v.grad.shape)
+print(dq.shape, dk.shape, dv.shape)
 # (1, 2, 16, 32) (1, 2, 24, 32) (1, 2, 24, 64)
 ```
 
-调用 `backward` 时传入同形状、同类型的梯度种子。前后运算可写为 `scaled_dot_product_attention(q * 0.5, k, v) * 2`，一起参与链式求导。
+调用 `ft.grad(output, (q, k, v), seed=...)` 时传入同形状、同类型的余切种子，返回三个待计算的梯度 Tensor。前后运算可写为 `scaled_dot_product_attention(q * 0.5, k, v) * 2`，一起参与链式求导。
 
 <a id="support-boundaries"></a>
 
@@ -50,6 +51,6 @@ print(q.grad.shape, k.grad.shape, v.grad.shape)
 
 使用前安装 `fugatensor[all]` 或配置独立 Triton worker。输入须满足上文的 CUDA、形状和类型要求，创建时选择 `dtype=ft.fp16` 或 `dtype=ft.bf16`。
 
-当前没有自定义 scale、dropout、加性 bias、外部 attention mask、分组查询注意力、变长序列或非连续 stride 参数。手写反向支持一阶微分，请求 `create_graph=True` 等高阶微分会被拒绝。
+当前没有自定义 scale、dropout、加性 bias、外部 attention mask、分组查询注意力、变长序列或非连续 stride 参数。手写 VJP 支持一阶微分；继续对梯度调用 `ft.grad` 时，活跃的反向外部 kernel 缺少微分规则，会被拒绝。
 
 实现与执行计划见[ASK 桥接与多后端执行](../architecture/ASK桥接与多后端执行.md#cuda-and-triton)；精度、因果模式和形状的数值验证见[测试组织](../测试.md#attention-matrix)。

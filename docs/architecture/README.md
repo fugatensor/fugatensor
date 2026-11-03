@@ -6,12 +6,15 @@ FugaTensor 提供 Python 张量接口，在 Fuga IR 上组图、求导，再交�
 
 ```mermaid
 flowchart TD
-    User["普通 Python / Tensor 运算 / ft.fun / ft.triton.kernel"] --> Pending["待计算 Tensor 与梯度历史"]
-    Pending --> Boundary["读取数据 / 标量条件 / backward / ft.evaluate"]
+    User["普通 Python / Tensor 运算 / ft.fun / ft.triton.kernel"] --> Pending["待计算 Tensor 与表达式来源"]
+    Pending --> AD["ft.grad：Fuga IR 导数变换"]
+    AD --> Derived["可继续组合的导数 Tensor"]
+    Derived --> Boundary
+    Pending --> Boundary["读取数据 / 标量条件 / ft.evaluate"]
     Boundary --> Cache["查询不可变模板与结构缓存"]
     Cache -->|"未命中"| FugaIR["合并所需依赖为 Fuga IR"]
     FugaIR <-->|"可达性、活跃性与反向边界"| NativeCPP["C++ 图分析"]
-    FugaIR -->|"静态化简 + JVP / VJP"| Lower["降级桥接与溯源"]
+    FugaIR -->|"静态化简与剪枝"| Lower["降级桥接与溯源"]
     Lower --> ASK["ASK C++ 编译与执行计划"]
     Cache -->|"命中"| Execute["绑定本次张量"]
     ASK --> Execute
@@ -25,7 +28,7 @@ flowchart TD
 
 Fuga IR 保存框架层的控制流和求导信息；降级后的 ASK IR 是形状确定的单基本块计算图。
 
-- FugaTensor 管理 Tensor、表达式和梯度历史，处理 Python 控制流、自定义函数追踪、JVP/VJP 和图剪枝，同时调用第三方 worker、维护编译缓存。
+- FugaTensor 管理 Tensor、表达式来源与函数式求导，处理 Python 控制流、自定义函数追踪、JVP/VJP 和图剪枝，同时调用第三方 worker、维护编译缓存。
 - ASK 校验和优化静态图，融合自有逐元素计算，生成机器码和执行计划。C++ 运行时负责参数绑定、计划提交、缓冲区、事件和 CUDA Graph replay。
 
 工程细节：[Fuga IR 总览](../ir/README.md) · [ASK 与 FugaTensor 协同分工](../../../ask/docs/FugaTensor协同与演进路线.md#division-of-labor)
@@ -36,7 +39,7 @@ Fuga IR 保存框架层的控制流和求导信息；降级后的 ASK IR 是形�
 
 Tensor 持有 CPU/CUDA 存储，或记录待计算表达式及其形状、类型和设备。`x + y`、`x.astype(ft.fp16)`、`x.reshape(2, 2)` 等运算自动组图，跨 Python 函数产生的表达式也可合并。
 
-读取数据、判断 0-D 标量条件、调用 `.backward()` 或 `ft.evaluate(...)` 时触发 JIT。引擎先按模板及连接关系查缓存，未命中时合并 Fuga IR 并编译。`ft.evaluate(a, b)` 可一起计算多个输出，结果存回 Tensor。连续内存可通过 `from_buffer` / `to_buffer` 批量传递。
+读取数据、判断 0-D 标量条件或调用 `ft.evaluate(...)` 时触发 JIT；`ft.grad` 构造的导数 Tensor 使用相同执行边界。引擎先按模板及连接关系查缓存，未命中时合并 Fuga IR 并编译。`ft.evaluate(a, b)` 可一起计算多个输出，结果存回 Tensor。连续内存可通过 `from_buffer` / `to_buffer` 批量传递。
 
 Python `if` / `while` 读取条件 Tensor 的真值后选择路径，后续运算继续组图。`ft.fun` 的隔离追踪只接受由静态元信息决定的分支，数据依赖分支应放在外层 Python 代码中。
 
@@ -54,13 +57,13 @@ C++ 扩展 `fugatensor._native`（`cpp/graph.cpp`）计算输入可达集、输�
 
 <a id="arch-autodiff"></a>
 
-## 4. 运行时自动微分、`ft.fun` 与高阶求导
+## 4. 函数式自动微分、`ft.fun` 与高阶求导
 
-求导通过 `requires_grad=True`、`y.backward(seed)` 和叶子张量 `.grad` 使用，反向计算由 Fuga IR 变换生成。
+调用 `ft.grad(outputs, inputs, seed=...)` 对指定表达式求导。该调用生成 Fuga IR 导数图，并返回待计算 Tensor。
 
-- 表达式创建时记录梯度历史。`.backward()` 先检查所需路径的反向规则，检查通过后才编译执行并更新 `.grad`。
-- `ft.fun` 追踪为带保存值端口的 `fuga.call`；求导时接入 `backward` 子图，其中可以调用手写 Triton kernel。
-- `create_graph=True` 为反向计算保留梯度历史。在已有微分规则范围内，梯度图可以继续求导。
+- Tensor 求值后保留表达式来源，重复求导和中间张量求导通过同一套 IR 变换完成。
+- `ft.fun` 追踪为 `fuga.call`；普通前向自动微分，可选的 `vjp` 接收输入原值、前向输出与余切三个 tuple，其中可以调用手写 Triton kernel。
+- 导数 Tensor 可以继续参与运算和高阶求导；`detach` / `stop_gradient` 显式断开路径，未连接的求导输入得到零。
 
 工程细节：[自动微分与自定义算子](自动微分与自定义算子.md) · [控制流与可组合变换](../ir/控制流与可组合变换.md)
 

@@ -71,7 +71,7 @@ class AttentionContractTests(unittest.TestCase):
         token = active_trace.set(context)
         self.addCleanup(active_trace.reset, token)
         class AttentionBlock(ft.fun):
-            def forward(self, ctx, query, key, value):
+            def forward(self, query, key, value):
                 return attention(query, key, value, is_causal=True)
 
         with mock.patch('builtins.__import__', side_effect=block_triton):
@@ -110,7 +110,7 @@ class AttentionCUDAExecutionTests(EngineTestCase):
     def run_case(self, *, dtype, dimensions, causal, composition):
         batch, heads, m, n, d, dv = dimensions
         shapes = ((batch, heads, m, d), (batch, heads, n, d), (batch, heads, n, dv))
-        inputs = tuple(ft.tensor(input_data(shape, period=period, scale=scale), dtype=dtype, requires_grad=True)
+        inputs = tuple(ft.tensor(input_data(shape, period=period, scale=scale), dtype=dtype)
                        for shape, period, scale in zip(shapes, (23, 19, 17), (0.03125, 0.03125, 0.0625)))
         q, k, v = inputs
         q_scale, output_scale = COMPOSITIONS[composition]
@@ -128,18 +128,18 @@ class AttentionCUDAExecutionTests(EngineTestCase):
         expected = [output_scale * value for value in reference(*values, **parameters)]
         self.assert_values(actual, expected, dtype=dtype)
         seed = ft.tensor(input_data(output.shape, period=13, scale=0.0625), dtype=dtype)
-        output.backward(seed)
+        gradients = ft.grad(output, inputs, seed=seed)
+        ft.evaluate(*gradients)
         backward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
         self.assertEqual(backward_steps.count('external'), 5)
         expected_gradients = reference_backward(*values,
             [output_scale * value for value in flatten(seed.tolist())], **parameters)
         expected_gradients = ([q_scale * value for value in expected_gradients[0]], *expected_gradients[1:])
-        for name, tensor, expected in zip(('query', 'key', 'value'), inputs, expected_gradients):
+        for name, tensor, derivative, expected in zip(('query', 'key', 'value'), inputs, gradients, expected_gradients):
             with self.subTest(gradient=name):
-                self.assertIsNotNone(tensor.grad)
-                self.assertEqual(tensor.grad.shape, tensor.shape)
-                self.assertIs(tensor.grad.dtype, dtype)
-                actual = flatten(tensor.grad.tolist())
+                self.assertEqual(derivative.shape, tensor.shape)
+                self.assertIs(derivative.dtype, dtype)
+                actual = flatten(derivative.tolist())
                 self.assert_values(actual, expected, dtype=dtype, backward=True)
                 self.assertLess(max(abs(value - target) for value, target in zip(actual, expected)), 0.02)
 
@@ -151,14 +151,14 @@ class AttentionCUDAExecutionTests(EngineTestCase):
                 with self.assertRaisesRegex(ValueError, 'Engine|engine'):
                     attention(q, foreign, v)
 
-    def test_higher_derivatives_fail_before_compile_or_gradient_mutation(self):
-        q, k, v = (ft.ones(1, 1, 2, 32, dtype=ft.fp16, requires_grad=True) for _ in range(3))
+    def test_higher_derivatives_fail_before_compile(self):
+        q, k, v = (ft.ones(1, 1, 2, 32, dtype=ft.fp16) for _ in range(3))
         output = attention(q, k, v)
         seed = ft.ones(1, 1, 2, 32, dtype=ft.fp16)
+        first = ft.grad(output, q, seed=seed)
         with mock.patch.object(self.engine, '_compile', side_effect=AssertionError('compiled before validation')):
-            with self.assertRaisesRegex(ValueError, 'external|derivative'):
-                output.backward(seed, create_graph=True)
-        self.assertTrue(all(item.grad is None for item in (q, k, v)))
+            with self.assertRaisesRegex(ValueError, 'external|derivative|VJP'):
+                ft.grad(first, q, seed=ft.ones_like(first))
 
 
 if __name__ == '__main__':

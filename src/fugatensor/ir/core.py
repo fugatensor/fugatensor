@@ -107,13 +107,12 @@ class CallSpec:
 
     Executable Python is only a tracing callback, never serialized as tensor
     computation. The printable descriptor contains the forward program and a
-    stable rule identity. Saved residuals are ordinary hidden SSA results.
+    stable rule identity. Every result is a visible forward output.
     """
     name: str
     forward: Module
-    output_count: int
-    backward_rule: object = field(default=None, repr=False)
-    backward_name: str | None = None
+    vjp_rule: object = field(default=None, repr=False)
+    vjp_name: str | None = None
     definition_key: str = ""
     input_types: tuple = field(init=False)
     result_types: tuple = field(init=False)
@@ -127,12 +126,12 @@ class CallSpec:
             raise TypeError("custom calls require one isolated Fuga forward function")
         self.forward.verify()
         function = self.forward.functions[0]
-        if type(self.output_count) is not int or not 0 < self.output_count <= len(function.outputs):
-            raise ValueError("custom call output_count must name its visible forward results")
-        if self.backward_rule is not None and not callable(self.backward_rule):
-            raise TypeError("custom backward rule must be a tracing callback")
-        if self.backward_rule is not None and (not isinstance(self.backward_name, str) or not self.backward_name):
-            raise ValueError("custom backward rules require a stable printable name")
+        if not function.outputs:
+            raise ValueError("custom calls require at least one forward output")
+        if self.vjp_rule is not None and not callable(self.vjp_rule):
+            raise TypeError("custom VJP rule must be a tracing callback")
+        if self.vjp_rule is not None and (not isinstance(self.vjp_name, str) or not self.vjp_name):
+            raise ValueError("custom VJP rules require a stable printable name")
         if not isinstance(self.definition_key, str):
             raise TypeError("custom call definition_key must be a string")
         object.__setattr__(self, "input_types", tuple(value.type for value in function.inputs.values()))
@@ -141,22 +140,22 @@ class CallSpec:
         object.__setattr__(self, "_forward_key", self.forward._structural_key())
 
     @property
-    def saved_count(self):
-        return len(self.result_types) - self.output_count
+    def output_count(self):
+        return len(self.result_types)
 
     @property
-    def has_backward(self):
-        return self.backward_rule is not None
+    def has_vjp(self):
+        return self.vjp_rule is not None
 
     def verify(self):
         if self.forward._structural_key() != self._forward_key:
             raise ValueError("custom call forward graph changed after its definition was captured")
 
-    def build_backward(self, target_graph, operands, forward_results, cotangents, *, engine=None):
-        if not self.has_backward:
-            raise ValueError(f"custom function {self.name} has no backward rule")
+    def build_vjp(self, target_graph, operands, forward_results, cotangents, *, engine=None):
+        if not self.has_vjp:
+            raise ValueError(f"custom function {self.name} has no VJP rule")
         self.verify()
-        return self.backward_rule(target_graph, operands, forward_results, cotangents, engine=engine)
+        return self.vjp_rule(target_graph, operands, forward_results, cotangents, engine=engine)
 
 
 @dataclass(frozen=True, eq=False)
@@ -332,6 +331,10 @@ class BlockBuilder:
         self._check_values((value,))
         result, = infer_result_types("reshape", (value.type,), {"shape": tuple(shape)})
         return self.operation("reshape", (value,), (result,), attrs={"shape": result.shape}, id=id).results[0]
+
+    def stop_gradient(self, value, *, id=None):
+        self._check_values((value,))
+        return self.operation("stop_gradient", (value,), (value.type,), id=id).results[0]
 
     def _binary(self, opcode, lhs, rhs, *, id=None):
         from .primitives import infer_result_types
@@ -570,7 +573,7 @@ class Module(_Sealable):
                     'options', 'target', 'grid', 'shape_rule', 'shape_operand', 'effects'))
             if isinstance(value, CallSpec):
                 return ('call', value.name, value.forward._structural_key(), value.output_count,
-                        value.backward_name, value.definition_key)
+                        value.vjp_name, value.definition_key)
             if type(value) is float:
                 return 'float', struct.pack('!d', value)
             return type(value).__name__, value
@@ -667,12 +670,12 @@ def _verify_region(region, terminator, result_types, seen_values, seen_ids, seen
 
 def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
     operands, results, attrs = op.operands, op.results, op.attrs
-    kinds = {"constant", "splat", "cast", "reshape", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
+    kinds = {"constant", "splat", "cast", "reshape", "stop_gradient", "add", "mul", "external", "call", "if", "for", "while", "return", "yield"}
     if op.opcode not in kinds:
         raise ValueError(f"unknown Fuga operation: {op.opcode}")
     if op.opcode not in ("if", "for", "while") and op.regions:
         raise ValueError(f"{op.opcode} cannot own regions")
-    if op.opcode in ("constant", "splat", "cast", "reshape", "add", "mul") and len(results) != 1:
+    if op.opcode in ("constant", "splat", "cast", "reshape", "stop_gradient", "add", "mul") and len(results) != 1:
         raise TypeError(f"{op.opcode} requires one result")
     if op.opcode not in ("external", "call", "if", "for", "while") and op.effects:
         raise ValueError(f"{op.opcode} must be pure")
@@ -687,7 +690,7 @@ def _verify_operation(op, seen_values, seen_ids, seen_names, seen_value_ids):
             equal = (type(raw) is float and math.isnan(raw)) if math.isnan(canonical) else raw == canonical
             if not equal or (canonical == 0 and math.copysign(1.0, raw) != math.copysign(1.0, canonical)):
                 raise ValueError("Fuga floating constants must already be rounded to their declared dtype")
-    elif op.opcode in ("splat", "cast", "reshape", "add", "mul"):
+    elif op.opcode in ("splat", "cast", "reshape", "stop_gradient", "add", "mul"):
         from .primitives import validate_primitive
         validate_primitive(op)
     elif op.opcode == "external":
@@ -757,8 +760,8 @@ def _format_attr(value):
     elif isinstance(value, CallSpec):
         value = {"name": value.name, "definition_key": value.definition_key,
                  "input_types": value.input_types, "result_types": value.result_types,
-                 "output_count": value.output_count, "saved_count": value.saved_count,
-                 "backward": value.backward_name, "forward": value.forward.to_text()}
+                 "output_count": value.output_count,
+                 "vjp": value.vjp_name, "forward": value.forward.to_text()}
     if isinstance(value, Mapping):
         return "{" + ", ".join(f"{name if _IDENTIFIER.fullmatch(name) else json.dumps(name, ensure_ascii=False)}={_format_attr(value[name])}"
                                for name in sorted(value)) + "}"

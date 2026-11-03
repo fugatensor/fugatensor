@@ -1,4 +1,4 @@
-"""Builtins are visible Fuga expressions, including during backward tracing."""
+"""Builtins are visible Fuga expressions, including during derivative tracing."""
 from ._jit import jit
 from .dtypes import bool as bool_dtype
 from .tracing import TraceTensor

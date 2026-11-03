@@ -18,7 +18,7 @@ def scaled_dot_product_attention(query, key, value, *, is_causal=False):
     The result has shape [batch, heads, query_sequence, value_feature].
 
     ``is_causal=True`` allows key_index <= query_index (top-left alignment).
-    Supports ordinary composition and first-order backward. Masks, dropout,
+    Supports ordinary composition and first-order VJP. Masks, dropout,
     grouped-query attention, custom scaling and higher derivatives are not
     supported by this interface.
     """

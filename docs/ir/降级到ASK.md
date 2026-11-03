@@ -36,6 +36,7 @@ API：[IR 与降级](../API/IR与降级.md)
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | 要求形状、类型相同。 |
 | `fuga.cast` | `graph.cast(operand, dtype=...)` | 生成 `ask.cast`，保留原标量或张量形状。 |
 | `fuga.reshape` | `graph.reshape(operand, shape)` | 生成 `ask.reshape` 和目标 `shape`；保留 dtype、元素数和连续元素次序。 |
+| `fuga.stop_gradient` | 输入的 ASK 值 | 微分边界在 Fuga IR 阶段处理；数值降级直接复用输入映射，保持原值。 |
 | `fuga.return` | `graph.return_(...)` → `func.return` | 支持多输出及异构形状、类型。 |
 
 <a id="external-and-sourcemap"></a>

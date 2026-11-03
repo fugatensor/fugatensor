@@ -77,7 +77,7 @@ class ControlFlowGraphsMixin:
         self.assertEqual(self.engine.stats["compilations"], comps)
         self.assertEqual(repeated(ft.tensor(4), ft.tensor(1, dtype="i32")).tolist(), 7)
 
-        # Plain nested functions + distinct ft.fun backward closures sharing identical forward IR.
+        # Plain nested functions + distinct ft.fun VJP closures sharing identical forward IR.
         def inner(x, *, flag, scale=2):
             return x * scale if flag else x + scale
 
@@ -90,10 +90,10 @@ class ControlFlowGraphsMixin:
 
         def make_rule(scale):
             class Rule(ft.fun):
-                def forward(self, ctx, x):
+                def forward(self, x):
                     return x * 2
-                def backward(self, ctx, dy):
-                    return (dy * scale,)
+                def vjp(self, primals, outputs, cotangents):
+                    return (cotangents[0] * scale,)
             return Rule()
 
         left, right = make_rule(2), make_rule(3)
@@ -102,11 +102,11 @@ class ControlFlowGraphsMixin:
             return left(x) if flag else right(x)
 
         for flag, exp_grad in ((True, 2), (False, 3), (True, 2)):
-            x = ft.tensor(4, requires_grad=True)
-            pick_rule(x, ft.tensor(flag, dtype="bool")).backward()
-            self.assertEqual(x.grad.tolist(), exp_grad)
+            x = ft.tensor(4)
+            derivative = ft.grad(pick_rule(x, ft.tensor(flag, dtype="bool")), x)
+            self.assertEqual(derivative.tolist(), exp_grad)
 
-    def test_backward_across_branches_loops_and_rejection_guards(self):
+    def test_grad_across_branches_loops_and_rejection_guards(self):
         def branch_and_loop(x, flag, count):
             retained = x * x
             val = retained * x if flag else retained + x
@@ -116,11 +116,10 @@ class ControlFlowGraphsMixin:
             return val
 
         for flag, trips, exp_val, exp_grad in ((True, 0, 8, 12), (False, 2, 24, 20)):
-            x = ft.tensor(2, requires_grad=True)
+            x = ft.tensor(2)
             res = branch_and_loop(x, ft.tensor(flag, dtype="bool"), ft.tensor(trips, dtype="i32"))
             self.assertEqual(res.tolist(), exp_val)
-            res.backward()
-            self.assertEqual(x.grad.tolist(), exp_grad)
+            self.assertEqual(ft.grad(res, x).tolist(), exp_grad)
 
         # Scalar numeric truthiness & non-scalar rejection + fun internal graph-break rejection.
         self.assertTrue(bool(ft.tensor(-0.5)))
@@ -136,7 +135,7 @@ class ControlFlowGraphsMixin:
                 bad_cond(ft.tensor(3), ft.tensor([True, False], dtype="bool"))
 
         class BrokenFun(ft.fun):
-            def forward(self, ctx, x, flag):
+            def forward(self, x, flag):
                 return x * 2 if flag else x
 
         with patch.object(self.engine, "_execute", side_effect=AssertionError("executed inside fun trace")):

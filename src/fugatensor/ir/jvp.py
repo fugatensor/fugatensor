@@ -1,7 +1,7 @@
 """Forward-mode differentiation emits ordinary, composable Fuga primitives."""
 from .core import Module
 from .errors import DifferentiationError
-from .transforms import _clone_operation, analyze_function, prune, specialize
+from .transforms import _clone_operation, analyze_function, derivative_activity, prune, specialize
 from .types import FLOAT_DTYPES, TensorType
 
 
@@ -35,8 +35,8 @@ def jvp(module, *, argnums=None, max_unroll=10000):
     Results are all original outputs followed by their tangents in the same
     order. Unselected inputs have zero tangents. Floating casts use the usual
     real-valued identity derivative, ignoring storage rounding. Static regions
-    are specialized first; active external/custom calls require a registered
-    JVP and never inherit the derivative of their forward implementation.
+    are specialized first. Ordinary calls differentiate their forward graphs;
+    calls with a custom VJP and external operations require an explicit JVP.
     """
     from .primitives import PRIMITIVE_RULES, validate_primitive
     if not isinstance(module, Module):
@@ -64,7 +64,7 @@ def jvp(module, *, argnums=None, max_unroll=10000):
     operations, numbered, plan = analyze_function(source, selected)
     if any(operation.effects for operation in operations):
         raise DifferentiationError("jvp currently requires an effect-free graph")
-    active = dict(zip(numbered, plan["active_values"]))
+    active = derivative_activity(source, selected, live_only=True)
     input_types = {name: value.type for name, value in source.inputs.items()}
     tangent_names = []
     for index in selected:
@@ -86,12 +86,30 @@ def jvp(module, *, argnums=None, max_unroll=10000):
         primals.update(zip(operation.results, copied.results))
         tangent_results = (None,) * len(operation.results)
         if any(active[value] for value in operation.results):
+            if operation.opcode == "call" and not operation.attrs["spec"].has_vjp:
+                from .differentiate import _inline_derivative
+                from .transforms import project_outputs
+                spec = operation.attrs["spec"]
+                spec.verify()
+                selected_inputs = tuple(index for index, value in enumerate(operation.operands)
+                                        if active[value] and value.type.dtype in FLOAT_DTYPES)
+                selected_outputs = tuple(index for index, value in enumerate(operation.results)
+                                         if active[value] and value.type.dtype in FLOAT_DTYPES)
+                if selected_inputs and selected_outputs:
+                    forward = project_outputs(spec.forward, selected_outputs, max_unroll=max_unroll)
+                    derivative = jvp(forward, argnums=selected_inputs, max_unroll=max_unroll)
+                    results = _inline_derivative(target, derivative,
+                        (*operands, *(tangents[operation.operands[index]] for index in selected_inputs)))
+                    mapped = dict(zip(selected_outputs, results[len(selected_outputs):]))
+                    tangent_results = tuple(mapped.get(index) for index in range(len(operation.results)))
+                tangents.update(zip(operation.results, tangent_results))
+                continue
             if operation.opcode not in PRIMITIVE_RULES:
                 raise DifferentiationError(f"fuga.{operation.opcode} {operation.id!r} requires an explicit JVP rule")
             rule = validate_primitive(operation)
             if not callable(rule.jvp):
                 raise DifferentiationError(f"fuga.{operation.opcode} has no registered JVP rule")
-            if any(value.type.dtype not in FLOAT_DTYPES for value in (*operation.operands, *operation.results)):
+            if rule.floating_values and any(value.type.dtype not in FLOAT_DTYPES for value in (*operation.operands, *operation.results)):
                 raise DifferentiationError("integer/bool operations on a derivative path have no floating JVP rule")
             tangent_results = rule.jvp(target, operation, operands,
                                        tuple(tangents[value] for value in operation.operands))

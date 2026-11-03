@@ -8,7 +8,7 @@ from .creation import empty, zeros, ones, full
 from . import ir, triton, weights
 from .lowering import lower_to_ask
 from .function import fun
-from .autograd import no_grad
+from .autograd import grad, stop_gradient
 from . import nn
 from .ops import add, multiply, subtract, negative, square, cast, reshape, zeros_like, ones_like
 
@@ -20,6 +20,6 @@ __all__ = ['configure', 'shutdown', 'Engine', 'Tensor', 'tensor', 'from_buffer',
            'device', 'reshape',
            'empty', 'zeros', 'ones', 'full',
            'set_default_device', 'get_default_device', 'synchronize',
-           'ir', 'lower_to_ask', 'triton', 'weights', 'fun', 'no_grad', 'nn',
+           'ir', 'lower_to_ask', 'triton', 'weights', 'fun', 'grad', 'stop_gradient', 'nn',
            'save_weights', 'load_weights',
            'add', 'multiply', 'subtract', 'negative', 'square', 'cast', 'zeros_like', 'ones_like']

@@ -43,6 +43,9 @@ class TraceTensor:
         shape = infer_reshape(shape, math.prod(self.shape))
         return self.context.wrap(self.context.graph.reshape(self.value, shape))
 
+    def detach(self) -> TraceTensor:
+        return self.context.wrap(self.context.graph.stop_gradient(self.value))
+
     def _operand(self, other):
         if isinstance(other, TraceTensor):
             if other.context is not self.context:
@@ -90,7 +93,7 @@ class TraceTensor:
     def __bool__(self):
         if self.shape != ():
             raise TypeError('control-flow conditions require a scalar Tensor with shape=()')
-        raise TypeError('data-dependent control flow inside an isolated fun or backward trace is unsupported')
+        raise TypeError('data-dependent control flow inside an isolated fun or VJP trace is unsupported')
 
     def tolist(self):
         raise TypeError("tensor values cannot be read while tracing an isolated operation")

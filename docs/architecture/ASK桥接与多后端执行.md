@@ -4,7 +4,7 @@
 
 API：[设备与执行](../API/设备与执行.md) · [Triton 算子接入](../API/Triton算子接入.md) · [attention](../API/attention.md)
 
-读取结果或反向传播时，`Engine` 将所需表达式合并为 Fuga IR，裁剪输入，降级成 ASK IR，再调用 CPU 动态库或 GPU 会话执行。
+读取普通结果、梯度结果或调用 `ft.evaluate` 时，`Engine` 将所需表达式合并为 Fuga IR，裁剪输入，降级成 ASK IR，再调用 CPU 动态库或 GPU 会话执行。
 
 <a id="engine-lifecycle"></a>
 
@@ -79,7 +79,7 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点分别排入[执
 
 参数和双输出用法见 [Triton 接入示例](../API/Triton算子接入.md#example)。
 
-`ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 源码和 `ft.fun` 梯度规则。前向是一个外部节点，可与前后自有计算组图。反向含统计量、dQ、dK、dV 四个 kernel；当前还会重算前向以取得保存的 `O`，共五个外部步骤。
+`ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 源码和 `ft.fun.vjp` 梯度规则。前向是一个外部节点，可与前后自有计算组图。VJP 从 `outputs` 取得前向公开输出 `O`，构造统计量、dQ、dK、dV 四个反向 kernel。当前导数 IR 重放前向以计算 `O`，因此梯度计算包含五个外部步骤。
 
 <a id="native-plan-replay"></a>
 

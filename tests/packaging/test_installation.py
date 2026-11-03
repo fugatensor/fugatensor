@@ -21,10 +21,10 @@ try:
     triton_version = metadata.version("triton")
 except metadata.PackageNotFoundError:
     triton_version = None
-x = ft.tensor([1, 2, 3], requires_grad=True)
+x = ft.tensor([1, 2, 3])
 y = x * x + 1
-y.backward(ft.ones_like(y))
-result = {"values": y.tolist(), "gradients": x.grad.tolist(),
+gradient = ft.grad(y, x, seed=ft.ones_like(y))
+result = {"values": y.tolist(), "gradients": gradient.tolist(),
           "triton_version": triton_version, "gpu_values": None}
 with ft.Engine("cuda") as engine:
     worker = engine.compilers.get("triton")

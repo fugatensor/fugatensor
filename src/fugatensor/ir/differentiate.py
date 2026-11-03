@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from .core import Module
 from .types import FLOAT_DTYPES, TensorType
-from .transforms import _clone_operation, analyze_function, project_outputs, prune, specialize
+from .transforms import _clone_operation, analyze_function, derivative_activity, project_outputs, prune, specialize
 from .errors import DifferentiationError
 from .primitives import primitive_vjp
 
@@ -21,7 +21,7 @@ def _inline_derivative(target, module, bindings):
             return tuple(mapping[value] for value in operation.operands)
         copied = _clone_operation(target, operation, tuple(mapping[value] for value in operation.operands))
         mapping.update(zip(operation.results, copied.results))
-    raise DifferentiationError("a residual derivative requires a return terminator")
+    raise DifferentiationError("an inlined derivative requires a return terminator")
 
 
 def vjp(module, *, argnums=None, max_unroll=10000):
@@ -82,7 +82,7 @@ def vjp(module, *, argnums=None, max_unroll=10000):
                           results=[source_inputs[index].type for index in selected])
     values = {value: target.inputs[name] for name, value in source.inputs.items()}
     operations, numbered_values, plan = analyze_function(source, selected)
-    active = dict(zip(numbered_values, plan['active_values']))
+    active = derivative_activity(source, selected, live_only=True)
     if any(operation.effects for operation in operations):
         raise DifferentiationError("vjp currently requires an effect-free graph")
     for operation in operations:
@@ -112,37 +112,33 @@ def vjp(module, *, argnums=None, max_unroll=10000):
             raise DifferentiationError(f"fuga.external {operation.id!r} on a derivative path requires an explicit VJP rule")
         if operation.opcode == 'call':
             spec = operation.attrs['spec']
+            spec.verify()
             primals = tuple(values[value] for value in operation.operands)
-            if any(value in adjoints for value in operation.results[:spec.output_count]):
-                if not spec.has_backward:
-                    raise DifferentiationError(f'{spec.name}.backward is required on this derivative path')
-                cotangents = tuple(adjoints[value] if value in adjoints else zero(value.type)
-                                   for value in operation.results[:spec.output_count])
-                gradients = spec.build_backward(target, primals,
+            if spec.has_vjp:
+                cotangents = tuple(adjoints[value] if value in adjoints else
+                                   zero(value.type) if value.type.dtype in FLOAT_DTYPES else None
+                                   for value in operation.results)
+                gradients = spec.build_vjp(target, primals,
                     tuple(values[value] for value in operation.results), cotangents)
                 inputs = tuple(value for value in operation.operands if value.type.dtype in FLOAT_DTYPES)
                 if len(gradients) != len(inputs):
-                    raise DifferentiationError(f'{spec.name}.backward returned an invalid gradient count')
+                    raise DifferentiationError(f'{spec.name}.vjp returned an invalid gradient count')
                 for value, gradient in zip(inputs, gradients):
                     if gradient.type != value.type:
-                        raise DifferentiationError(f'{spec.name}.backward gradient shape and dtype must match {value.type}')
+                        raise DifferentiationError(f'{spec.name}.vjp gradient shape and dtype must match {value.type}')
                     contribute(value, gradient)
-            residual_indices = tuple(index for index in range(spec.output_count, len(operation.results))
-                                     if operation.results[index] in adjoints)
-            if residual_indices:
+            else:
                 selected_inputs = tuple(index for index, value in enumerate(operation.operands)
                                         if active[value] and value.type.dtype in FLOAT_DTYPES)
-                if selected_inputs:
-                    # Hidden values are the explicit computations saved by
-                    # forward. Their derivatives follow that SSA graph, while
-                    # any visible nested call still chooses its custom rule.
-                    residuals = project_outputs(spec.forward, residual_indices,
-                                                name_suffix="_residuals", max_unroll=max_unroll)
-                    derivative = vjp(residuals, argnums=selected_inputs, max_unroll=max_unroll)
-                    seeds = tuple(adjoints[operation.results[index]] for index in residual_indices)
-                    gradients = _inline_derivative(target, derivative, (*primals, *seeds))
-                    for index, gradient in zip(selected_inputs, gradients):
-                        contribute(operation.operands[index], gradient)
+                selected_outputs = tuple(index for index, value in enumerate(operation.results)
+                                         if value in adjoints)
+                forward = project_outputs(spec.forward, selected_outputs,
+                                          name_suffix="_selected", max_unroll=max_unroll)
+                derivative = vjp(forward, argnums=selected_inputs, max_unroll=max_unroll)
+                seeds = tuple(adjoints[operation.results[index]] for index in selected_outputs)
+                gradients = _inline_derivative(target, derivative, (*primals, *seeds))
+                for index, gradient in zip(selected_inputs, gradients):
+                    contribute(operation.operands[index], gradient)
             continue
         if len(operation.results) != 1:
             raise DifferentiationError(f"no reverse rule for multi-result fuga.{operation.opcode}")

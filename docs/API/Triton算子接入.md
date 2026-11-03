@@ -119,6 +119,6 @@ print(z.tolist())  # [2.0, 3.0, 4.0]
 - `options` 限于所选受支持版本的 CUDA 编译选项；禁止覆盖 `arch`、`backend_name`、`ir_override`、`extern_libs` 和 `ptx_options`。
 - autotune 仅选择已声明配置；带输入重置/恢复、自定义 pre/post hook、配置 pre-hook 或 IR override 的用法不受支持。显式 `constants` / `options` 可覆盖所选配置，heuristics 随后求值。
 - `from_jit` 可保存引用的 Python/JIT helper、全局常量和模块导入；依赖同名冲突或无法重建的程序式调优包装会报错。自定义 JIT repr、launch metadata 和 pre-run hook 也不能快照。
-- Triton 算子的梯度通过 [`ft.fun`](自动微分与自定义函数.md) 定义反向；含不透明外部算子的反向路径目前只支持一阶微分。各编译器产物分别作为独立 kernel 调度。
+- Triton 算子的梯度通过 [`ft.fun.vjp`](自动微分与自定义函数.md#custom-functions) 定义纯余切规则；高阶微分取决于 VJP 生成的导数图，活跃路径上的外部 kernel 须具备相应规则。各编译器产物分别作为独立 kernel 调度。
 
 编译与调度过程见[自有 CUDA 与用户 Triton 算子执行](../architecture/ASK桥接与多后端执行.md#cuda-and-triton)，内置 FlashAttention 的调用与梯度用法见[attention API](attention.md)。

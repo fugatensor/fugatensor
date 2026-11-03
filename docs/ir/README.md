@@ -11,7 +11,7 @@ Fuga IR（`src/fugatensor/ir/`）用类型、SSA 值、操作和嵌套区域表�
 Fuga IR 在降级到 [ASK 静态计算图](../../../ask/docs/ASK-IR与数值语义.md) 前保留三类信息：
 
 - 结构化控制流：`fuga.if`、`fuga.for`、`fuga.while` 用嵌套 `Region` 和块参数表示。
-- 自定义求导：[`ft.fun`](../architecture/自动微分与自定义算子.md#custom-fun) 追踪为 `fuga.call`，通过 `saved` 输出传递中间值，VJP 阶段接入 `backward` 子图。
+- 自定义求导：[`ft.fun`](../architecture/自动微分与自定义算子.md#custom-fun) 追踪为 `fuga.call`，VJP 阶段使用前向子图的原语规则或显式 `vjp` 规则，原值与前向公开输出作为 SSA 值传入。
 - 设备信息：类型和 SSA 值保存形状与 dtype，外部 Triton 算子的具体 GPU 架构在降级时绑定。
 
 ```text
@@ -36,10 +36,10 @@ Fuga IR 由 `ScalarType`、`TensorType`、`Value`、`Operation`、`Block`、`Reg
 
 `ir/primitives.py` 集中定义各基础算子的抽象类型推导（`abstract_eval`）、前向切线规则（`jvp`）与反向余切规则（`vjp`）：
 
-- 算术、类型转换和形状变换建立在 `constant`、`splat`、`add`、`mul`、`cast`、`reshape` 六种基础算子之上，`subtract`、`negative`、`square` 在追踪期由它们组合展开；
-- `ir.jvp(module)` 与 `ir.vjp(module)` 生成新的 Fuga IR `Module`。在已有规则范围内，可以嵌套 `vjp(vjp(module))`、`jvp(vjp(module))`、`vjp(jvp(module))`，运行时的 `create_graph=True` 使用这些变换保留梯度图。
+- 算术、类型转换和形状变换使用 `constant`、`splat`、`add`、`mul`、`cast`、`reshape`；`stop_gradient` 保留数值并停止微分传播。`subtract`、`negative`、`square` 在追踪期由基础算子组合展开；
+- `ir.jvp(module)` 与 `ir.vjp(module)` 生成新的 Fuga IR `Module`。在已有规则范围内，可以嵌套 `vjp(vjp(module))`、`jvp(vjp(module))`、`vjp(jvp(module))`，`ft.grad` 使用 VJP 生成新的导数表达式，导数求值后仍保留来源。
 
-工程细节：[控制流与可组合变换](控制流与可组合变换.md) · [运行时自动微分与高阶求导](../architecture/自动微分与自定义算子.md#higher-order)
+工程细节：[控制流与可组合变换](控制流与可组合变换.md) · [函数式自动微分与高阶求导](../architecture/自动微分与自定义算子.md#higher-order)
 
 <a id="ir-lowering-boundary"></a>
 

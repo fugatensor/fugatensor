@@ -34,7 +34,7 @@ class Program:
 
 
 def defer_module(module, inputs, *, engine, dependencies=()):
-    """Create stable result handles, capturing gradient mode before execution."""
+    """Create stable result handles with immutable expression provenance."""
     engine._check_open()
     inputs = tuple(inputs)
     if not isinstance(module, Module) or len(module.functions) != 1:
@@ -51,8 +51,7 @@ def defer_module(module, inputs, *, engine, dependencies=()):
     outputs = tuple(Tensor._from_pending(engine, value.type.shape, value.type.dtype,
                                          Result(expression, index))
                     for index, value in enumerate(function.outputs))
-    from .autograd import record_execution
-    return record_execution(module, inputs, outputs, engine)
+    return outputs
 
 
 def _source(tensor):
@@ -88,7 +87,7 @@ class _Template:
             from .function import fun, _fingerprint
             kept = []
             for definition, version in dependencies:
-                # Expanded backward graphs retain dependencies even when no
+                # Expanded derivative graphs retain dependencies even when no
                 # explicit call remains. Only discard proven dead call ports.
                 if isinstance(definition, fun):
                     identity = _fingerprint(version)
@@ -124,8 +123,8 @@ def _call_definitions(module):
 
 
 def _project(module, indices):
-    # This is a numerical copy only. Expression.module and AD histories keep
-    # their original CallSpecs, residual ports and custom backward callbacks.
+    # This is a numerical copy only. Expression.module retains
+    # its original CallSpecs and custom VJP rules for later differentiation.
     projected = project_outputs(module, indices)
     function = projected.functions[0]
     needed = set(function.outputs)

@@ -6,7 +6,7 @@ never evaluated using tracing inputs or replaced with a guessed branch.
 from __future__ import annotations
 
 from .core import Module
-from .types import ScalarType, constant_value
+from .types import FLOAT_DTYPES, ScalarType, constant_value
 
 
 class StaticControlFlowError(ValueError):
@@ -70,7 +70,7 @@ def specialize(module, *, max_unroll=10000, expand_calls=True):
     exceeding it is an error, never silent truncation. Data-dependent ``if``
     and ``while`` remain valid Fuga IR but cannot enter this lowering path.
     Custom calls expand their forward graphs by default. AD uses
-    ``expand_calls=False`` to retain each call's explicit backward rule.
+    ``expand_calls=False`` to retain each call's explicit VJP rule.
     """
     if not isinstance(module, Module):
         raise TypeError("specialize expects a Fuga IR Module")
@@ -180,6 +180,80 @@ def prune(module):
         target.return_(*(values[value] for value in source.outputs))
     result.verify()
     return result
+
+
+def _derivative_graph(function, memo):
+    """Describe per-result derivative edges for the native SSA analyzer.
+
+    Each virtual operation defines one original value. Numerical operations
+    keep their operand edges; stop_gradient and custom calls provide their
+    semantic derivative edges without changing the numerical IR.
+    """
+    values = list(function.inputs.values())
+    indices = {value: index for index, value in enumerate(values)}
+    operands = []
+    for operation in function.operations:
+        if operation.opcode == "return":
+            continue
+        if operation.opcode == "stop_gradient":
+            edges = ((),)
+        elif operation.opcode == "call":
+            spec = operation.attrs["spec"]
+            spec.verify()
+            if spec.has_vjp:
+                selected = tuple(index for index, value in enumerate(operation.operands)
+                                 if value.type.dtype in FLOAT_DTYPES)
+                edges = tuple(selected if value.type.dtype in FLOAT_DTYPES else () for value in operation.results)
+            else:
+                if spec not in memo:
+                    forward = specialize(spec.forward, expand_calls=False).functions[0]
+                    memo[spec] = tuple(_derivative_input_indices(forward, (index,), memo)
+                                       for index in range(len(forward.outputs)))
+                edges = memo[spec]
+        else:
+            edges = (tuple(range(len(operation.operands))),) * len(operation.results)
+        for result, edge in zip(operation.results, edges):
+            operands.append([indices[operation.operands[index]] for index in edge])
+            indices[result] = len(values)
+            values.append(result)
+    return values, operands, indices
+
+
+def _derivative_analysis(function, selected, outputs, memo):
+    from .. import _native
+    values, operands, indices = _derivative_graph(function, memo)
+    result_indices = [indices[function.outputs[index]] for index in outputs]
+    plan = _native.analyze(len(function.inputs), operands, [1] * len(operands),
+                           result_indices, list(selected), [False] * len(operands))
+    return values, operands, result_indices, plan
+
+
+def _derivative_input_indices(function, outputs, memo):
+    _, operands, result_indices, plan = _derivative_analysis(function, (), outputs, memo)
+    count = len(function.inputs)
+    inputs = {index for index in result_indices if index < count}
+    for operation in plan["live_operations"]:
+        inputs.update(index for index in operands[operation] if index < count)
+    return tuple(sorted(inputs))
+
+
+def derivative_inputs(module, output_indices=None):
+    """Use native reachability to find inputs on selected derivative paths."""
+    indices = range(len(module.functions[0].outputs)) if output_indices is None else output_indices
+    function = project_outputs(module, indices).functions[0]
+    return _derivative_input_indices(function, range(len(function.outputs)), {})
+
+
+def derivative_activity(function, selected, *, live_only=False):
+    values, operands, outputs, plan = _derivative_analysis(function, selected, range(len(function.outputs)), {})
+    if not live_only:
+        return dict(zip(values, plan["active_values"]))
+    live = set(outputs)
+    for operation in plan["live_operations"]:
+        live.add(len(function.inputs) + operation)
+        live.update(operands[operation])
+    return {value: bool(active and index in live)
+            for index, (value, active) in enumerate(zip(values, plan["active_values"]))}
 
 
 def project_outputs(module, indices, *, name_suffix="", max_unroll=10000):

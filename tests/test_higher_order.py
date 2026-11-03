@@ -1,4 +1,4 @@
-"""Higher-order derivatives (create_graph=True) across primitives, control flow, nested ft.fun, and Triton guards."""
+"""Composable functional gradients across primitives, control flow and custom rules."""
 from __future__ import annotations
 
 import unittest
@@ -20,22 +20,17 @@ class SharedHigherOrderMixin:
             with self.subTest(dtype=dtype):
                 if dtype == "bf16" and not self.supports_bf16:
                     with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*hardware|bf16.*support"):
-                        quartic(ft.tensor(2, dtype=dtype, requires_grad=True)).backward(create_graph=True)
+                        x = ft.tensor(2, dtype=dtype)
+                        ft.grad(quartic(x), x).tolist()
                     continue
-                x = ft.tensor(2, dtype=dtype, requires_grad=True)
+                x = ft.tensor(2, dtype=dtype)
                 val = quartic(x)
                 actual = []
-                for order in range(3):
-                    val.backward(create_graph=order < 2)
-                    val = x.grad
+                for _ in range(3):
+                    val = ft.grad(val, x)
                     actual.append(val.tolist())
-                    if order < 2:
-                        self.assertTrue(val.requires_grad)
-                        x.zero_grad()
                 self.assertEqual(actual, [32, 48, 48])
-                self.assertFalse(val.requires_grad)
 
-        # Runtime branch + loop + explicit differentiable seed + outer no_grad override.
         def selected(x, flag, count):
             if flag:
                 while count:
@@ -45,80 +40,62 @@ class SharedHigherOrderMixin:
             return x * x
 
         for flag, exp1, exp2 in ((True, 32, 48), (False, 4, 2)):
-            x = ft.tensor(2.0, requires_grad=True)
-            with ft.no_grad():
-                pass
+            x = ft.tensor(2.0)
             out = selected(x, ft.tensor(flag, dtype="bool"), ft.tensor(2, dtype="i32"))
-            with ft.no_grad():
-                out.backward(create_graph=True)
-                d1 = x.grad
-                self.assertTrue(d1.requires_grad)
-            x.zero_grad()
-            d1.backward()
-            self.assertEqual((d1.tolist(), x.grad.tolist()), (exp1, exp2))
+            d1 = ft.grad(out, x)
+            self.assertEqual((d1.tolist(), ft.grad(d1, x).tolist()), (exp1, exp2))
 
-        vx = ft.tensor([2.0, 3.0], requires_grad=True)
-        seed = ft.tensor([5.0, 7.0], requires_grad=True)
-        ft.square(vx).backward(seed, create_graph=True)
-        first = vx.grad
-        vx.zero_grad()
-        first.backward(ft.tensor([1.0, 2.0]))
-        self.assertEqual((vx.grad.tolist(), seed.grad.tolist()), ([10.0, 28.0], [4.0, 12.0]))
+        vx = ft.tensor([2.0, 3.0])
+        seed = ft.tensor([5.0, 7.0])
+        first = ft.grad(ft.square(vx), vx, seed=seed)
+        dx, ds = ft.grad(first, (vx, seed), seed=ft.tensor([1.0, 2.0]))
+        self.assertEqual((dx.tolist(), ds.tolist()), ([10.0, 28.0], [4.0, 12.0]))
 
-    def test_nested_fun_rules_saved_intermediates_and_mutation_revalidation(self):
+    def test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation(self):
         class Inner(ft.fun):
-            def forward(self, ctx, x):
-                ctx.save_for_backward(x)
+            def forward(self, x):
                 return x * x
-
-            def backward(self, ctx, dy):
-                (x,) = ctx.saved_tensors
-                return (dy * x * 7,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * primals[0] * 7,)
 
         inner = Inner()
 
         class Outer(ft.fun):
-            def forward(self, ctx, x):
-                ctx.save_for_backward(inner(x))
+            def forward(self, x):
                 return x * x * x
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * inner(primals[0]),)
 
-            def backward(self, ctx, dy):
-                (saved,) = ctx.saved_tensors
-                return (dy * saved,)
-
-        x = ft.tensor(3.0, requires_grad=True)
+        x = ft.tensor(3.0)
         val = Outer()(x)
-        for order, expected in enumerate((9.0, 21.0, 7.0)):
-            val.backward(create_graph=order < 2)
-            val = x.grad
+        for expected in (9.0, 21.0, 7.0):
+            val = ft.grad(val, x)
             self.assertEqual(val.tolist(), expected)
-            x.zero_grad()
 
-        # Mutating a nested custom rule invalidates cached higher-order plans.
         class MutableInner(ft.fun):
             def __init__(self):
                 self.factor = 2
-            def forward(self, ctx, t):
+            def forward(self, t):
                 return t * self.factor
-            def backward(self, ctx, dy):
-                return (dy * self.factor,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * self.factor,)
 
         mi = MutableInner()
 
         class Wrapper(ft.fun):
-            def forward(self, ctx, t):
+            def forward(self, t):
                 return t * t
-            def backward(self, ctx, dy):
-                return (mi(dy),)
+            def vjp(self, primals, outputs, cotangents):
+                return (mi(cotangents[0]),)
 
-        wx = ft.tensor(3.0, requires_grad=True)
+        wx = ft.tensor(3.0)
         wout = Wrapper()(wx)
-        wout.backward(retain_graph=True, create_graph=True)
-        self.assertEqual(wx.grad.tolist(), 2.0)
+        gradient = ft.grad(wout, wx)
+        self.assertEqual(gradient.tolist(), 2.0)
         mi.factor = 5
         with patch.object(self.engine, "_execute", side_effect=AssertionError("stale rule executed")):
             with self.assertRaisesRegex(ValueError, "definition changed"):
-                wout.backward(retain_graph=True, create_graph=True)
+                ft.grad(wout, wx)
 
 
 class HostHigherOrderTests(SharedHigherOrderMixin, EngineTestCase):
@@ -135,38 +112,35 @@ class OpaqueExternalHigherOrderTests(EngineTestCase):
     device = "cuda"
     enable_triton = True
 
-    def test_opaque_triton_in_forward_or_backward_is_rejected_before_reverse_work(self):
+    def test_custom_vjp_composes_and_active_opaque_derivative_is_rejected(self):
         scale = ft.triton.kernel(
-            TRITON_KERNELS,
-            entry="scale_kernel", input="inp", output="out",
+            TRITON_KERNELS, entry="scale_kernel", input="inp", output="out",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
             grid=lambda spec: ((spec.numel + 127) // 128,),
         )
 
         class ForwardExternal(ft.fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return scale(x)
-            def backward(self, ctx, dy):
-                return (dy * 2,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * 2,)
 
-        class BackwardExternal(ft.fun):
-            def forward(self, ctx, x):
+        class DerivativeExternal(ft.fun):
+            def forward(self, x):
                 return x * 2
-            def backward(self, ctx, dy):
-                return (scale(dy),)
+            def vjp(self, primals, outputs, cotangents):
+                return (scale(cotangents[0] * primals[0]),)
 
-        for cls in (ForwardExternal, BackwardExternal):
-            with self.subTest(cls=cls.__name__):
-                x = ft.tensor(3.0, requires_grad=True)
-                out = cls()(x)
-                with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before rejection")), \
-                     patch.object(self.engine, "_execute", side_effect=AssertionError("executed before rejection")):
-                    with self.assertRaisesRegex((ValueError, NotImplementedError), "external|opaque|higher.order"):
-                        out.backward(create_graph=True)
-                self.assertIsNone(x.grad)
-                # First-order backward remains usable after higher-order preflight rejection.
-                out.backward()
-                self.assertEqual(x.grad.tolist(), 2.0)
+        x = ft.tensor(3.0)
+        first = ft.grad(ForwardExternal()(x), x)
+        self.assertEqual(first.tolist(), 2.0)
+        self.assertEqual(ft.grad(first, x).tolist(), 0.0)
+        opaque_first = ft.grad(DerivativeExternal()(x), x)
+        with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before rejection")), \
+             patch.object(self.engine, "_execute", side_effect=AssertionError("executed before rejection")):
+            with self.assertRaisesRegex((ValueError, NotImplementedError), "external|opaque|VJP"):
+                ft.grad(opaque_first, x)
+        self.assertEqual(opaque_first.tolist(), 6.0)
 
 
 if __name__ == "__main__":

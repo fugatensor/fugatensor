@@ -134,17 +134,20 @@ class WeightExportTests(EngineTestCase):
             self.assertEqual(loaded["x"].tolist(), [1.0, 2.0])
             self.assertEqual(ft.weights.read_metadata(target), {})
 
-    def test_load_requires_grad_and_explicit_engine(self):
+    def test_loaded_weights_are_differentiable_in_explicit_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "weights"
             ft.weights.save(target, {"w": ft.tensor([1.0, 2.0], dtype="f32")})
             with ft.Engine("cpu") as other:
-                loaded = ft.weights.load(target, engine=other, requires_grad=True)
-                self.assertTrue(loaded["w"].requires_grad)
+                loaded = ft.weights.load(target, engine=other)
+                weight = loaded["w"]
+                derivative = ft.grad(weight * weight, weight, seed=ft.ones_like(weight))
+                self.assertEqual(derivative.tolist(), [2.0, 4.0])
                 self.assertEqual(loaded["w"].engine, other)
             ft.weights.save(Path(directory) / "ints", {"w": ft.tensor([1], dtype="i32")})
-            with self.assertRaisesRegex(TypeError, "requires_grad"):
-                ft.weights.load(Path(directory) / "ints", engine=self.engine, requires_grad=True)
+            integers = ft.weights.load(Path(directory) / "ints", engine=self.engine)["w"]
+            with self.assertRaisesRegex((TypeError, ValueError), "float|dtype"):
+                ft.grad(integers, integers)
 
 
 @requires_cuda

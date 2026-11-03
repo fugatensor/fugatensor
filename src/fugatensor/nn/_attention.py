@@ -113,13 +113,13 @@ class _FlashAttention(fun):
         self.causal = causal
         (self._fuga_forward, self._fuga_stats, self._fuga_dq, self._fuga_dk, self._fuga_dv) = _make_kernels(causal)
 
-    def forward(self, ctx, q, k, v):
-        output = self._fuga_forward(q, k, v)
-        ctx.save_for_backward(q, k, v, output)
-        return output
+    def forward(self, q, k, v):
+        return self._fuga_forward(q, k, v)
 
-    def backward(self, ctx, do):
-        q, k, v, output = ctx.saved_tensors
+    def vjp(self, primals, outputs, cotangents):
+        q, k, v = primals
+        output, = outputs
+        do, = cotangents
         stats = self._fuga_stats(q, k, output, do)
         return (self._fuga_dq(q, k, v, do, stats),
                 self._fuga_dk(q, k, v, do, stats),

@@ -148,7 +148,7 @@ class TritonRegistrationTests(unittest.TestCase):
                 )
 
                 class Forward(ft.fun):
-                    def forward(self, ctx, value):
+                    def forward(self, value):
                         return op(value)
 
                 call = Forward() if wrapped else op
@@ -581,30 +581,29 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
 
         self.assertEqual(poly_graph(ft.tensor([1, 2, 3])).tolist(), [8, 13, 20])
 
-        # Raw Triton on derivative paths fails preflight; ft.fun supplies the explicit backward.
-        rx = ft.tensor(3.0, requires_grad=True)
+        # Raw Triton on derivative paths fails preflight; ft.fun supplies an explicit VJP.
+        rx = ft.tensor(3.0)
         rout = mixed(rx)
         with mock.patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before validation")):
             with self.assertRaisesRegex(ValueError, "external.*(VJP|reverse|backward)|derivative.*external"):
-                rout.backward()
-        self.assertIsNone(rx.grad)
+                ft.grad(rout, rx)
 
         class UserScale(ft.fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return scale(x)
-            def backward(self, ctx, dy):
-                return (scale(dy),)
+            def vjp(self, primals, outputs, cotangents):
+                return (scale(cotangents[0]),)
 
         op = UserScale()
 
         def diff_mixed(x):
             return op(x + 1) + 3
 
-        dx = ft.tensor([1.0, 2.0, 3.0], requires_grad=True)
+        dx = ft.tensor([1.0, 2.0, 3.0])
         dout = diff_mixed(dx)
         self.assertEqual(dout.tolist(), [7.0, 9.0, 11.0])
-        dout.backward(ft.tensor([1.0, 2.0, -1.0]))
-        self.assertEqual(dx.grad.tolist(), [2.0, 4.0, -2.0])
+        derivative = ft.grad(dout, dx, seed=ft.tensor([1.0, 2.0, -1.0]))
+        self.assertEqual(derivative.tolist(), [2.0, 4.0, -2.0])
 
     def test_multiple_external_nodes_and_different_storage_outputs(self):
         x = ft.tensor([1, 2, 3], dtype='f32')

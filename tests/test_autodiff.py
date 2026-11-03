@@ -1,4 +1,4 @@
-"""Runtime reverse-mode autodiff (.backward(), .grad, no_grad, ft.fun, preflight guards) on CPU and CUDA."""
+"""Functional reverse-mode AD, explicit stopped paths, and deferred execution."""
 from __future__ import annotations
 
 import unittest
@@ -9,50 +9,97 @@ from tests._helpers import EngineTestCase, requires_cuda
 
 
 class ForwardOnly(ft.fun):
-    def forward(self, ctx, x):
+    def forward(self, x):
         return x + 3
 
 
 class SharedAutodiffMixin:
-    def test_reshape_backward_and_higher_order_preserve_input_shape(self):
-        x = ft.tensor([1, 2, 3, 4], requires_grad=True)
+    def test_forward_and_two_derivative_orders_share_one_execution(self):
+        x = ft.tensor(2.0)
+        before = dict(self.engine.stats)
+        output = x * x * x + x
+        first = ft.grad(output, x)
+        second = ft.grad(first, x)
+        self.assertEqual(self.engine.stats["compilations"], before["compilations"])
+        self.assertEqual(self.engine.stats["executions"], before["executions"])
+        ft.evaluate(output, first, second)
+        self.assertEqual((output.tolist(), first.tolist(), second.tolist()), (10.0, 13.0, 12.0))
+        self.assertEqual(self.engine.stats["executions"], before["executions"] + 1)
+
+    def test_stopped_paths_inside_fun_forward_and_vjp_compose(self):
+        class StoppedSquare(ft.fun):
+            def forward(self, x):
+                return ft.stop_gradient(x * x) + x
+
+        class StoppedCoefficient(ft.fun):
+            def forward(self, x):
+                return x.detach() * x
+
+        class StoppedRule(ft.fun):
+            def forward(self, x):
+                return x * x
+
+            def vjp(self, primals, outputs, cotangents):
+                return (ft.stop_gradient(primals[0]) * cotangents[0],)
+
+        x = ft.tensor(3.0)
+        for operation, value, first_value in ((StoppedSquare(), 12.0, 1.0),
+                                               (StoppedCoefficient(), 9.0, 3.0),
+                                               (StoppedRule(), 9.0, 3.0)):
+            with self.subTest(operation=type(operation).__name__):
+                output = operation(x)
+                first = ft.grad(output, x)
+                second = ft.grad(first, x)
+                ft.evaluate(output, first, second)
+                self.assertEqual((output.tolist(), first.tolist(), second.tolist()),
+                                 (value, first_value, 0.0))
+
+    def test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths(self):
+        x = ft.tensor(2.0)
+        intermediate = x * x
+        output = intermediate * intermediate
+        dx, dt = ft.grad(output, (x, intermediate))
+        self.assertEqual((dx.tolist(), dt.tolist()), (32.0, 8.0))
+        dx, dt = ft.grad((output, intermediate), (x, intermediate),
+                         seed=(ft.tensor(2.0), ft.tensor(3.0)))
+        self.assertEqual((dx.tolist(), dt.tolist()), (76.0, 19.0))
+        repeated = ft.grad(output, (x, x))
+        self.assertEqual(tuple(value.tolist() for value in repeated), (32.0, 32.0))
+        self.assertEqual(ft.grad((output, output), x).tolist(), 64.0)
+
+    def test_reshape_gradient_and_higher_order_preserve_input_shape(self):
+        x = ft.tensor([1, 2, 3, 4])
         shaped = x.reshape(2, 2)
-        (shaped * shaped).backward(ft.ones(2, 2), create_graph=True)
-        first = x.grad
+        first = ft.grad(shaped * shaped, x, seed=ft.ones(2, 2))
         self.assertEqual(first.shape, (4,))
         self.assertEqual(first.tolist(), [2, 4, 6, 8])
-        self.assertIsNone(shaped.grad)
-        x.zero_grad()
-        first.backward(ft.ones(4))
-        self.assertEqual(x.grad.tolist(), [2, 2, 2, 2])
-        self.assertEqual(x.grad.shape, x.shape)
+        second = ft.grad(first, x, seed=ft.ones(4))
+        self.assertEqual(second.tolist(), [2, 2, 2, 2])
+        self.assertEqual(second.shape, x.shape)
 
     def test_dtype_objects_are_static_fun_arguments_and_configuration(self):
         class Convert(ft.fun):
             output_dtype = ft.fp16
 
-            def forward(self, ctx, x, dtype=ft.fp32):
+            def forward(self, x, dtype=ft.fp32):
                 assert x.dtype is ft.fp32
-                ctx.save_for_backward(x)
-                # A dtype object and its legacy spelling are distinct static
-                # arguments even though their string-compatible values agree.
                 value = x if dtype is ft.fp32 else x + 1
                 result = value.astype(self.output_dtype)
                 assert result.dtype is self.output_dtype
                 return result
 
-            def backward(self, ctx, dy):
-                (x,) = ctx.saved_tensors
+            def vjp(self, primals, outputs, cotangents):
+                (x,), (dy,) = primals, cotangents
                 return (dy.astype(x.dtype),)
 
         operation = Convert()
-        x = ft.tensor(2.0, requires_grad=True)
+        x = ft.tensor(2.0)
         output = operation(x)
         self.assertIs(output.dtype, ft.fp16)
         self.assertEqual(output.tolist(), 2.0)
-        output.backward()
-        self.assertIs(x.grad.dtype, ft.fp32)
-        self.assertEqual(x.grad.tolist(), 1.0)
+        derivative = ft.grad(output, x)
+        self.assertIs(derivative.dtype, ft.fp32)
+        self.assertEqual(derivative.tolist(), 1.0)
         self.assertEqual(operation(x, "f32").tolist(), 3.0)
         self.assertEqual(operation(x, ft.fp32).tolist(), 2.0)
         operation.output_dtype = ft.fp32
@@ -61,40 +108,31 @@ class SharedAutodiffMixin:
         self.assertEqual(widened.tolist(), 2.0)
 
     def test_finite_difference_multiport_and_mixed_precision(self):
-        # Finite-difference check on cubic.
         def cubic(x):
             return x * x * x - 2 * x
 
         step = 1 / 64
-        x = ft.tensor(-1.5, requires_grad=True)
-        cubic(x).backward()
+        x = ft.tensor(-1.5)
+        derivative = ft.grad(cubic(x), x)
         fd = (cubic(ft.tensor(-1.5 + step)).tolist() - cubic(ft.tensor(-1.5 - step)).tolist()) / (2 * step)
-        self.assertAlmostEqual(x.grad.tolist(), fd, delta=0.002)
+        self.assertAlmostEqual(derivative.tolist(), fd, delta=0.002)
 
-        # Multi-input, multi-output, duplicate ports, and mixed-precision backward.
         def pair(a, b):
             return a * b, a + a
 
-        a = ft.tensor([-2, 0.5, 3], requires_grad=True)
-        b = ft.tensor([4, -2, 5], requires_grad=True)
-        p, d = pair(a, b)
-        p.backward(ft.tensor([1, 2, 0.5]), retain_graph=True)
-        d.backward(ft.tensor([3, -1, 2]))
-        self.assertEqual((a.grad.tolist(), b.grad.tolist()), ([10, -6, 6.5], [-2, 1, 1.5]))
-
-        shared = ft.tensor(3.0, requires_grad=True)
+        a, b = ft.tensor([-2, 0.5, 3]), ft.tensor([4, -2, 5])
+        da, db = ft.grad(pair(a, b), (a, b), seed=(ft.tensor([1, 2, 0.5]), ft.tensor([3, -1, 2])))
+        self.assertEqual((da.tolist(), db.tolist()), ([10, -6, 6.5], [-2, 1, 1.5]))
+        shared = ft.tensor(3.0)
         s0, s1 = pair(shared, shared)
-        (s0 + s1).backward()
-        self.assertEqual(shared.grad.tolist(), 8.0)
+        self.assertEqual(ft.grad(s0 + s1, shared).tolist(), 8.0)
 
-        def widened_sq(v):
-            return ft.square(ft.cast(v, "f32")).astype(v.dtype)
+        wx = ft.tensor([-2, 0.5, 3], dtype="f16")
+        widened = ft.square(ft.cast(wx, "f32")).astype(wx.dtype)
+        dw = ft.grad(widened, wx, seed=ft.tensor([1, 2, 0.5], dtype="f16"))
+        self.assertEqual((dw.tolist(), dw.dtype), ([-4, 2, 3], "f16"))
 
-        wx = ft.tensor([-2, 0.5, 3], dtype="f16", requires_grad=True)
-        widened_sq(wx).backward(ft.tensor([1, 2, 0.5], dtype="f16"))
-        self.assertEqual((wx.grad.tolist(), wx.grad.dtype), ([-4, 2, 3], "f16"))
-
-    def test_builtins_custom_fun_no_grad_zero_grad_and_retain_graph(self):
+    def test_custom_fun_multioutput_gradients_and_repeated_transform(self):
         def builtins(x, y):
             return ft.add(ft.multiply(x, y), ft.negative(ft.subtract(x, y))), ft.zeros_like(x), ft.ones_like(x)
 
@@ -102,188 +140,195 @@ class SharedAutodiffMixin:
         self.assertEqual((res.tolist(), z.tolist(), o.tolist()), ([10, -7], [0, 0], [1, 1]))
 
         class ProductPair(ft.fun):
-            def forward(self, ctx, x, y, mask):
-                ctx.save_for_backward(x, y)
+            def forward(self, x, y, mask):
                 return x * y, x + x + mask.astype(x.dtype)
 
-            def backward(self, ctx, dy):
-                x, y = ctx.saved_tensors
-                d0, d1 = dy
+            def vjp(self, primals, outputs, cotangents):
+                x, y, _ = primals
+                d0, d1 = cotangents
                 return d0 * y + d1 * 2, d0 * x
 
-        x, y = ft.tensor([2, 3], requires_grad=True), ft.tensor([4, 5], requires_grad=True)
-        f0, f1 = ProductPair()(x, y, ft.tensor([True, False], dtype="bool"))
-        f0.backward(ft.tensor([1, 2]), retain_graph=True)
-        f1.backward(ft.tensor([3, 4]))
-        self.assertEqual((x.grad.tolist(), y.grad.tolist()), ([10, 18], [2, 6]))
+        x, y = ft.tensor([2, 3]), ft.tensor([4, 5])
+        outputs = ProductPair()(x, y, ft.tensor([True, False], dtype="bool"))
+        dx, dy = ft.grad(outputs, [x, y], seed=(ft.tensor([1, 2]), ft.tensor([3, 4])))
+        self.assertEqual((dx.tolist(), dy.tolist()), ([10, 18], [2, 6]))
 
-        # retain_graph, freed graph, zero_grad, detach, and no_grad.
-        lx = ft.tensor(3.0, requires_grad=True)
-        out = ft.square(lx)
-        out.backward(retain_graph=True)
-        out.backward()
-        self.assertEqual(lx.grad.tolist(), 12.0)
-        with self.assertRaisesRegex(RuntimeError, "freed"):
-            out.backward()
-        lx.zero_grad(set_to_none=False)
-        self.assertEqual(lx.grad.tolist(), 0.0)
-        lx.zero_grad()
-        self.assertIsNone(lx.grad)
-        with ft.no_grad():
-            ng = ft.square(lx)
-        self.assertFalse(ng.requires_grad)
-        self.assertFalse(lx.detach().requires_grad)
+        scalar = ft.tensor(3.0)
+        out = ft.square(scalar)
+        before = dict(self.engine.stats)
+        first, again = ft.grad(out, scalar), ft.grad(out, scalar)
+        self.assertEqual(self.engine.stats["executions"], before["executions"])
+        self.assertEqual(self.engine.stats["compilations"], before["compilations"])
+        ft.evaluate(out, first, again)
+        self.assertEqual(self.engine.stats["executions"], before["executions"] + 1)
+        self.assertEqual((out.tolist(), first.tolist(), again.tolist()), (9.0, 6.0, 6.0))
+        self.assertEqual(ft.grad(out, scalar).tolist(), 6.0)
+        self.assertEqual(ft.grad(first, scalar).tolist(), 2.0)
 
-    def test_grad_mode_is_captured_before_materialization_and_detach_stops_history(self):
-        x = ft.tensor(3.0, requires_grad=True)
-        self.assertTrue(x.is_leaf)
+    def test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path(self):
+        x = ft.tensor(3.0)
         out = x * x
-        self.assertTrue(out.requires_grad)
-        self.assertFalse(out.is_leaf)
-        with ft.no_grad():
-            self.assertEqual(out.tolist(), 9.0)
-        out.backward()
-        self.assertEqual(x.grad.tolist(), 6.0)
-        x.zero_grad()
-
-        with ft.no_grad():
-            stopped = x * x
-        self.assertFalse(stopped.requires_grad)
-        self.assertEqual(stopped.tolist(), 9.0)
-        with self.assertRaisesRegex(ValueError, "requires_grad"):
-            stopped.backward()
-        self.assertIsNone(x.grad)
-
-        pending = x * x + 1
-        before = self.engine.stats["executions"]
-        detached = pending.detach()
-        self.assertEqual(self.engine.stats["executions"], before)
-        self.assertFalse(detached.requires_grad)
-        self.assertTrue(pending.requires_grad)
-        mixed = detached * x
-        mixed.backward()
-        self.assertEqual(x.grad.tolist(), 10.0)
-        self.assertEqual(pending.tolist(), detached.tolist())
-        self.assertEqual(pending.storage.data_ptr, detached.storage.data_ptr)
+        self.assertEqual(out.tolist(), 9.0)
+        self.assertEqual(ft.grad(out, x).tolist(), 6.0)
+        for stop in (ft.stop_gradient, lambda tensor: tensor.detach()):
+            with self.subTest(stop=stop):
+                pending = x * x + 1
+                before = self.engine.stats["executions"]
+                detached = stop(pending)
+                self.assertEqual(self.engine.stats["executions"], before)
+                self.assertEqual(ft.grad(detached, x).tolist(), 0.0)
+                mixed = detached * x
+                derivative = ft.grad(mixed, x)
+                self.assertEqual(derivative.tolist(), 10.0)
+                self.assertEqual(ft.grad(derivative, x).tolist(), 0.0)
+                self.assertEqual(pending.tolist(), detached.tolist())
+                self.assertEqual(pending.storage.data_ptr, detached.storage.data_ptr)
+        other = ft.tensor(7.0)
+        self.assertEqual(ft.grad(out, other).tolist(), 0.0)
 
     def test_custom_definition_change_rejects_pending_forward_and_retraces_new_call(self):
         class Scale(ft.fun):
             def __init__(self):
                 self.factor = 2
 
-            def forward(self, ctx, value):
+            def forward(self, value):
                 return value * self.factor
 
-            def backward(self, ctx, dy):
-                return (dy * self.factor,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * self.factor,)
 
         scale = Scale()
-        x = ft.tensor(3.0, requires_grad=True)
+        x = ft.tensor(3.0)
         pending = scale(x)
         scale.factor = 5
         with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled stale definition")):
             with self.assertRaisesRegex((ValueError, RuntimeError), "definition changed"):
                 pending.tolist()
-        self.assertIsNone(x.grad)
         fresh = scale(x)
         self.assertEqual(fresh.tolist(), 15.0)
-        fresh.backward()
-        self.assertEqual(x.grad.tolist(), 5.0)
+        self.assertEqual(ft.grad(fresh, x).tolist(), 5.0)
 
-    def test_failed_reverse_execution_preserves_gradients_and_can_retry(self):
-        x = ft.tensor(3.0, requires_grad=True)
-        (x * x).backward()
-        self.assertEqual(x.grad.tolist(), 6.0)
+    def test_failed_gradient_execution_preserves_other_results_and_can_retry(self):
+        x = ft.tensor(3.0)
+        existing = ft.grad(x * x, x)
+        self.assertEqual(existing.tolist(), 6.0)
         out = x * x + 1
-        with patch.object(self.engine, "_execute", side_effect=RuntimeError("reverse execution failed")):
-            with self.assertRaisesRegex(RuntimeError, "reverse execution failed"):
-                out.backward()
-        self.assertEqual(x.grad.tolist(), 6.0)
-        out.backward()
-        self.assertEqual(x.grad.tolist(), 12.0)
+        derivative = ft.grad(out, x)
+        with patch.object(self.engine, "_execute", side_effect=RuntimeError("gradient execution failed")):
+            with self.assertRaisesRegex(RuntimeError, "gradient execution failed"):
+                derivative.tolist()
+        self.assertEqual(existing.tolist(), 6.0)
+        self.assertEqual(derivative.tolist(), 6.0)
 
 
 class HostAutodiffTests(SharedAutodiffMixin, EngineTestCase):
     device = "cpu"
 
-    def test_unused_port_pruning_preflight_guards_mutation_and_deep_chain(self):
-        self.assertFalse(hasattr(ft, "grad"))
-        self.assertFalse(hasattr(ft, "vjp"))
+    def test_unused_nested_fun_definition_does_not_invalidate_selected_gradients(self):
+        class Inner(ft.fun):
+            factor = 2
 
-        # Unused sibling output or unused input does not visit ForwardOnly's missing backward rule.
-        def with_forward_only(x):
-            return ForwardOnly()(x), x * x
+            def forward(self, x):
+                return x * self.factor
 
-        def ignore_second(x, unused):
-            return x * x
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * self.factor,)
 
-        x = ft.tensor(3.0, requires_grad=True)
-        bad_out, sq_out = with_forward_only(x)
-        sq_out.backward(retain_graph=True)
-        self.assertEqual(x.grad.tolist(), 6.0)
-        with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before validation")):
-            with self.assertRaisesRegex(ValueError, "backward.*required"):
-                bad_out.backward()
-        self.assertEqual(x.grad.tolist(), 6.0)
+        inner = Inner()
 
-        x2 = ft.tensor(3.0, requires_grad=True)
-        ignore_second(x2, ForwardOnly()(x2)).backward()
-        self.assertEqual(x2.grad.tolist(), 6.0)
+        class Pair(ft.fun):
+            def forward(self, x):
+                return x * x, inner(x)
 
-        # Seed / flag / dtype validation must precede compilation and gradient changes.
-        for bad_dtype, val in (("bool", True), ("i32", 2), ("i64", 2)):
-            with self.assertRaisesRegex((TypeError, ValueError), "float|requires_grad"):
-                ft.tensor(val, dtype=bad_dtype, requires_grad=True)
+        x = ft.tensor(3.0)
+        selected, other = Pair()(x)
+        first = ft.grad(selected, x)
+        active = ft.grad(other, x)
+        class KeepFirst(ft.fun):
+            def forward(self, a, b):
+                return a
 
-        vx = ft.tensor([2, 3], requires_grad=True)
+        class IgnoreOperand(ft.fun):
+            def forward(self, value):
+                return KeepFirst()(value * value, inner(value))
+
+        ignored = IgnoreOperand()(x)
+        inner.factor = 4
+        self.assertEqual(first.tolist(), 6.0)
+        self.assertEqual(ft.grad(selected, x).tolist(), 6.0)
+        self.assertEqual(ft.grad(first, x).tolist(), 2.0)
+        self.assertEqual(ft.grad(ignored, x).tolist(), 6.0)
+        with self.assertRaisesRegex((ValueError, RuntimeError), "definition changed"):
+            ft.grad(other, x)
+        with self.assertRaisesRegex((ValueError, RuntimeError), "definition changed"):
+            active.tolist()
+
+    def test_stopped_opaque_fun_needs_no_external_derivative_or_execution(self):
+        spec = ft.ir.ExternalSpec(
+            compiler="opaque", source="opaque source", entry="kernel",
+            signature={"x": "ptr", "y": "ptr"},
+            source_bindings={"x": "input:0", "y": "output:0"},
+        )
+
+        class StoppedOpaque(ft.fun):
+            def forward(self, x):
+                value = x.context.wrap(x.context.graph.external(x.value, spec=spec))
+                return ft.stop_gradient(value)
+
+        x = ft.tensor(3.0)
+        output = StoppedOpaque()(x)
+        with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled opaque forward")):
+            derivative = ft.grad(output, x)
+        self.assertEqual(derivative.tolist(), 0.0)
+        self.assertNotIn("fuga.external", self.engine.last_fuga_ir or "")
+        self.assertIsNone(output._storage)
+
+    def test_automatic_fun_rules_seed_guards_and_deep_chain(self):
+        self.assertTrue(callable(ft.grad))
+        x = ft.tensor(3.0)
+        self.assertEqual(ft.grad(ForwardOnly()(x), x).tolist(), 1.0)
+        self.assertEqual(ft.grad((x * x, x * x), x).tolist(), 12.0)
+        self.assertIsInstance(ft.grad(x * x, [x]), tuple)
+
+        for bad_dtype, value in (("bool", True), ("i32", 2), ("i64", 2)):
+            tensor = ft.tensor(value, dtype=bad_dtype)
+            with self.assertRaisesRegex((TypeError, ValueError), "float|dtype"):
+                ft.grad(tensor, tensor)
+
+        vx = ft.tensor([2, 3])
         vy = vx * vx
         with patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before validation")):
-            with self.assertRaisesRegex(ValueError, "explicit gradient"):
-                vy.backward()
+            with self.assertRaisesRegex(ValueError, "explicit|seed|scalar"):
+                ft.grad(vy, vx)
             for bad_seed in (ft.tensor(1), ft.tensor([1, 1], dtype="f16"), [1, 1]):
                 with self.assertRaises((TypeError, ValueError)):
-                    vy.backward(bad_seed)
-            with self.assertRaises(TypeError):
-                vy.backward(ft.tensor([1, 1]), create_graph=1)
-        self.assertIsNone(vx.grad)
+                    ft.grad(vy, vx, seed=bad_seed)
+            for bad_seed in (ft.ones(2), (ft.ones(2),), (ft.ones(2), ft.tensor(1))):
+                with self.assertRaises((TypeError, ValueError)):
+                    ft.grad((vy, vy), vx, seed=bad_seed)
+            with self.assertRaises((TypeError, ValueError)):
+                ft.grad(vy, [])
 
-        def without_history(t):
-            with ft.no_grad():
-                return t * t
-
-        no_history = without_history(ft.tensor(2.0, requires_grad=True))
-        self.assertFalse(no_history.requires_grad)
-        self.assertEqual(no_history.tolist(), 4.0)
-
-        # Mutated custom function state invalidates cached backward plan atomically.
         class Scale(ft.fun):
             def __init__(self):
                 self.factor = 2
-            def forward(self, ctx, t):
+            def forward(self, t):
                 return t * self.factor
-            def backward(self, ctx, dy):
-                return (dy * self.factor,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * self.factor,)
 
         scale = Scale()
-        sx = ft.tensor(3.0, requires_grad=True)
-        sout = scale(sx)
-        sout.backward(retain_graph=True)
-        self.assertEqual(sx.grad.tolist(), 2.0)
+        sout = scale(x)
+        self.assertEqual(ft.grad(sout, x).tolist(), 2.0)
         scale.factor = 5
         with self.assertRaisesRegex(ValueError, "definition changed"):
-            sout.backward()
-        self.assertEqual(sx.grad.tolist(), 2.0)
+            ft.grad(sout, x)
 
-        # Iterative topological backward handles >1000 chained steps without RecursionError.
-        def step(t):
-            return t + 1
-
-        chain_x = ft.tensor(0.0, requires_grad=True)
+        chain_x = ft.tensor(0.0)
         cur = chain_x
         for _ in range(1100):
-            cur = step(cur)
-        cur.backward()
-        self.assertEqual(chain_x.grad.tolist(), 1.0)
+            cur = cur + 1
+        self.assertEqual(ft.grad(cur, chain_x).tolist(), 1.0)
 
 
 @requires_cuda

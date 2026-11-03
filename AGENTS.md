@@ -21,18 +21,18 @@
   - `tensor(data)` 从规则嵌套数据推断形状；`zeros`、`ones`、`empty` 按尺寸创建，`full(size, value)` 按值填充。改变形状使用延迟原语 `reshape`，保持元素次序，JVP/VJP 保留对应形状；不承诺共享存储，也不提供 `view`。
   - 设备参数接受 `ft.device` 对象或字符串，Tensor、TraceTensor、TensorSpec 暴露实际设备对象；默认 CUDA 解析为 0。不同设备张量算术报 `RuntimeError`，同设备但属于不同独立 Engine 报 `ValueError`。
   - 用户精度参数和示例使用 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16` 类型对象；Tensor 与追踪元信息返回相同单例，IR、产物和权重清单保留原有字符串编码。
-  - 用户无需 JIT 装饰器；普通 Python 函数每次正常执行，Tensor 运算返回待计算图节点。读取数据、0-D 标量条件判断、反向传播与 `ft.evaluate(...)` 触发所需依赖图的 JIT 编译和执行。
+  - 用户无需 JIT 装饰器；普通 Python 函数每次正常执行，Tensor 运算返回待计算图节点。读取数据、0-D 标量条件判断与 `ft.evaluate(...)` 触发所需依赖图的 JIT 编译和执行。
   - 跨算子与普通函数调用保留图连接和融合机会；执行缓存属于 `Engine`，按图结构和自定义函数定义身份复用，不能跳过用户 Python 逻辑。
-  - `ft.fun` 的普通 `forward` 与可选 `backward` 自动进行隔离追踪，保留 `CallSpec`、保存值与定义变更校验；方法内部不支持数据依赖控制流。Triton 源码中的 `@triton.jit` 保留。
-  - 梯度历史在组图时记录，`no_grad` 与 `detach` 的边界不随实际执行时间改变；Python 条件每次读取真实标量值，反向沿实际路径传播。
+  - `ft.fun` 使用 `forward(self, ...)` 和可选纯规则 `vjp(self, primals, outputs, cotangents)`，三个 VJP 参数均为 tuple：primals 包含全部 Tensor 输入，outputs 包含全部公开输出，cotangents 与输出对齐（未使用浮点输出为零 Tensor，整数/布尔输出为 None）；返回浮点 Tensor 输入的梯度 tuple。普通前向自动 VJP/JVP，显式 VJP 的活跃 JVP 当前拒绝。隔离追踪保留 `CallSpec` 和定义变更校验，方法内部不支持数据依赖控制流。Triton 源码中的 `@triton.jit` 保留。
+  - Tensor 求值后保留表达式来源；`detach` 与 `stop_gradient` 显式断开微分路径，同时保留数值依赖。`grad` 接收运行时 Tensor，调用位于 `ft.fun` 隔离追踪之外。停止梯度支持 Tensor 和 TraceTensor，可用于 `forward` 与 `vjp`；追踪生成 `fuga.stop_gradient`，JVP/VJP 在此断边，降级到 ASK 时映射为输入值。Python 条件每次读取真实标量值，求导沿实际形成的路径传播。
 - **多 Kernel 执行**：
   - FugaTensor 向 ASK 提交完整静态图，自有计算区域保留融合，外部算子统一作为独立 kernel 调度；前端不限制整图只有一个外部节点。
   - Triton 通过 `inputs=` / `outputs=` 注册多输入与多输出，`scalars=` 绑定按值启动参数，输出形状/类型和配置回调只使用 TensorSpec 元数据；复杂外部前向不自动获得梯度规则。
-  - 内置 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 实现，支持 CUDA fp16/bf16 前向与一阶反向。复杂算子的反向由 `ft.fun` 的显式 `backward` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
+  - 内置 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 实现，支持 CUDA fp16/bf16 前向与一阶反向。复杂算子的反向由 `ft.fun` 的显式 `vjp` 组合外部 kernel；单次外部调用可返回多个结果，未被图消费的物理输出仍须分配。
 - **自动微分与原语闭合**：
-  - 公开自动微分接口采用 `requires_grad`、`Tensor.backward(...)` 与叶子 `.grad`，不采用 `ft.grad(f)` 形式；非标量输出调用 `backward` 须显式传入梯度种子。
+  - 公开自动微分接口为 `ft.grad(outputs, inputs, *, seed=None)`：纯 IR 变换返回待计算 Tensor，输入为 tuple/list 时返回 tuple。输出可为 Tensor 或 tuple/list，非标量须显式提供匹配单项/序列结构、长度、shape、dtype 和 Engine 的 seed（tuple/list 可互换）；标量默认种子为 1。重复求导与高阶求导通过组合导数表达式完成，未连接到输出的输入返回零梯度。张量创建和权重加载只负责数据与资源，不持有梯度开关或累加状态。
   - 新增基础原语时，在 `ir/primitives.py` 中提供可执行的 `abstract_eval`、`jvp` 和 `vjp` 规则，微分产物保持为同一套闭合的 Fuga IR。
-  - 对缺少可组合原语规则的不透明外部算子（如裸 `fuga.external` 或请求高阶导数的手写 Triton 算子），在执行反向编译或写入 `.grad` 之前的预检阶段报错拒绝。
+  - 对缺少可组合原语规则的不透明外部算子（如活跃裸 `fuga.external` 或导数图中的未定义微分外部 kernel），在构造导数 IR 时校验并报错拒绝。
 - **权重格式**：
   - `weights.py` 只序列化由嵌套 dict/list/tuple 与 Tensor 组成的 PyTree，不记录模型类、算子或设备；数组使用 dtype/shape/布局加数据的内容寻址身份。
   - 新增网络结构、参数命名或基础原子算子不改变 v1 容器；只有存储语义变化才提升 manifest `schema_version`。

@@ -5,6 +5,7 @@ import inspect
 import tempfile
 import unittest
 
+import fugatensor as ft
 from fugatensor._state import active_trace
 from fugatensor.backends.host import HostBackend, HostStorage
 from fugatensor.function import fun
@@ -51,16 +52,77 @@ def trace_fn(function, specs=(((3,), "f32"),), *static):
 
 
 class CustomSquare(fun):
-    def forward(self, ctx, x):
-        ctx.save_for_backward(x)
+    def forward(self, x):
         return x * x
 
-    def backward(self, ctx, dy):
-        (x,) = ctx.saved_tensors
-        return (dy * x * 2,)
+    def vjp(self, primals, outputs, cotangents):
+        return (cotangents[0] * primals[0] * 2,)
 
 
 class ReverseAndForwardIRTests(unittest.TestCase):
+    def test_stop_gradient_blocks_opaque_rules_in_both_ad_directions(self):
+        module, graph = tensor_graph()
+        opaque = graph.external(graph.inputs["x"], spec=opaque_spec())
+        graph.return_(graph.stop_gradient(opaque))
+        derivative = vjp(module)
+        derivative.verify()
+        self.assertNotIn("fuga.external", derivative.to_text())
+        zero = derivative.functions[0].outputs[0]
+        self.assertEqual(zero.producer.opcode, "splat")
+        self.assertEqual(zero.producer.operands[0].producer.attrs["value"], 0.0)
+        forward = jvp(module)
+        forward.verify()
+        self.assertEqual(len(forward.functions[0].outputs), 2)
+        tangent = forward.functions[0].outputs[1]
+        self.assertEqual(tangent.producer.opcode, "splat")
+        self.assertEqual(tangent.producer.operands[0].producer.attrs["value"], 0.0)
+
+        class StoppedOpaque(fun):
+            def forward(self, x):
+                value = x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+                return ft.stop_gradient(value)
+
+        wrapped = trace_fn(StoppedOpaque()).module
+        wrapped_derivative = vjp(wrapped)
+        wrapped_derivative.verify()
+        self.assertNotIn("fuga.external", wrapped_derivative.to_text())
+        self.assertNotIn("fuga.call", wrapped_derivative.to_text())
+        jvp(wrapped).verify()
+
+        class Stop(fun):
+            def forward(self, x):
+                return ft.stop_gradient(x)
+
+        def external_before_stop(x):
+            value = x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+            return Stop()(value)
+
+        outside = trace_fn(external_before_stop).module
+        self.assertNotIn("fuga.external", vjp(outside).to_text())
+        tangent = jvp(outside).functions[0].outputs[1]
+        self.assertEqual(tangent.producer.operands[0].producer.attrs["value"], 0.0)
+
+        class PairWithOpaque(fun):
+            def forward(self, x):
+                opaque = x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+                return x * x, opaque
+
+        selected = trace_fn(lambda x: PairWithOpaque()(x)[0]).module
+        vjp(selected).verify()
+        jvp(selected).verify()
+
+        class KeepFirst(fun):
+            def forward(self, x, unused):
+                return x
+
+        def dead_operand(x):
+            opaque = x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+            return KeepFirst()(x * x, opaque)
+
+        ignored = trace_fn(dead_operand).module
+        self.assertNotIn("fuga.external", vjp(ignored).to_text())
+        jvp(ignored).verify()
+
     def test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops(self):
         module, graph = tensor_graph(names=("x", "seed0"))
         graph.return_(graph.inputs["x"], graph.inputs["x"])
@@ -171,25 +233,54 @@ class ReverseAndForwardIRTests(unittest.TestCase):
 
 
 class CustomFunctionIRContractTests(unittest.TestCase):
-    def test_plain_method_signatures_saved_residuals_and_custom_rule_selection(self):
+    def test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir(self):
+        class OutputRule(fun):
+            def forward(self, x):
+                return x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+
+            def vjp(self, primals, outputs, cotangents):
+                return (outputs[0] * cotangents[0],)
+
+        traced = trace_fn(OutputRule()).module
+        original = traced.functions[0].operations[0].attrs["spec"]
+        derivative = vjp(traced)
+        second = vjp(derivative, argnums=0)
+        second.verify()
+        calls = [op for op in second.functions[0].operations if op.opcode == "call"]
+        self.assertTrue(calls)
+        self.assertTrue(all(op.attrs["spec"] is original for op in calls))
+        self.assertFalse(any(op.opcode == "external" for op in second.functions[0].operations))
+
+        class PrimalRule(fun):
+            def forward(self, x):
+                return x.context.wrap(x.context.graph.external(x.value, spec=opaque_spec()))
+
+            def vjp(self, primals, outputs, cotangents):
+                return (primals[0] * primals[0] * cotangents[0],)
+
+        second = vjp(vjp(trace_fn(PrimalRule()).module), argnums=0)
+        second.verify()
+        self.assertFalse(any(op.opcode in ("call", "external") for op in second.functions[0].operations))
+
+    def test_plain_method_signatures_visible_outputs_and_custom_rule_selection(self):
         with self.assertRaisesRegex(TypeError, "define forward"):
             class MissingForward(fun):
                 pass
         with self.assertRaisesRegex(TypeError, "instance method"):
             class StaticForward(fun):
                 @staticmethod
-                def forward(ctx, x):
+                def forward(x):
                     return x
-        with self.assertRaisesRegex(TypeError, "backward.*signature"):
+        with self.assertRaisesRegex(TypeError, "vjp.*signature"):
             class BadSig(fun):
-                def forward(self, ctx, x):
+                def forward(self, x):
                     return x
 
-                def backward(self, ctx, a, b):
+                def vjp(self, a, b):
                     return (a,)
 
         class Scale(fun):
-            def forward(self, ctx, x, factor=2, *, offset=1):
+            def forward(self, x, factor=2, *, offset=1):
                 return x * factor + offset
 
         scale = Scale()
@@ -211,31 +302,41 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "definition changed"):
             vjp(traced.module)
 
-        # Hidden saved residuals stay on CallSpec until expansion.
+        # Calls expose only ordinary forward outputs; VJP receives explicit primals and results.
         ctx = trace_fn(CustomSquare())
         call, ret = ctx.graph.operations
         spec = call.attrs["spec"]
-        self.assertEqual((spec.output_count, spec.saved_count, len(call.results)), (1, 1, 2))
+        self.assertEqual((spec.output_count, len(call.results)), (1, 1))
         self.assertEqual(ret.operands, (call.results[0],))
         self.assertNotIn("fuga.call", specialize(ctx.module).to_text())
 
-        # Custom backward rule overrides differentiating forward.
+        # Custom VJP rule overrides differentiating forward.
         class Surrogate(fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return x * x
 
-            def backward(self, ctx, dy):
-                return (dy * 7,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * 7,)
 
         d_surr = vjp(trace_fn(Surrogate()).module).functions[0]
         self.assertEqual([op.attrs["value"] for op in d_surr.operations if op.opcode == "constant"], [7.0])
 
-        # Custom call has no automatic JVP unless registered.
+        # Forward-only calls compose with both AD directions.
+        class AutomaticSquare(fun):
+            def forward(self, x):
+                return x * x
+
+        automatic = trace_fn(AutomaticSquare()).module
+        self.assertEqual(len(vjp(automatic).functions[0].outputs), 1)
+        self.assertEqual(len(vjp(vjp(automatic), argnums=0).functions[0].outputs), 1)
+        self.assertEqual(len(jvp(automatic).functions[0].outputs), 2)
+
+        # An explicit VJP is a separate rule from forward-mode differentiation.
         with self.assertRaisesRegex(DifferentiationError, "call.*explicit JVP"):
             jvp(ctx.module)
 
         class Conditional(fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return x if x else -x
 
         with self.assertRaisesRegex(TypeError, "isolated fun"):
@@ -243,11 +344,12 @@ class CustomFunctionIRContractTests(unittest.TestCase):
 
     def test_mixed_inputs_tuples_missing_rules_and_definition_invalidation(self):
         class MixedPair(fun):
-            def forward(self, ctx, x, idx, mask, factor):
+            def forward(self, x, idx, mask, factor):
                 return x, x * factor
 
-            def backward(self, ctx, dy):
-                d0, d1 = dy
+            def vjp(self, primals, outputs, cotangents):
+                assert len(primals) == 3
+                d0, d1 = cotangents
                 return (d0 + d1 * 3,)
 
         ctx = trace_fn(MixedPair(), (((3,), "f32"), ((3,), "i64"), ((3,), "bool")), 3)
@@ -257,11 +359,11 @@ class CustomFunctionIRContractTests(unittest.TestCase):
 
         # Singleton tuple preserves tuple cotangent structure.
         class Singleton(fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return (x,)
 
-            def backward(self, ctx, dy):
-                (s,) = dy
+            def vjp(self, primals, outputs, cotangents):
+                (s,) = cotangents
                 return (s,)
 
         s_ctx = trace_fn(Singleton())
@@ -269,7 +371,7 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         s_vjp = vjp(s_ctx.module).functions[0]
         self.assertIs(s_vjp.outputs[0], s_vjp.inputs["seed0"])
 
-        # Invalid backward returns, invalid save_for_backward, and mutated state invalidation.
+        # VJP return arity/types and function state are checked before execution.
         for rule, err, msg in (
             (lambda dy: (dy, dy), ValueError, "1 gradients"),
             (lambda dy: (dy.astype("f16"),), TypeError, "shape and dtype"),
@@ -277,11 +379,11 @@ class CustomFunctionIRContractTests(unittest.TestCase):
             (lambda dy: None, TypeError, "None"),
         ):
             class Broken(fun):
-                def forward(self, ctx, x):
+                def forward(self, x):
                     return x
 
-                def backward(self, ctx, dy):
-                    return rule(dy)
+                def vjp(self, primals, outputs, cotangents):
+                    return rule(cotangents[0])
             with self.assertRaisesRegex(err, msg):
                 vjp(trace_fn(Broken()).module)
 
@@ -289,11 +391,11 @@ class CustomFunctionIRContractTests(unittest.TestCase):
             def __init__(self):
                 self.factor = 2
 
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return x * self.factor
 
-            def backward(self, ctx, dy):
-                return (dy * self.factor,)
+            def vjp(self, primals, outputs, cotangents):
+                return (cotangents[0] * self.factor,)
 
         ms = MutableScale()
         traced = trace_fn(ms)
@@ -307,19 +409,19 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         # Replacing a plain method still invalidates an already-captured rule;
         # the replacement is usable by a fresh trace without a decorator.
         class ReplaceRule(fun):
-            def forward(self, ctx, x):
+            def forward(self, x):
                 return x
 
-            def backward(self, ctx, dy):
-                return (dy,)
+            def vjp(self, primals, outputs, cotangents):
+                return cotangents
 
         replacement = ReplaceRule()
         old = trace_fn(replacement)
 
-        def new_backward(self, ctx, dy):
-            return (dy * 9,)
+        def new_vjp(self, primals, outputs, cotangents):
+            return (cotangents[0] * 9,)
 
-        ReplaceRule.backward = new_backward
+        ReplaceRule.vjp = new_vjp
         with self.assertRaisesRegex(ValueError, "definition changed"):
             vjp(old.module)
         new_derivative = vjp(trace_fn(replacement).module).functions[0]
@@ -330,7 +432,7 @@ class CustomFunctionIRContractTests(unittest.TestCase):
         mod = Module()
         fg = mod.graph("id", inputs={"x": TensorType((3,), "f32")})
         fg.return_(fg.inputs["x"])
-        cspec = CallSpec("id", mod, 1)
+        cspec = CallSpec("id", mod)
         eg = mod.graph("extra", inputs={"x": TensorType((3,), "f32")})
         eg.return_(eg.inputs["x"])
         with self.assertRaisesRegex(ValueError, "forward graph changed"):
