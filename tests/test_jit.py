@@ -403,7 +403,7 @@ class SharedJITExecutionMixin:
                 vals = [True, False, True, False] if dtype == "bool" else [1, -2, 3, 4]
                 other = [True, True, False, False] if dtype == "bool" else [2, 3, 4, -5]
                 if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*hardware|bf16.*support"):
+                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*support"):
                         ft.evaluate(*pair(ft.tensor(vals, dtype=dtype), ft.tensor(other, dtype=dtype)))
                     continue
                 s, m = ft.evaluate(*pair(ft.tensor(vals, dtype=dtype), ft.tensor(other, dtype=dtype)))

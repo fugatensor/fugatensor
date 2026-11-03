@@ -19,7 +19,7 @@ class SharedHigherOrderMixin:
         for dtype in ("f32", "f16", "bf16"):
             with self.subTest(dtype=dtype):
                 if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*hardware|bf16.*support"):
+                    with self.assertRaisesRegex((CompilerError, CUDAError), "bf16.*support"):
                         x = ft.tensor(2, dtype=dtype)
                         ft.grad(quartic(x), x).tolist()
                     continue

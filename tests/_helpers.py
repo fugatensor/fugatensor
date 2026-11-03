@@ -55,7 +55,7 @@ class EngineTestCase(unittest.TestCase):
         if cls.device == "cpu":
             if not caps.get("host_codegen"):
                 raise unittest.SkipTest("ASK host code generation is disabled")
-            cls.supports_bf16 = bool(caps.get("host_bf16_hardware_supported"))
+            cls.supports_bf16 = "bf16" in caps["host_supported_element_types"]
         else:
             if not cls.engine.llc or not cls.engine.ptxas:
                 raise RuntimeError(

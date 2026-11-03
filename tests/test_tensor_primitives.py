@@ -268,9 +268,12 @@ class HostTensorPrimitiveMatrix(SharedTensorPrimitiveMatrix, EngineTestCase):
 
     def test_bf16_computation_is_rejected(self):
         from fugatensor._ask.compiler import CompilerError
+        capabilities = self.engine.compiler.capabilities()
+        self.assertNotIn('bf16', capabilities['host_supported_element_types'])
+        self.assertNotIn('host_bf16_hardware_supported', capabilities)
         x = ft.tensor([[1, 2], [3, 4]], dtype=ft.bf16)
         for operation in (ft.exp, lambda value: value.sum(), lambda value: value @ value):
-            with self.subTest(operation=operation), self.assertRaisesRegex(CompilerError, 'bf16'):
+            with self.subTest(operation=operation), self.assertRaisesRegex(CompilerError, 'bf16 is not supported by the Host backend'):
                 operation(x).tolist()
 
 

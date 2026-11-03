@@ -24,7 +24,7 @@ class SharedOperationMatrix:
             dtype = DTYPES[name]
             with self.subTest(dtype=name, shape=shape):
                 if dtype is ft.bf16 and not self.supports_bf16:
-                    with self.assertRaisesRegex((CompilerError, CUDAError), 'bf16.*hardware|bf16.*support'):
+                    with self.assertRaisesRegex((CompilerError, CUDAError), 'bf16.*support'):
                         ft.square(ft.tensor([1], dtype=dtype)).tolist()
                     continue
                 # Four ports per case (two inputs and two gradients), plus

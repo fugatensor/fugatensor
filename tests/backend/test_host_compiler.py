@@ -137,17 +137,19 @@ class HostCodegenAndFusionTests(unittest.TestCase):
             self.assertEqual(struct.pack("f", p_out[1]), struct.pack("f", -0.0))
 
     def test_shared_pointwise_graph_and_full_cast_matrix(self):
-        supports_bf16 = self.caps["host_bf16_hardware_supported"]
+        supported = self.caps["host_supported_element_types"]
+        self.assertNotIn("bf16", supported)
+        self.assertNotIn("host_bf16_hardware_supported", self.caps)
         shape, count = (2, 8), 16
         combos = [(d, None) for d in DTYPES] + [(d, "f32") for d in ("f16", "bf16")]
         for dtype, compute in combos:
             mod = build_module(shape=shape, dtype=dtype, external=False, compute_dtype=compute)
             with self.subTest(dtype=dtype, compute=compute), tempfile.TemporaryDirectory() as directory:
                 work = Path(directory)
-                if dtype == "bf16" and not supports_bf16:
+                if dtype not in supported:
                     rejected = run_ask_opt("-", "--emit-object", "-o", work / "bad.o", source=mod.to_mlir())
                     self.assertNotEqual(rejected.returncode, 0)
-                    self.assertIn("bf16 requires hardware support", rejected.stderr)
+                    self.assertIn("bf16 is not supported by the Host backend", rejected.stderr)
                     continue
                 values = input_values(count, dtype)
                 expected = expected_values(values, 1, 2, dtype=dtype, external=False, compute_dtype=compute)
@@ -160,7 +162,7 @@ class HostCodegenAndFusionTests(unittest.TestCase):
                 actual = read_buffer(out_buf, count, dtype)
                 self.assertTrue(numerically_equal(actual, expected, dtype), (dtype, actual, expected))
 
-        dtypes = [d for d in DTYPES if d != "bf16" or supports_bf16]
+        dtypes = [d for d in DTYPES if d in supported]
         c_count = 24
         cast_mod = Module()
         data = {}
