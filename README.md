@@ -1,5 +1,7 @@
 <img src="docs/assets/fugatensor-logo-inverse.svg" alt="FugaTensor logo" width="100%">
 
+---
+
 <p align="center">
   <a href="docs/安装.md#requirements"><img src="https://img.shields.io/badge/Python-3.10%2B-3776ab" alt="Python 3.10+"></a>
   <a href="docs/API/设备与执行.md#default-device"><img src="https://img.shields.io/badge/backend-CPU%20%7C%20CUDA-76b900" alt="CPU / CUDA"></a>
