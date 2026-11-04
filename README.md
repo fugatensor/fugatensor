@@ -146,4 +146,8 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 - **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [张量模型与追踪机制](docs/architecture/张量模型与追踪机制.md) · [原生图分析与 C++ 边界](docs/architecture/原生图分析与C++边界.md) · [自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md) · [ASK 桥接与多后端执行](docs/architecture/ASK桥接与多后端执行.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
 - **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [对象模型与验证](docs/ir/对象模型与验证.md) · [控制流与可组合变换](docs/ir/控制流与可组合变换.md) · [降级到 ASK](docs/ir/降级到ASK.md)
 
+## 许可证
+
+本项目采用 [Apache-2.0](LICENSE) 许可证开源。
+
 [多 kernel 计划契约](../ask/docs/图切分与多Kernel执行计划.md) · [attention API](docs/API/attention.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)

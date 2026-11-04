@@ -6,6 +6,11 @@ build-backend = "scikit_build_core.build"
 name = "fugatensor"
 version = "0.1.0"
 description = "Fuga tensor IR and native graph analysis with ASK execution"
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+]
 requires-python = ">=3.10"
 dependencies = []
 
