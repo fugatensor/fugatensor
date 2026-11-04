@@ -41,11 +41,12 @@ CPU 执行路径（`HostBackend`）调用 [ASK Host 共享循环降级](../../..
 
 ```text
 Fuga Module -> lower_to_ask -> ASK::Compiler 原生代码生成 (graph.o + ABI契约)
-            -> cc -shared -lm (graph.so) -> ctypes 按 ABI 调用函数指针
+            -> cc 按 ABI 链接依赖 (graph.so) -> ctypes 按 ABI 调用函数指针
 ```
 
 - **编译入口**：默认由 `_native` 调用 ASK C++ `ask::compiler::codegen`；`ask_opt` 参数可选择 CLI 路径。
 - **ABI 绑定**：从 `CodegenResult.abi` 读取入口及端口的 shape、dtype 和字节数，并独立写入 `abi.json`；`report.json` 保存编译诊断。后续调用校验输入、分配 `HostStorage` 输出，再调用已加载的函数指针。
+- **库依赖**：ABI 的 `link_libraries` 声明所需库名，编译器 capabilities 的 `host_link_libraries` 提供对应已安装库路径；HostBackend 据此链接并设置搜索路径。f32 矩阵乘法调用 ASK SDK 携带的单线程 OpenBLAS，库与符号使用 ASK 前缀。
 - **归约复用**：临时空间由 ASK 生成的函数管理，分配与生存期见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
 
 <a id="cuda-and-triton"></a>
@@ -88,7 +89,7 @@ GPU JIT 的单 kernel 和混合计划都使用 CUDA Graph。首次提交建立 g
 
 ASK 在准备时从读写端口推导节点依赖，并静态检查每个读取及共享槽位的访问顺序。独立分支保留并行机会，各自持有仍在使用的临时区；Fuga 提交的端口接口保持一致。CPU 物化临时区也由 ASK 在编译期按实际读取生存期复用，布局见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
 
-C++ 计划保留 kernel 和在途缓冲区；Python 绑定保留外部框架的 owner，并检查 shape/dtype。原生计划检查设备归属、字节数、写权限和别名，再一次提交所有步骤。事件完成后可回收底层 CUDA event，用户持有的 Event 保持完成状态。
+C++ 计划保留 kernel 和在途缓冲区。Fuga 的 C++ 端口对象在准备时保存 shape/dtype，提交时校验实际张量、建立外部 stream 依赖并保留 owner；ASK 原生计划检查设备归属、字节数、写权限和别名，再一次提交所有步骤。事件完成后可回收底层 CUDA event，用户持有的 Event 保持完成状态。
 
 桥接层 `prepared.run(inputs)` 由原生计划分配输出，异步返回设备张量列表；重复输出和输入别名保留相同张量句柄。`prepared.submit_many(inputs, outputs)` 使用调用方给定的输出并返回完成事件。两条入口统一校验端口、建立外部 stream 依赖并保留 owner；自动输出的完成事件由会话保留，外部生产者重用输入存储前须同步会话。
 

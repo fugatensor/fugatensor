@@ -31,7 +31,7 @@ def percentile(values, fraction):
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
 
 
-def check_output(output, case, dtype):
+def check_output(output, case, dtype, matmul_precision='ieee'):
     shape, reference = expected(case)
     if tuple(output.shape) != tuple(shape) or output.dtype != dtype:
         raise AssertionError(f"output contract: {output.shape}, {output.dtype}")
@@ -44,6 +44,8 @@ def check_output(output, case, dtype):
     if len(actual) != len(reference):
         raise AssertionError("output element count differs")
     tolerance = 3e-3 if case.dtype == 'fp16' else 2e-5
+    if case.workload == 'matmul' and case.dtype == 'fp32' and matmul_precision == 'tf32':
+        tolerance = 2e-3
     for index, (value, target) in enumerate(zip(actual, reference)):
         if not math.isfinite(value) or not math.isclose(value, target, rel_tol=tolerance, abs_tol=tolerance):
             raise AssertionError(f"numerical mismatch at {index}: {value} != {target}")
@@ -54,16 +56,23 @@ def measure(request):
     case = Case(**request['case'])
     device, backend = request['device'], request['backend']
     gpu = device == 'cuda'
+    precision = request['matmul_precision'] if gpu else 'ieee'
+    os.environ.pop('TORCH_ALLOW_TF32_CUBLAS_OVERRIDE', None)
+    if precision == 'ieee':
+        os.environ['NVIDIA_TF32_OVERRIDE'] = '0'
+    else:
+        os.environ.pop('NVIDIA_TF32_OVERRIDE', None)
     started = time.perf_counter_ns()
     with tempfile.TemporaryDirectory(prefix='worker-', dir=request['cache_parent']) as cache:
         os.environ['TORCHINDUCTOR_CACHE_DIR'] = str(Path(cache) / 'inductor')
         os.environ['TRITON_CACHE_DIR'] = str(Path(cache) / 'triton')
-        if request['cpu_core'] is not None and not gpu:
+        if request['cpu_core'] is not None:
             os.sched_setaffinity(0, {request['cpu_core']})
         if backend == 'fuga':
             import fugatensor as module
             dtype = getattr(module, case.dtype)
             engine = module.Engine(device=device, cache_dir=Path(cache) / 'fuga', compilers={})
+            host_matmul = engine.compiler.capabilities().get('host_matmul', {})
             scope = engine
             inputs = [engine.tensor(data, dtype=dtype) for data in input_data(case)]
             function = make_function(case, 'fuga', module)
@@ -78,7 +87,8 @@ def measure(request):
             import torch as module
             module.set_num_threads(request['threads'])
             module.set_num_interop_threads(1)
-            module.set_float32_matmul_precision('highest')
+            module.backends.fp32_precision = 'ieee'
+            module.backends.cuda.matmul.fp32_precision = precision
             dtype = {'fp32': module.float32, 'fp16': module.float16}[case.dtype]
             scope = module.inference_mode()
             inputs = [module.tensor(data, dtype=dtype, device=device) for data in input_data(case)]
@@ -111,7 +121,7 @@ def measure(request):
             return output
         with scope:
             output = timed('first', 0)
-            error = check_output(output, case, dtype)
+            error = check_output(output, case, dtype, precision)
             del output
             for _ in range(request['warmup']):
                 output = invoke()
@@ -120,7 +130,7 @@ def measure(request):
             for iteration in range(request['samples']):
                 output = timed('hot', iteration)
                 if iteration == request['samples'] - 1:
-                    error = max(error, check_output(output, case, dtype))
+                    error = max(error, check_output(output, case, dtype, precision))
                 del output
             memory = dict(device_reserved_bytes='', device_peak_reserved_bytes='',
                           device_allocated_bytes='', device_peak_allocated_bytes='',
@@ -158,12 +168,22 @@ def measure(request):
                            compile_mode=('reduce-overhead' if gpu else 'default')
                            if backend == 'torch_compile' else '',
                            cuda_version=module.version.cuda if backend != 'fuga' else '')
+        environment['matmul_precision'] = precision
+        if backend == 'fuga':
+            environment['host_matmul'] = host_matmul
+            if gpu:
+                environment['runtime'] = stats['runtime']
+        else:
+            environment['blas_library'] = (str(module.backends.cuda.preferred_blas_library()) if gpu
+                                           else 'MKL' if module.backends.mkl.is_available() else 'build-config')
+            environment['build_config'] = module.__config__.show()
         return dict(result=row, samples=samples, environment=environment)
 
 
 def comparisons(rows):
     groups = {}
-    dimensions = ('device', 'workload', 'size', 'dtype', 'layout', 'rows', 'columns', 'depth', 'branches')
+    dimensions = ('device', 'workload', 'size', 'dtype', 'layout', 'rows', 'columns', 'depth', 'branches',
+                  'matmul_data', 'matmul_precision')
     for row in rows:
         if row['status'] == 'ok':
             key = tuple(row[name] for name in dimensions)
@@ -213,6 +233,11 @@ def main():
     parser.add_argument('--layouts', nargs='+', choices=LAYOUTS, default=['row_major'])
     parser.add_argument('--depths', nargs='+', type=int, choices=(3, 8), default=[8])
     parser.add_argument('--branches', nargs='+', type=int, choices=(2, 4), default=[4])
+    parser.add_argument('--matmul-sizes', nargs='+', type=positive,
+                        help='override square matmul sizes; other workloads retain --sizes')
+    parser.add_argument('--matmul-data', choices=('dyadic', 'general'), default='dyadic')
+    parser.add_argument('--matmul-precision', choices=('tf32', 'ieee'), default='tf32',
+                        help='CUDA f32 matmul policy for both frameworks')
     parser.add_argument('--rounds', type=positive, default=3)
     parser.add_argument('--samples', type=positive, default=31)
     parser.add_argument('--warmup', type=positive, default=5)
@@ -224,11 +249,14 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/benchmarks') /
                         datetime.now().strftime('torch-%Y%m%d-%H%M%S'))
     args = parser.parse_args()
+    if 'fuga' in args.backends and 'cpu' in args.devices and args.threads != 1:
+        parser.error('matched Fuga CPU comparisons require --threads 1')
     if args.output.exists() and any(args.output.iterdir()):
         parser.error(f'output directory is not empty: {args.output}')
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / 'logs').mkdir()
-    matrix = list(cases(args.workloads, args.sizes, args.dtypes, args.layouts, args.depths, args.branches))
+    matrix = list(cases(args.workloads, args.sizes, args.dtypes, args.layouts, args.depths, args.branches,
+                        matmul_sizes=args.matmul_sizes, matmul_data=args.matmul_data))
     rows, samples, environments = [], [], []
     settings = vars(args) | {'output': str(args.output.resolve())}
     total = len(matrix) * len(args.devices) * len(args.backends) * args.rounds
@@ -238,12 +266,15 @@ def main():
         for device in args.devices:
             for case in matrix:
                 for backend in order:
-                    identity = dict(round=round_, device=device, backend=backend, **asdict(case))
+                    precision = args.matmul_precision if device == 'cuda' else 'ieee'
+                    identity = dict(round=round_, device=device, backend=backend,
+                                    matmul_precision=precision, **asdict(case))
                     request = dict(case=asdict(case), device=device, backend=backend,
                                    samples=args.samples, warmup=args.warmup, threads=args.threads,
-                                   cpu_core=args.cpu_core)
+                                   cpu_core=args.cpu_core, matmul_precision=precision)
                     python = args.fuga_python if backend == 'fuga' else args.torch_python
                     env = os.environ | {'OMP_NUM_THREADS': str(args.threads), 'MKL_NUM_THREADS': str(args.threads),
+                                        'OPENBLAS_NUM_THREADS': str(args.threads), 'GOTO_NUM_THREADS': str(args.threads),
                                         'TORCHINDUCTOR_COMPILE_THREADS': '1'}
                     env.pop('PYTHONPATH', None)
                     number = len(rows) + 1

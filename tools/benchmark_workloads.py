@@ -1,6 +1,7 @@
 """Shared Fuga/PyTorch workloads, generated cases and independent references."""
 from dataclasses import dataclass
 from itertools import product
+import struct
 
 
 WORKLOADS = ("elementwise", "reduction_chain", "fork_join", "matmul")
@@ -19,6 +20,7 @@ class Case:
     columns: int
     depth: int = 0
     branches: int = 1
+    matmul_data: str = "dyadic"
 
     @property
     def shape(self):
@@ -26,17 +28,21 @@ class Case:
 
 
 def cases(workloads=WORKLOADS, sizes=SIZES, dtypes=("fp32",),
-          layouts=("row_major",), depths=(8,), branches=(4,)):
+          layouts=("row_major",), depths=(8,), branches=(4,), *,
+          matmul_sizes=None, matmul_data="dyadic"):
     """Cross independent axes; depth and branch count apply to their workload."""
     tensor_shapes = {"small": (32, 64), "large": (512, 256)}
     matrix_sides = {"small": 16, "large": 128}
-    for workload, size, dtype, layout in product(workloads, sizes, dtypes, layouts):
-        rows, columns = tensor_shapes[size]
+    for workload in workloads:
+        shapes = [(size, *tensor_shapes[size]) for size in sizes]
         if workload == "matmul":
-            rows = columns = matrix_sides[size]
-        for depth, width in product(depths if workload == "reduction_chain" else (0,),
-                                    branches if workload == "fork_join" else (1,)):
-            yield Case(workload, size, dtype, layout, rows, columns, depth, width)
+            shapes = ([(f"n{side}", side, side) for side in matmul_sizes] if matmul_sizes is not None
+                      else [(size, matrix_sides[size], matrix_sides[size]) for size in sizes])
+        for (size, rows, columns), dtype, layout in product(shapes, dtypes, layouts):
+            for depth, width in product(depths if workload == "reduction_chain" else (0,),
+                                        branches if workload == "fork_join" else (1,)):
+                yield Case(workload, size, dtype, layout, rows, columns, depth, width,
+                           matmul_data if workload == "matmul" else "dyadic")
 
 
 def _transpose(matrix):
@@ -47,11 +53,17 @@ def input_data(case):
     """Contiguous physical inputs; transpose is an operation inside the graph."""
     rows, columns = case.shape
     if case.workload == "matmul":
-        # Rank-one operands with varied rows/columns and alternating inner signs.
-        # Each product is a multiple of 1/16; K <= 128 keeps fp16 sums exact.
-        left = [[((row % 5) - 2) / 4 * (1 if inner % 2 == 0 else -1)
+        # Rank-one operands retain an independent closed-form reference even at
+        # large sizes. General inputs exercise rounding to TF32 multiplicands.
+        encoding = 'e' if case.dtype == 'fp16' else 'f'
+        def scalar(value):
+            return struct.unpack(encoding, struct.pack(encoding, value))[0]
+        left_divisor, right_divisor = (7, 11) if case.matmul_data == 'general' else (4, 4)
+        left_values = [scalar(((row % 5) - 2) / left_divisor) for row in range(rows)]
+        right_values = [scalar(((column % 7) - 3) / right_divisor) for column in range(columns)]
+        left = [[left_values[row] * (1 if inner % 2 == 0 else -1)
                  for inner in range(columns)] for row in range(rows)]
-        right = [[(1 if inner % 2 == 0 else -1) * ((column % 7) - 3) / 4
+        right = [[(1 if inner % 2 == 0 else -1) * right_values[column]
                   for column in range(columns)] for inner in range(columns)]
         inputs = (left, right)
     else:
@@ -102,7 +114,7 @@ def make_function(case, backend, module):
 
 
 def expected(case):
-    """Independent scalar references; all default fp16/fp32 steps are exact."""
+    """Independent scalar references using the declared input storage precision."""
     inputs = input_data(case)
     if case.layout == "transpose":
         inputs = tuple(_transpose(value) for value in inputs)

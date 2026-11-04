@@ -48,7 +48,7 @@ CMAKE_PREFIX_PATH=/absolute/path/to/ask-sdk python3 -m pip wheel --no-deps . --w
 
 `fugatensor[pure]` 使用基础依赖，`fugatensor[all]` 额外安装 Triton。两者共用一个 wheel，直接安装 `fugatensor` 等同 pure。命令和环境要求见[安装选项](docs/安装.md#installation-variants)。
 
-CPU JIT 使用 `cc` 和 libm，自有 CUDA 计算使用 `llc` / `ptxas`；指数与对数另链接 CUDA libdevice，矩阵乘法使用 cuBLASLt。构建依赖、工具配置和开发引导见[安装文档](docs/安装.md)。
+CPU JIT 使用 `cc` 和 libm，fp32 矩阵乘法链接 ASK SDK 提供的 OpenBLAS。自有 CUDA 计算使用 `llc` / `ptxas`；指数与对数另链接 CUDA libdevice，矩阵乘法使用 cuBLASLt，fp32 允许 TF32 乘法。构建依赖、工具配置和开发引导见[安装文档](docs/安装.md)。
 
 ## 基本用法
 
@@ -125,17 +125,17 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 ## 测试
 
-数值测试按算子、组合深度、精度、形状和求导阶数生成用例；设备存储契约按 dtype × shape × layout 交叉。运行和扩展方式见[测试矩阵](docs/测试.md)。
+数值测试按算子、精度与关键边界生成代表组合，状态和生命周期保留独立契约测试。`--exhaustive` 扩展同一生成器的组合。运行和扩展方式见[测试矩阵](docs/测试.md)。
 
 ```bash
 # CPU 编译、C++ 原生图分析、Fuga IR / JVP / VJP 与降级测试
-.venv/bin/python -m unittest -v
+.venv/bin/python -m pytest -q
 
 # 启用物理 GPU 自有 CUDA 测试
-FUGATENSOR_TEST_CUDA=1 .venv/bin/python -m unittest -v
+.venv/bin/python -m pytest -q --cuda
 
 # 同时启用自有 CUDA 与用户 Triton GPU 调度及反向测试
-FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v
+.venv/bin/python -m pytest -q --cuda --triton
 ```
 
 ## 文档

@@ -48,9 +48,20 @@ python tools/benchmark_torch.py \
   --output build/benchmarks/torch-cuda-matrix
 ```
 
-深度只扩展归约链，分支数只扩展分支负载。`transpose` 在被测函数内对连续存储的输入做转置；Fuga 和 Torch 各自按其索引、视图和融合语义执行。输入使用小整数及二进分数；矩阵乘法使用行列变化的秩一数据，独立解析参考检查输出。
+深度只扩展归约链，分支数只扩展分支负载。`transpose` 在被测函数内对连续存储的输入做转置；Fuga 和 Torch 各自按其索引、视图和融合语义执行。默认输入使用小整数及二进分数；矩阵乘法使用行列变化的秩一数据，独立解析参考检查输出。
 
-`--backends fuga torch_eager` 可单独比较 eager。若两个框架安装在不同环境，指定 `--fuga-python` 和 `--torch-python`；元数据记录每个实际解释器和框架路径。CPU 默认单线程，`--threads` 设置 Torch 的计算线程数；ASK 自有 CPU 循环为单线程。`--cpu-core 2` 可固定 CPU 运行核心。
+扩大矩阵乘法尺寸并使用需要 TF32 舍入的输入：
+
+```bash
+python tools/benchmark_torch.py --backends fuga torch_eager \
+  --workloads matmul --matmul-sizes 16 128 512 1024 \
+  --matmul-data general --matmul-precision tf32 --threads 1 --cpu-core 2 \
+  --output build/benchmarks/matmul
+```
+
+`--matmul-precision tf32` 是默认 CUDA fp32 策略，两边都允许 TF32；`ieee` 设置 `NVIDIA_TF32_OVERRIDE=0` 并将 Torch 设为 IEEE，提供相同精度的对照。CPU 始终采用 fp32 库运算。`--matmul-data general` 将行列系数先舍入到输入 dtype，解析参考按这些实际输入计算，并按所选精度检查误差。
+
+`--backends fuga torch_eager` 可单独比较 eager。若两个框架安装在不同环境，指定 `--fuga-python` 和 `--torch-python`；元数据记录每个实际解释器和框架路径。包含 Fuga 的 CPU 对照使用 `--threads 1`，匹配 ASK 自有循环与单线程 OpenBLAS；Torch 独立测量可指定其它线程数。`--cpu-core 2` 同时固定 CPU 运算与 CUDA 提交的宿主核心。
 
 <a id="measurement"></a>
 
@@ -63,7 +74,7 @@ python tools/benchmark_torch.py \
 - `call_p50_us`：函数计算并提交后的主机返回时间中位数。Fuga 包含构图和 `evaluate`。
 - `complete_p50_us` / `complete_p90_us`：完整调用到同步完成的中位数 / 90 分位数，是速度比较使用的口径。
 
-每次 Fuga 调用都生成新结果，并检查实际执行次数和一次编译的缓存记录。首末结果检查 shape、dtype 及独立数值参考。PyTorch 使用 inference mode 和最高 FP32 矩阵乘法精度；`torch.compile` 要求完整图，CPU 使用 `default` 模式，CUDA 使用支持 CUDA Graph 的 [`reduce-overhead`](https://docs.pytorch.org/docs/stable/generated/torch.compile.html) 模式。失败项写入 `results.csv`，脚本返回非零状态。
+每次 Fuga 调用都生成新结果，并检查实际执行次数和一次编译的缓存记录。首末结果检查 shape、dtype 及独立数值参考。PyTorch 使用 inference mode，矩阵精度由 `--matmul-precision` 决定；`torch.compile` 要求完整图，CPU 使用 `default` 模式，CUDA 使用支持 CUDA Graph 的 [`reduce-overhead`](https://docs.pytorch.org/docs/stable/generated/torch.compile.html) 模式。失败项写入 `results.csv`，脚本返回非零状态。
 
 输出文件：
 
