@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gc
 from array import array
+from itertools import product
 import json
 import math
 from pathlib import Path
@@ -143,6 +144,58 @@ class TensorCreationTests(EngineTestCase):
 
 
 class SharedJITExecutionMixin:
+    def test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs(self):
+        for dtype, shape, keywords in product((ft.fp32, ft.fp16), ((1, 2), (2, 3)), (False, True)):
+            with self.subTest(dtype=dtype, shape=shape, keywords=keywords):
+                rows, columns = shape
+                for scalar in (1, 3):
+                    x = ft.tensor([[scalar] * columns for _ in range(rows)], dtype=dtype)
+                    y = ft.tensor([[2] * columns for _ in range(rows)], dtype=dtype)
+                    added = ft.add(x=x, y=y) if keywords else ft.add(x, y)
+                    result = ft.sum(added, axis=1, keepdims=True)
+                    self.assertEqual(result.tolist(), [[columns * (scalar + 2)]] * rows)
+                    self.assertEqual(result.shape, (rows, 1))
+                    self.assertIs(result.dtype, dtype)
+        x = ft.tensor([[1, 2], [3, 4]])
+        self.assertEqual(ft.matmul(x, x).tolist(), [[7, 10], [15, 22]])
+        self.assertEqual(ft.matmul(a=x, b=x, transpose_b=True).tolist(), [[5, 11], [11, 25]])
+        for invoke in (lambda: ft.add(x, x, x=x), lambda: ft.add(x, missing=x),
+                       lambda: ft.matmul(x, x, True)):
+            with self.assertRaises(TypeError):
+                invoke()
+
+    def test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings(self):
+        x = ft.tensor([1, 2])
+        wrong_shape = ft.tensor([1, 2, 3])
+        wrong_dtype = ft.tensor([1, 2], dtype=ft.int32)
+        boolean = ft.tensor([True, False], dtype=ft.bool)
+        wrong_bool_shape = ft.tensor([True], dtype=ft.bool)
+        for operation, warm in product((lambda a, b: a + b, lambda a, b: a * b), (False, True)):
+            with self.subTest(warm=warm):
+                if warm:
+                    ft.evaluate(operation(x, x))
+                for left, right, error in ((x, wrong_shape, ValueError), (x, wrong_dtype, TypeError),
+                                            (boolean, boolean, TypeError), (boolean, 1, TypeError),
+                                            (1, boolean, TypeError), (boolean, wrong_bool_shape, ValueError)):
+                    with self.assertRaises(error):
+                        operation(left, right)
+
+    def test_general_template_binding_retains_python_parameter_rules(self):
+        from fugatensor._jit import jit
+
+        @jit
+        def operation(x, /, scale=2, *, offset=1):
+            return x * scale + offset
+
+        x = ft.tensor([1, 2])
+        self.assertEqual(operation(x).tolist(), [3, 5])
+        self.assertEqual(operation(x, scale=3, offset=4).tolist(), [7, 10])
+        self.assertEqual(operation(x, 3, offset=4).tolist(), [7, 10])
+        for invoke in (lambda: operation(x=x), lambda: operation(x, 3, 4),
+                       lambda: operation(x, 3, scale=4)):
+            with self.assertRaises(TypeError):
+                invoke()
+
     def test_reshape_is_lazy_fuses_and_preserves_values(self):
         x = ft.tensor([1, 2, 3, 4, 5, 6])
         before = self.engine.stats

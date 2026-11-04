@@ -67,8 +67,9 @@ def geometry_matrix():
             axes for length in range(len(shape) + 1) for axes in combinations(range(len(shape)), length))
 
 
-def matmul_matrix():
-    for dtype, batch, (m, n, k), ta, tb in product(dtypes(True), BATCHES, MATRIX_SHAPES, (False, True), (False, True)):
+def matmul_matrix(*, shapes=MATRIX_SHAPES, batches=BATCHES, types=None):
+    for dtype, batch, (m, n, k), ta, tb in product(dtypes(True) if types is None else types,
+            batches, shapes, (False, True), (False, True)):
         yield dtype, (*batch, k, m) if ta else (*batch, m, k), (*batch, n, k) if tb else (*batch, k, n), ta, tb
 
 

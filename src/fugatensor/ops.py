@@ -1,41 +1,41 @@
 """Builtins are visible Fuga expressions, including during derivative tracing."""
-from ._jit import jit
+from ._jit import primitive
 from .dtypes import bool as bool_dtype
 from .tracing import TraceTensor
 from .tensor import Tensor
 
 
-@jit
+@primitive
 def add(x, y):
     return x + y
 
 
-@jit
+@primitive
 def multiply(x, y):
     return x * y
 
 
-@jit
+@primitive
 def negative(x):
     return x * -1
 
 
-@jit
+@primitive
 def subtract(x, y):
     return x + y * -1
 
 
-@jit
+@primitive
 def square(x):
     return x * x
 
 
-@jit
+@primitive
 def cast(x, dtype):
     return x.astype(dtype)
 
 
-@jit
+@primitive
 def _reshape(x, shape):
     return x.reshape(shape)
 
@@ -57,12 +57,12 @@ def _filled_like(x, value):
     return x.context.wrap(x.context.graph.splat(scalar, x.shape))
 
 
-@jit
+@primitive
 def zeros_like(x):
     return _filled_like(x, 0)
 
 
-@jit
+@primitive
 def ones_like(x):
     return _filled_like(x, 1)
 
@@ -75,19 +75,19 @@ def _pair(x, y):
     raise TypeError('operation requires a Tensor operand')
 
 
-@jit
+@primitive
 def divide(x, y):
     context, left, right = _pair(x, y)
     return context.wrap(context.graph.div(left, right))
 
 
-@jit
+@primitive
 def compare(x, y, predicate='eq'):
     context, left, right = _pair(x, y)
     return context.wrap(context.graph.compare(left, right, predicate))
 
 
-@jit
+@primitive
 def where(condition, x, y):
     context, left, right = _pair(x, y)
     if not isinstance(condition, TraceTensor) or condition.context is not context:
@@ -95,22 +95,22 @@ def where(condition, x, y):
     return context.wrap(context.graph.select(condition.value, left, right))
 
 
-@jit
+@primitive
 def exp(x):
     return x.context.wrap(x.context.graph.exp(x.value))
 
 
-@jit
+@primitive
 def log(x):
     return x.context.wrap(x.context.graph.log(x.value))
 
 
-@jit
+@primitive
 def sqrt(x):
     return x.context.wrap(x.context.graph.sqrt(x.value))
 
 
-@jit
+@primitive
 def _broadcast(x, shape, dimensions):
     return x.context.wrap(x.context.graph.broadcast_in_dim(x.value, shape, dimensions))
 
@@ -124,7 +124,7 @@ def broadcast_to(x, shape):
     return broadcast_in_dim(x, shape, tuple(range(len(shape) - len(x.shape), len(shape))))
 
 
-@jit
+@primitive
 def _transpose(x, permutation):
     return x.context.wrap(x.context.graph.transpose(x.value, permutation))
 
@@ -143,7 +143,7 @@ def _axes(axis, rank):
     return tuple(sorted(axes))
 
 
-@jit
+@primitive
 def _reduce(x, opcode, axes, keepdims, dtype):
     from .ir import ScalarType
     if type(keepdims) is not bool:
@@ -174,7 +174,7 @@ def mean(x, axis=None, *, keepdims=False, dtype=None):
     return sum(x, axes, keepdims=keepdims, dtype=dtype) / math.prod(x.shape[axis] for axis in axes)
 
 
-@jit
+@primitive
 def matmul(a, b, *, transpose_a=False, transpose_b=False):
     if not isinstance(a, TraceTensor) or not isinstance(b, TraceTensor) or a.context is not b.context:
         raise TypeError('matmul requires two Tensors in the same graph')

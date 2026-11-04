@@ -46,12 +46,7 @@ def defer_module(module, inputs, *, engine, dependencies=()):
         engine._check_tensor(value)
         if (spec.type.shape, spec.type.dtype) != (value.shape, value.dtype):
             raise ValueError('deferred graph input type differs from tensor binding')
-    _template(module)
-    expression = Expression(module, inputs, tuple(dependencies))
-    outputs = tuple(Tensor._from_pending(engine, value.type.shape, value.type.dtype,
-                                         Result(expression, index))
-                    for index, value in enumerate(function.outputs))
-    return outputs
+    return _template(module).bind(inputs, engine, tuple(dependencies))
 
 
 def _source(tensor):
@@ -73,8 +68,16 @@ class _Slice:
 class _Template:
     module: Module
     definitions: frozenset
+    output_types: tuple
     slices: dict = field(default_factory=dict, compare=False)
     dependencies: dict = field(default_factory=dict, compare=False)
+
+    def bind(self, inputs, engine, dependencies):
+        """Instantiate a sealed template after its input signature has matched."""
+        expression = Expression(self.module, inputs, dependencies)
+        return tuple(Tensor._from_pending(engine, type_.shape, type_.dtype,
+                                          Result(expression, index))
+                     for index, type_ in enumerate(self.output_types))
 
     def project(self, indices):
         if indices not in self.slices:
@@ -102,7 +105,8 @@ def _template(module):
     result = getattr(module, '_execution_template', None)
     if result is None:
         module._seal()
-        result = _Template(module, frozenset(_call_definitions(module)))
+        result = _Template(module, frozenset(_call_definitions(module)),
+                           tuple(value.type for value in module.functions[0].outputs))
         object.__setattr__(module, '_execution_template', result)
     return result
 

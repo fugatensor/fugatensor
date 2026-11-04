@@ -241,10 +241,7 @@ class Engine:
     def elementwise(self, operation, operands, *, dtype=None):
         # Primitive templates create deferred nodes; evaluation fuses the DAG.
         require_not_tracing()
-        from ._jit import jit
-        for value in operands:
-            if isinstance(value, Tensor):
-                self._check_tensor(value)
+        from ._jit import primitive
         key = (operation, dtype)
         with self._lock:
             if key not in self._operations:
@@ -256,7 +253,7 @@ class Engine:
                     function = lambda value: value.astype(dtype)
                 else:
                     raise ValueError(f'unsupported operation: {operation}')
-                self._operations[key] = jit(function)
+                self._operations[key] = primitive(function)
             function = self._operations[key]
         return function(*operands)
 
@@ -415,9 +412,8 @@ class _InputProjection:
     """Bind the original Fuga signature to the live compiled input ports."""
     def __init__(self, executable, indices, arity):
         self.executable, self.indices, self.arity = executable, indices, arity
-
-    def __getattr__(self, name):
-        return getattr(self.executable, name)
+        self.source, self.report = executable.source, executable.report
+        self.artifact_dir, self.execution_plan = executable.artifact_dir, executable.execution_plan
 
     def run(self, inputs):
         if len(inputs) != self.arity:

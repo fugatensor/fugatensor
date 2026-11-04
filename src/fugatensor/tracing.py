@@ -61,6 +61,8 @@ class TraceTensor:
         return self.context.graph.splat(constant, self.shape)
 
     def _binary(self, operation, other, *, reverse=False):
+        if self.dtype == "bool" and not isinstance(other, TraceTensor):
+            raise TypeError("bool arithmetic is not defined; use astype to select a numeric type")
         other_value = self._operand(other)
         lhs, rhs = (other_value, self.value) if reverse else (self.value, other_value)
         value = getattr(self.context.graph, operation)(lhs, rhs)

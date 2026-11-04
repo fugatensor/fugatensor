@@ -141,16 +141,8 @@ class Tensor:
         return _reshape(self, infer_reshape(shape, math.prod(self.shape)))
 
     def _binary(self, operation, other, *, reverse=False):
-        if isinstance(other, Tensor):
-            self.engine._check_tensor(other)
-            if other.shape != self.shape:
-                raise ValueError("tensor operands require equal shapes; use broadcast_to explicitly")
-            if other.dtype != self.dtype:
-                raise TypeError("tensor operands require equal dtypes; use astype explicitly")
-        elif type(other) not in (bool, int, float):
+        if not isinstance(other, Tensor) and type(other) not in (bool, int, float):
             return NotImplemented
-        if self.dtype == "bool":
-            raise TypeError("bool arithmetic is not defined; use astype to select a numeric type")
         arguments = (other, self) if reverse else (self, other)
         return self._engine.elementwise(operation, arguments)
 
