@@ -22,6 +22,11 @@ foreach(component Compiler Runtime)
   install(FILES $<TARGET_FILE:ASK::${component}> DESTINATION fugatensor/_lib
     RENAME $<TARGET_SONAME_FILE_NAME:ASK::${component}>)
 endforeach()
+if(TARGET ASK::HostBLAS)
+  install(FILES $<TARGET_FILE:ASK::HostBLAS> DESTINATION fugatensor/_lib
+    RENAME $<TARGET_SONAME_FILE_NAME:ASK::HostBLAS>)
+  install(FILES "${ASK_OPENBLAS_LICENSE}" DESTINATION fugatensor/_lib/licenses/OpenBLAS)
+endif()
 target_compile_features(_native PRIVATE cxx_std_17)
 target_include_directories(_native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/cpp")
 target_compile_definitions(_native PRIVATE FUGA_VERSION="${PROJECT_VERSION}")

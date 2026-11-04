@@ -252,7 +252,13 @@ class HostBackend:
         report_path, library = directory / "report.json", directory / "graph.so"
         source_path.write_text(source, encoding="utf-8")
         compiled = self.compiler.emit_host_object(source, obj)
+        if 'openblas' in compiled.abi['link_libraries']:
+            compiled.diagnostics['host_matmul'] = capabilities['host_matmul']
         report_path.write_text(json.dumps(compiled.diagnostics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         (directory / "abi.json").write_text(json.dumps(compiled.abi, indent=2) + "\n", encoding="utf-8")
-        self._run([cc, "-shared", str(obj), "-o", str(library), "-lm"])
+        libraries = [Path(capabilities['host_link_libraries'][name])
+                     for name in compiled.abi['link_libraries']]
+        self._run([cc, "-shared", str(obj), "-o", str(library), "-lm",
+                   *(str(path) for path in libraries),
+                   *(f'-Wl,-rpath,{path}' for path in dict.fromkeys(path.parent for path in libraries))])
         return HostExecutable(library, compiled, source, directory)
