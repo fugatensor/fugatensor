@@ -329,13 +329,12 @@ class Engine:
             return _InputProjection(executable, input_indices, len(arguments))
 
     def _execute(self, executable, inputs):
+        """Submit the materialized storage ports collected from the native graph."""
         with self._lock:
-            for value in inputs:
-                self._check_tensor(value)
             self._check_open()
-            outputs = executable.run([value.storage for value in inputs])
+            outputs = executable.run(inputs)
             self._stats['executions'] += 1
-            return tuple(Tensor(self, value) for value in outputs)
+            return outputs
 
     def synchronize(self):
         with self._lock:
@@ -384,9 +383,7 @@ class _CUDAExecutable:
         self.prepared = kernel.prepare(session, graph=True)
         self.source, self.report, self.artifact_dir = source, kernel.report, directory
         self.execution_plan = kernel.execution_plan
-
-    def run(self, inputs):
-        return self.prepared.run(inputs)
+        self.run = self.prepared.run
 
 
 class _InputProjection:
@@ -395,6 +392,8 @@ class _InputProjection:
         self.executable, self.indices, self.arity = executable, indices, arity
         self.source, self.report = executable.source, executable.report
         self.artifact_dir, self.execution_plan = executable.artifact_dir, executable.execution_plan
+        if indices == tuple(range(arity)):
+            self.run = executable.run
 
     def run(self, inputs):
         if len(inputs) != self.arity:

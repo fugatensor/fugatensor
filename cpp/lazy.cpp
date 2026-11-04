@@ -514,10 +514,17 @@ class Collection {
     }
     if (leaves.empty()) { Id value = carrier();leafIndices.emplace(value, 0);leaves.push_back(value); }
     nb::dict definitions, projections;
-    nb::list expressionObjects, leafObjects;
+    nb::list expressionObjects;
+    nb::tuple leafObjects = nb::cast<nb::tuple>(checked(PyTuple_New(leaves.size())));
     std::unordered_set<DependencySelection, DependencySelection::Hash> processedDependencies;
     PlanKey key(nb::borrow<nb::object>(engine.attr("_arena")), arena);
-    for (Id value : leaves) { leafObjects.append(arena->wrap(value, engine));key.leaves.push_back(arena->values[value].type); }
+    for (std::size_t index = 0; index < leaves.size(); ++index) {
+      const auto value = leaves[index];
+      auto object = exposeDetails ? arena->wrap(value, engine)
+                                 : arena->storages[arena->values[value].storage];
+      PyTuple_SET_ITEM(leafObjects.ptr(), index, object.release().ptr());
+      key.leaves.push_back(arena->values[value].type);
+    }
     for (Id id : ordered) {
       auto expression = arena->expressions[id];
       const auto selectedId = selections.at(id).slice;

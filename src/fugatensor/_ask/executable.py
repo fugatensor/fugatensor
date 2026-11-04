@@ -38,6 +38,12 @@ def _nbytes(port):
 
 
 class _Prepared:
+    def _prepare_ports(self):
+        from .. import _native
+        from .runtime import DeviceTensor
+        self._ports = _native.CUDAProgramPorts(self._inputs, self._outputs)
+        self._tensor_type = DeviceTensor
+
     @property
     def inputs(self):
         return copy.deepcopy(self._inputs)
@@ -56,27 +62,6 @@ class _Prepared:
         _require(len(self._outputs) == 1, "multiple outputs have separate dtypes; use outputs")
         return self._outputs[0]["element_type"]
 
-    def _check_ports(self, **bindings):
-        from .runtime import DeviceTensor
-        for kind, tensors in bindings.items():
-            ports = getattr(self, "_" + kind)
-            _require(isinstance(tensors, (tuple, list)), "program ports must be a list or tuple")
-            # Native calls release the GIL. Bind and retain the same snapshot
-            # even if another thread changes the caller's lists during launch.
-            tensors = bindings[kind] = tuple(tensors)
-            _require(len(tensors) == len(ports),
-                     f"program expects {len(ports)} {kind}")
-            for tensor, port in zip(tensors, ports):
-                _require(isinstance(tensor, DeviceTensor), "program ports require DeviceTensor values")
-                _require(tuple(tensor.shape) == tuple(port["shape"]) and tensor.dtype == port["element_type"],
-                         "program port shape/dtype differs from its compiled type")
-        # The native program checks sizes, session ownership, writable outputs
-        # and aliases together before enqueueing any kernel.
-        for tensors in bindings.values():
-            for tensor in tensors:
-                tensor._prepare_access(self._session)
-        return bindings
-
     def run(self, inputs):
         """Allocate outputs and enqueue the program, returning device tensors.
 
@@ -84,21 +69,10 @@ class _Prepared:
         The session keeps external input owners until the submission completes;
         synchronize the session before an external producer reuses its memory.
         """
-        from .runtime import DeviceTensor
         session = self._session
         with session._lock:
             session._check_open()
-            inputs = self._check_ports(inputs=inputs)["inputs"]
-            session.reap()
-            buffers, event = self._native.run([value._buffer for value in inputs])
-            session._retain(event, inputs)
-            bound = {value._buffer: value for value in inputs}
-            outputs = []
-            for buffer, port in zip(buffers, self._outputs):
-                if buffer not in bound:
-                    bound[buffer] = DeviceTensor(session, buffer, tuple(port["shape"]), port["element_type"])
-                outputs.append(bound[buffer])
-            return outputs
+            return self._ports.run(self._native, session, inputs, self._tensor_type)
 
     def submit(self, input, output):
         return self.submit_many([input], [output])
@@ -107,12 +81,7 @@ class _Prepared:
         session = self._session
         with session._lock:
             session._check_open()
-            bindings = self._check_ports(inputs=inputs, outputs=outputs)
-            inputs, outputs = bindings["inputs"], bindings["outputs"]
-            session.reap()
-            event = self._native.submit([value._buffer for value in inputs],
-                                        [value._buffer for value in outputs])
-            return session._retain(event, (*inputs, *outputs))
+            return self._ports.submit(self._native, session, inputs, outputs, self._tensor_type)
 
 
 class PreparedCUDAKernel(_Prepared):
@@ -128,6 +97,7 @@ class PreparedCUDAKernel(_Prepared):
         self._native = session._native.prepare_program(
             [_nbytes(port) for port in (*self._inputs, *self._outputs)],
             indices[:ninputs], indices[ninputs:], [step], graph)
+        self._prepare_ports()
 
 
 class PreparedCUDAProgram(_Prepared):
@@ -156,6 +126,7 @@ class PreparedCUDAProgram(_Prepared):
             [_nbytes(buffer) for buffer in buffers.values()],
             [indices[name] for name in self._plan["inputs"]],
             [indices[name] for name in self._plan["outputs"]], steps, graph)
+        self._prepare_ports()
 
     @property
     def plan(self):

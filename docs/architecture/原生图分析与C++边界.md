@@ -18,6 +18,8 @@
 
 `cpp/compiler.cpp` 绑定 ASK `PrepareResult`、`PartitionResult`、`CodegenResult`；内部 Python Compiler 将版本化 JSON 字段解码成对应阶段的具名结果，编译输入来自独立契约字段。CLI 完整报告在桥接入口做同样拆分。字段用途见[编译阶段结果](ASK桥接与多后端执行.md#compiler-results)。执行绑定由 `cpp/ask_runtime.cpp` 调用 `PreparedProgram.run` / `submit`，缓冲区、调度与在途资源由 ASK 管理。
 
+CUDA 端口描述在准备时保存为原生 `CUDAProgramPorts`。每次提交在一个原生入口中冻结输入序列、检查端口类型、提取设备缓冲区并包装输出；输入别名和重复输出复用同一存储句柄。Python 保留会话锁、关闭状态和外部内存的所有权管理，动态外部描述及生产者 stream 在提交前检查。
+
 <a id="native-analyze"></a>
 
 ## 2. 可达性与反向边界分析（`cpp/graph.cpp`）
@@ -54,7 +56,7 @@ C++ 层检查值编号和拓扑顺序，`bindings.cpp` 同时拒绝用 Python `b
 
 节点创建时，根据模板指纹和有序输入指纹计算增量摘要。`PlanKey.__hash__` 读取已保存的摘要；键相等比较规范化输入、连接关系、输出顺序和定义身份。物化改变数值输入边界时增加 arena 版本，收集时刷新相应摘要。多输出投影按本次实际需求建立精确键。
 
-模板投影和相关定义在首次使用时由 Python 准备并缓存。热收集遍历原生索引，取得本次存储输入并校验活跃定义，返回输入与结构键。缓存未命中时，`describe_pending` 才生成表达式视图供 Python 拼接 Fuga IR；命中路径直接绑定输入执行。
+模板投影和相关定义在首次使用时由 Python 准备并缓存。热收集遍历原生索引，取得本次存储输入并校验活跃定义，返回保活存储的 tuple 与结构键。后端执行直接接收这些存储，并将返回的存储发布到原 Tensor。缓存未命中时，`describe_pending` 才生成叶子 Tensor 与表达式视图，供 Python 拼接 Fuga IR。
 
 <a id="native-tracing"></a>
 

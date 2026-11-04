@@ -188,7 +188,7 @@ def materialize(engine, tensors):
         outputs = engine._execute(program.executable, inputs)
         # Publish only after the whole execution has succeeded. Histories stay
         # attached to the original handles, independently of numerical buffers.
-        _native.publish_pending(roots, tuple(output._storage for output in outputs))
+        _native.publish_pending(roots, outputs)
         executable = program.executable
         engine.last_ir = engine.last_ask_ir = executable.source
         engine.last_fuga_ir = program.fuga_text

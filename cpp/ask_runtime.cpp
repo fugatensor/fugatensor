@@ -7,6 +7,8 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include <unordered_map>
+
 namespace nb = nanobind;
 using namespace ask::runtime;
 
@@ -18,6 +20,114 @@ struct BufferView {
       throw nb::python_error();
   }
   ~BufferView() { PyBuffer_Release(&view); }
+};
+
+// Only freshly constructed tuples of integers and strings are retained here.
+// They cannot refer back to this descriptor, a session or a Python tensor.
+struct TensorPort {
+  nb::tuple shape;
+  nb::str dtype;
+};
+
+class ProgramPorts {
+public:
+  ProgramPorts(nb::sequence inputs, nb::sequence outputs)
+      : inputs(readPorts(inputs)), outputs(readPorts(outputs)) {}
+
+  nb::list run(PreparedProgram &program, nb::handle session,
+               nb::handle values, nb::handle tensorType) const {
+    auto tensors = checkPorts(values, inputs, "inputs", tensorType);
+    prepareAccess(tensors, session);
+    session.attr("reap")();
+    auto bound = buffers(tensors);
+    std::pair<std::vector<std::shared_ptr<DeviceBuffer>>, std::shared_ptr<Event>> result;
+    {
+      nb::gil_scoped_release release;
+      result = program.run(bound);
+    }
+    session.attr("_retain")(nb::cast(result.second), tensors);
+    std::unordered_map<DeviceBuffer *, nb::object> handles;
+    handles.reserve(bound.size() + result.first.size());
+    for (std::size_t index = 0; index < bound.size(); ++index)
+      handles.insert_or_assign(bound[index].get(), nb::borrow<nb::object>(tensors[index]));
+    nb::list wrapped;
+    for (std::size_t index = 0; index < result.first.size(); ++index) {
+      const auto &buffer = result.first[index];
+      auto found = handles.find(buffer.get());
+      if (found == handles.end()) {
+        const auto &port = outputs[index];
+        found = handles.emplace(buffer.get(), tensorType(
+            session, nb::cast(buffer), port.shape, port.dtype)).first;
+      }
+      wrapped.append(found->second);
+    }
+    return wrapped;
+  }
+
+  nb::object submit(PreparedProgram &program, nb::handle session,
+                    nb::handle inputValues, nb::handle outputValues,
+                    nb::handle tensorType) const {
+    auto inputTensors = checkPorts(inputValues, inputs, "inputs", tensorType);
+    auto outputTensors = checkPorts(outputValues, outputs, "outputs", tensorType);
+    prepareAccess(inputTensors, session);
+    prepareAccess(outputTensors, session);
+    session.attr("reap")();
+    auto inputBuffers = buffers(inputTensors), outputBuffers = buffers(outputTensors);
+    std::shared_ptr<Event> event;
+    {
+      nb::gil_scoped_release release;
+      event = program.submit(inputBuffers, outputBuffers);
+    }
+    auto references = nb::steal<nb::object>(PySequence_Concat(inputTensors.ptr(), outputTensors.ptr()));
+    if (!references.is_valid()) throw nb::python_error();
+    return session.attr("_retain")(nb::cast(event), references);
+  }
+
+private:
+  std::vector<TensorPort> inputs, outputs;
+
+  static std::vector<TensorPort> readPorts(nb::sequence definitions) {
+    std::vector<TensorPort> result;
+    result.reserve(nb::len(definitions));
+    for (nb::handle definition : definitions) {
+      auto port = nb::cast<nb::dict>(definition);
+      const auto shape = nb::cast<std::vector<std::int64_t>>(port["shape"]);
+      const auto dtype = nb::cast<std::string>(port["element_type"]);
+      result.push_back({nb::tuple(nb::cast(shape)), nb::str(dtype.c_str())});
+    }
+    return result;
+  }
+
+  static nb::tuple checkPorts(nb::handle values, const std::vector<TensorPort> &ports,
+                             const char *kind, nb::handle tensorType) {
+    if (!PyTuple_Check(values.ptr()) && !PyList_Check(values.ptr()))
+      throw CUDAError("program ports must be a list or tuple");
+    // Freeze mutable caller lists before any callback can release the GIL.
+    nb::tuple tensors(values);
+    if (tensors.size() != ports.size())
+      throw CUDAError("program expects " + std::to_string(ports.size()) + " " + kind);
+    for (std::size_t index = 0; index < ports.size(); ++index) {
+      nb::handle tensor = tensors[index];
+      if (!nb::isinstance(tensor, tensorType))
+        throw CUDAError("program ports require DeviceTensor values");
+      if (!nb::tuple(tensor.attr("shape")).equal(ports[index].shape) ||
+          !tensor.attr("dtype").equal(ports[index].dtype))
+        throw CUDAError("program port shape/dtype differs from its compiled type");
+    }
+    return tensors;
+  }
+
+  static void prepareAccess(nb::tuple tensors, nb::handle session) {
+    for (nb::handle tensor : tensors) tensor.attr("_prepare_access")(session);
+  }
+
+  static std::vector<std::shared_ptr<DeviceBuffer>> buffers(nb::tuple tensors) {
+    std::vector<std::shared_ptr<DeviceBuffer>> result;
+    result.reserve(tensors.size());
+    for (nb::handle tensor : tensors)
+      result.push_back(nb::cast<std::shared_ptr<DeviceBuffer>>(tensor.attr("_buffer")));
+    return result;
+  }
 };
 }
 
@@ -49,6 +159,12 @@ void bindAskRuntime(nb::module_ &module) {
       .def("submit",&PreparedProgram::submit,nb::arg("inputs"),nb::arg("outputs"),
            nb::call_guard<nb::gil_scoped_release>())
       .def("run",&PreparedProgram::run,nb::arg("inputs"),nb::call_guard<nb::gil_scoped_release>());
+  nb::class_<ProgramPorts>(module,"CUDAProgramPorts")
+      .def(nb::init<nb::sequence, nb::sequence>(), nb::arg("inputs"), nb::arg("outputs"))
+      .def("run", &ProgramPorts::run, nb::arg("program"), nb::arg("session"),
+           nb::arg("inputs").none(), nb::arg("tensor_type"))
+      .def("submit", &ProgramPorts::submit, nb::arg("program"), nb::arg("session"),
+           nb::arg("inputs").none(), nb::arg("outputs").none(), nb::arg("tensor_type"));
   nb::class_<Session>(module,"CUDASession")
       .def_static("create",&Session::create,nb::arg("device")=0,nb::call_guard<nb::gil_scoped_release>())
       .def("allocate",&Session::allocate,nb::arg("nbytes"),nb::call_guard<nb::gil_scoped_release>())
