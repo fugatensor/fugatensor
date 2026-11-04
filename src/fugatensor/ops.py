@@ -182,7 +182,14 @@ def amax(x, axis=None, *, keepdims=False):
 def mean(x, axis=None, *, keepdims=False, dtype=None):
     import math
     axes = _axes(axis, len(x.shape))
-    return sum(x, axes, keepdims=keepdims, dtype=dtype) / math.prod(x.shape[axis] for axis in axes)
+    count = math.prod(x.shape[axis] for axis in axes)
+    reduced = sum(x, axes, keepdims=keepdims, dtype=dtype)
+    if count == 0:
+        return reduced / count
+    try:
+        return reduced / count
+    except ValueError:
+        return reduced * (1.0 / count)
 
 
 @primitive
