@@ -76,7 +76,7 @@ C++ 扩展 `fugatensor._native`（`cpp/graph.cpp`）计算输入可达集、输�
 
 图缓存未命中时，FugaTensor 化简控制流、裁剪输入，再由 `lower_to_ask` 生成 ASK IR。`Engine` 保存 `fuga.ir`、`frontend.mlir` 和逐值映射表 `fuga-to-ask.json`，随后编译执行：
 
-- CPU：ASK 生成目标文件，`cc -shared` 链接为动态库，`HostBackend` 通过 `ctypes` 调用。`ask_opt` 参数可选择 CLI 入口。
+- CPU：ASK 生成目标文件，`HostBackend` 按 ABI 链接 SDK 声明的库，再通过 `ctypes` 调用动态库；fp32 矩阵乘法使用 OpenBLAS。`ask_opt` 参数可选择 CLI 入口。
 - 自有 CUDA：ASK 生成 LLVM IR，`llc` / `ptxas` 生成 cubin，`PreparedProgram::run` 提交整段计划，默认使用 CUDA Graph。
 - Triton：worker 编译源码并返回 cubin。ASK 按[执行计划 v1](../../../ask/docs/图切分与多Kernel执行计划.md#plan-v1)切分自有区域和外部节点，在同一 stream 上提交。
 - 缓存：引擎先查结构缓存，再组合图和生成文本；LLVM IR 与 cubin 另有磁盘缓存。普通 Python 逻辑每次执行。
