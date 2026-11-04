@@ -1,0 +1,14 @@
+test_deferred_arch_binding_and_invalid_registration_guards (tests.test_triton.TritonRegistrationTests.test_deferred_arch_binding_and_invalid_registration_guards) ... ok
+test_environment_selects_bundled_worker_without_importing_triton (tests.test_triton.TritonRegistrationTests.test_environment_selects_bundled_worker_without_importing_triton) ... ok
+test_multiple_inputs_and_explicit_output_metadata (tests.test_triton.TritonRegistrationTests.test_multiple_inputs_and_explicit_output_metadata) ... ok
+test_pending_kernel_calls_snapshot_changed_callback_configuration (tests.test_triton.TritonRegistrationTests.test_pending_kernel_calls_snapshot_changed_callback_configuration) ... ok
+test_public_dtypes_bind_metadata_scalars_and_constexpr (tests.test_triton.TritonRegistrationTests.test_public_dtypes_bind_metadata_scalars_and_constexpr) ... ok
+test_scalar_multioutput_and_recursive_constants_survive_lowering (tests.test_triton.TritonRegistrationTests.test_scalar_multioutput_and_recursive_constants_survive_lowering) ... ok
+test_verbatim_snapshot_without_importing_triton_and_frozen_metadata (tests.test_triton.TritonRegistrationTests.test_verbatim_snapshot_without_importing_triton_and_frozen_metadata) ... ok
+test_binary_export_uses_source_abi_without_reading_compiler_ir (tests.test_triton.TritonWorkerContractTests.test_binary_export_uses_source_abi_without_reading_compiler_ir) ... ok
+test_compiler_selection_accepts_stable_patches_and_rejects_other_releases (tests.test_triton.TritonWorkerContractTests.test_compiler_selection_accepts_stable_patches_and_rejects_other_releases) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.087s
+
+OK

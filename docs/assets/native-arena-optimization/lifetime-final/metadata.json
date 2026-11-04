@@ -1,0 +1,164 @@
+{
+  "environments": [
+    {
+      "label": "final",
+      "depth": 8,
+      "retain": 0,
+      "evaluated": false,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 0,
+      "max_public_tensors_live_from_batch": 0,
+      "stats_before_retained_verification": {
+        "compilations": 0,
+        "executions": 0,
+        "cache_hits": 0
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 8,
+      "retain": 0,
+      "evaluated": true,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 0,
+      "max_public_tensors_live_from_batch": 0,
+      "stats_before_retained_verification": {
+        "compilations": 1,
+        "executions": 1110,
+        "cache_hits": 1109
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 8,
+      "retain": 4,
+      "evaluated": false,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 4,
+      "max_public_tensors_live_from_batch": 8,
+      "stats_before_retained_verification": {
+        "compilations": 0,
+        "executions": 0,
+        "cache_hits": 0
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 8,
+      "retain": 4,
+      "evaluated": true,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 4,
+      "max_public_tensors_live_from_batch": 8,
+      "stats_before_retained_verification": {
+        "compilations": 1,
+        "executions": 1110,
+        "cache_hits": 1109
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 128,
+      "retain": 0,
+      "evaluated": false,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 0,
+      "max_public_tensors_live_from_batch": 0,
+      "stats_before_retained_verification": {
+        "compilations": 0,
+        "executions": 0,
+        "cache_hits": 0
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 128,
+      "retain": 0,
+      "evaluated": true,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 0,
+      "max_public_tensors_live_from_batch": 0,
+      "stats_before_retained_verification": {
+        "compilations": 1,
+        "executions": 1110,
+        "cache_hits": 1109
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 128,
+      "retain": 4,
+      "evaluated": false,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 4,
+      "max_public_tensors_live_from_batch": 8,
+      "stats_before_retained_verification": {
+        "compilations": 0,
+        "executions": 0,
+        "cache_hits": 0
+      },
+      "construction_calls": 1110
+    },
+    {
+      "label": "final",
+      "depth": 128,
+      "retain": 4,
+      "evaluated": true,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "weakref_verified": true,
+      "retained_value_and_grad_verified": true,
+      "retained_value_and_grad_checks": 4,
+      "max_public_tensors_live_from_batch": 8,
+      "stats_before_retained_verification": {
+        "compilations": 1,
+        "executions": 1110,
+        "cache_hits": 1109
+      },
+      "construction_calls": 1110
+    }
+  ],
+  "method": "Fixed signatures, ten warmup graphs, one simultaneous graph burst, bounded retained roots, fresh scalar inputs. Weakrefs prove public Tensor and closed Engine release; retained roots preserve values and gradients. tracemalloc counts traced Python allocations; mallinfo2 counts process glibc heap/mmap storage; RSS counts resident process pages. Heap/RSS also include the separately reported tracemalloc observer storage. They are distinct observational metrics, not exact native node bytes. Allocator caches may keep released capacity; evaluate epoch growth and post-release object reachability.",
+  "settings": {
+    "package_root": null,
+    "label": "final",
+    "output": "/tmp/fuga-pod-arena-audit/lifetime-final",
+    "depths": [
+      8,
+      128
+    ],
+    "retained": [
+      0,
+      4
+    ],
+    "epochs": 10,
+    "iterations": 100
+  }
+}

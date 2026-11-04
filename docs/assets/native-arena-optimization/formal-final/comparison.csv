@@ -1,0 +1,17 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cpu,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,67.808,19.705,3.441157066734332,244.11570667343318,3,3
+cpu,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,144.069,243.439,0.5918073932278722,-40.819260677212775,3,3
+cpu,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,164.25,76.413,2.1495033567586668,114.95033567586668,3,3
+cpu,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,514.965,686.103,0.7505651483815113,-24.943485161848866,3,3
+cpu,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,140.724,50.944,2.7623272613065324,176.23272613065325,3,3
+cpu,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,397.401,549.306,0.7234601478957083,-27.653985210429166,3,3
+cpu,matmul,small,fp32,row_major,16,16,0,1,torch_eager,46.568,3.331,13.980186130291203,1298.0186130291204,3,3
+cpu,matmul,large,fp32,row_major,128,128,0,1,torch_eager,166.401,71.282,2.334404197413092,133.44041974130917,3,3
+cuda,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,137.756,145.739,0.9452239963221923,-5.4776003677807665,3,3
+cuda,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,162.673,167.696,0.9700469897910505,-2.995301020894947,3,3
+cuda,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,278.753,631.988,0.44107324822623206,-55.892675177376795,3,3
+cuda,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,273.295,637.958,0.42839027020587567,-57.16097297941243,3,3
+cuda,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,204.31,406.394,0.5027387215362431,-49.72612784637569,3,3
+cuda,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,213.102,409.43,0.5204845761180177,-47.951542388198234,3,3
+cuda,matmul,small,fp32,row_major,16,16,0,1,torch_eager,140.789,73.024,1.9279825810692373,92.79825810692373,3,3
+cuda,matmul,large,fp32,row_major,128,128,0,1,torch_eager,176.157,76.645,2.2983495335638335,129.83495335638335,3,3

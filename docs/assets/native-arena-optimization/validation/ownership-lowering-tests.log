@@ -1,0 +1,13 @@
+test_concurrent_cold_primitives_share_one_engine (tests.test_arena_ownership.ArenaOwnershipTests.test_concurrent_cold_primitives_share_one_engine) ... ok
+test_concurrent_projection_publishes_one_slice (tests.test_arena_ownership.ArenaOwnershipTests.test_concurrent_projection_publishes_one_slice) ... ok
+test_discarded_custom_graphs_release_definitions_with_engine_alive (tests.test_arena_ownership.ArenaOwnershipTests.test_discarded_custom_graphs_release_definitions_with_engine_alive) ... ok
+test_explicit_external_shape_and_dynamic_control_flow_rejection (tests.test_lowering.LoweringBoundaryTests.test_explicit_external_shape_and_dynamic_control_flow_rejection) ... ok
+test_mixed_precision_and_bool_lowering_verify_in_ask (tests.test_lowering.LoweringBoundaryTests.test_mixed_precision_and_bool_lowering_verify_in_ask) ... ok
+test_source_map_ids_unrolled_origins_and_atomic_failure (tests.test_lowering.LoweringBoundaryTests.test_source_map_ids_unrolled_origins_and_atomic_failure) ... ok
+test_shape_normalization_and_tolist_reconstruction (tests.test_lowering.ShapeAndTracingTests.test_shape_normalization_and_tolist_reconstruction) ... ok
+test_trace_context_isolation_and_device_neutral_fuga_ir (tests.test_lowering.ShapeAndTracingTests.test_trace_context_isolation_and_device_neutral_fuga_ir) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 1.430s
+
+OK

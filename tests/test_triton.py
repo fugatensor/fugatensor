@@ -159,8 +159,8 @@ class TritonRegistrationTests(unittest.TestCase):
                     second = call(x)
                     requests = []
 
-                    def capture(context):
-                        module = ft.ir.specialize(context.module)
+                    def capture(module):
+                        module = ft.ir.specialize(module)
                         request = self.compiler.prepare(lower_to_ask(
                             module, target={"backend": "cuda", "arch": 86}
                         )).external_requests[0]

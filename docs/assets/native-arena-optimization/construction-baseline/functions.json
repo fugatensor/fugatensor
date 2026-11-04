@@ -1,0 +1,421 @@
+{
+  "package_path": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/__init__.py",
+  "construction_calls": 100,
+  "method": "cProfile instrumented CPU construction/deletion attribution only. Input allocation and template warmup are excluded; graph evaluation never runs. Absolute durations differ from uninstrumented wall time and inclusive times overlap.",
+  "functions": [
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 75,
+      "function": "_call",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 169.25831000000002,
+      "inclusive_us_per_graph": 948.0408000000001
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 26,
+      "function": "_static_key",
+      "primitive_calls": 4800,
+      "calls": 8800,
+      "self_us_per_graph": 123.69661,
+      "inclusive_us_per_graph": 186.59881
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.isinstance>",
+      "primitive_calls": 56800,
+      "calls": 56800,
+      "self_us_per_graph": 85.88918000000001,
+      "inclusive_us_per_graph": 85.88918000000001
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 74,
+      "function": "_from_pending",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 61.453500000000005,
+      "inclusive_us_per_graph": 113.18801
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 96,
+      "function": "<genexpr>",
+      "primitive_calls": 10400,
+      "calls": 10400,
+      "self_us_per_graph": 58.03329,
+      "inclusive_us_per_graph": 264.0983
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_lazy.py",
+      "line": 76,
+      "function": "bind",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 51.01471000000001,
+      "inclusive_us_per_graph": 238.21977
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.any>",
+      "primitive_calls": 5600,
+      "calls": 5600,
+      "self_us_per_graph": 43.32376000000001,
+      "inclusive_us_per_graph": 138.59452000000002
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_lazy.py",
+      "line": 79,
+      "function": "<genexpr>",
+      "primitive_calls": 4800,
+      "calls": 4800,
+      "self_us_per_graph": 33.84076,
+      "inclusive_us_per_graph": 162.30393000000004
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/engine.py",
+      "line": 231,
+      "function": "_check_tensor",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 33.45172,
+      "inclusive_us_per_graph": 49.92658000000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'get' of 'dict' objects>",
+      "primitive_calls": 4800,
+      "calls": 4800,
+      "self_us_per_graph": 33.10856,
+      "inclusive_us_per_graph": 33.10856
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 136,
+      "function": "_axes",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 30.29767,
+      "inclusive_us_per_graph": 52.352630000000005
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/engine.py",
+      "line": 241,
+      "function": "elementwise",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 29.846020000000003,
+      "inclusive_us_per_graph": 289.43133
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 156,
+      "function": "__call__",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 29.2989,
+      "inclusive_us_per_graph": 981.06385
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 88,
+      "function": "<genexpr>",
+      "primitive_calls": 10400,
+      "calls": 10400,
+      "self_us_per_graph": 27.87336,
+      "inclusive_us_per_graph": 40.60691
+    },
+    {
+      "file": "<string>",
+      "line": 2,
+      "function": "__init__",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 24.90113,
+      "inclusive_us_per_graph": 24.90113
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 90,
+      "function": "<genexpr>",
+      "primitive_calls": 5600,
+      "calls": 5600,
+      "self_us_per_graph": 22.334210000000002,
+      "inclusive_us_per_graph": 33.14406
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 32,
+      "function": "<genexpr>",
+      "primitive_calls": 6400,
+      "calls": 6400,
+      "self_us_per_graph": 20.454990000000002,
+      "inclusive_us_per_graph": 89.03335
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 61,
+      "function": "_definition_key",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 18.704,
+      "inclusive_us_per_graph": 32.296530000000004
+    },
+    {
+      "file": "/home/asuka/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/weakref.py",
+      "line": 451,
+      "function": "get",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 18.65576,
+      "inclusive_us_per_graph": 27.19431
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 122,
+      "function": "broadcast_to",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 18.49348,
+      "inclusive_us_per_graph": 389.54058
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 167,
+      "function": "amax",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 16.99275,
+      "inclusive_us_per_graph": 450.01849000000004
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_jit.py",
+      "line": 100,
+      "function": "<genexpr>",
+      "primitive_calls": 4800,
+      "calls": 4800,
+      "self_us_per_graph": 16.70919,
+      "inclusive_us_per_graph": 49.005720000000004
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 645,
+      "function": "parent",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 14.800790000000001,
+      "inclusive_us_per_graph": 24.061150000000005
+    },
+    {
+      "file": "/home/asuka/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/enum.py",
+      "line": 720,
+      "function": "__call__",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 14.714300000000001,
+      "inclusive_us_per_graph": 24.68937
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.getattr>",
+      "primitive_calls": 7200,
+      "calls": 7200,
+      "self_us_per_graph": 13.592530000000002,
+      "inclusive_us_per_graph": 13.592530000000002
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 80,
+      "function": "operation",
+      "primitive_calls": 100,
+      "calls": 100,
+      "self_us_per_graph": 13.54653,
+      "inclusive_us_per_graph": 1161.6123900000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.len>",
+      "primitive_calls": 7200,
+      "calls": 7200,
+      "self_us_per_graph": 12.5265,
+      "inclusive_us_per_graph": 12.5265
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 94,
+      "function": "engine",
+      "primitive_calls": 8800,
+      "calls": 8800,
+      "self_us_per_graph": 10.84661,
+      "inclusive_us_per_graph": 10.84661
+    },
+    {
+      "file": "/home/asuka/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/enum.py",
+      "line": 1128,
+      "function": "__new__",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 9.97507,
+      "inclusive_us_per_graph": 9.97507
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'rpartition' of 'str' objects>",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 9.26036,
+      "inclusive_us_per_graph": 9.26036
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 118,
+      "function": "broadcast_in_dim",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 8.98738,
+      "inclusive_us_per_graph": 366.12332000000004
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method '__exit__' of '_thread.RLock' objects>",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 7.997410000000001,
+      "inclusive_us_per_graph": 7.997410000000001
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 143,
+      "function": "_binary",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 7.41419,
+      "inclusive_us_per_graph": 297.86605000000003
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'get' of '_contextvars.ContextVar' objects>",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 7.3894400000000005,
+      "inclusive_us_per_graph": 7.3894400000000005
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 106,
+      "function": "shape",
+      "primitive_calls": 4800,
+      "calls": 4800,
+      "self_us_per_graph": 6.654790000000001,
+      "inclusive_us_per_graph": 6.654790000000001
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 138,
+      "function": "<genexpr>",
+      "primitive_calls": 1600,
+      "calls": 1600,
+      "self_us_per_graph": 5.658130000000001,
+      "inclusive_us_per_graph": 5.658130000000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method __new__ of type object at 0x12a9e80>",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 5.43023,
+      "inclusive_us_per_graph": 5.43023
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 69,
+      "function": "<lambda>",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 5.37383,
+      "inclusive_us_per_graph": 455.39232000000004
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 149,
+      "function": "__add__",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 5.11535,
+      "inclusive_us_per_graph": 302.9814
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/engine.py",
+      "line": 172,
+      "function": "_check_open",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 4.65204,
+      "inclusive_us_per_graph": 4.65204
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.sorted>",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 3.8515400000000004,
+      "inclusive_us_per_graph": 3.8515400000000004
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/tensor.py",
+      "line": 110,
+      "function": "dtype",
+      "primitive_calls": 3200,
+      "calls": 3200,
+      "self_us_per_graph": 3.7809100000000004,
+      "inclusive_us_per_graph": 3.7809100000000004
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/_state.py",
+      "line": 7,
+      "function": "require_not_tracing",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 3.65457,
+      "inclusive_us_per_graph": 6.10759
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/baseline-package/fugatensor/ops.py",
+      "line": 140,
+      "function": "<genexpr>",
+      "primitive_calls": 1600,
+      "calls": 1600,
+      "self_us_per_graph": 3.33131,
+      "inclusive_us_per_graph": 3.33131
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+      "primitive_calls": 1,
+      "calls": 1,
+      "self_us_per_graph": 0.16437000000000002,
+      "inclusive_us_per_graph": 0.16437000000000002
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 67,
+      "function": "<lambda>",
+      "primitive_calls": 100,
+      "calls": 100,
+      "self_us_per_graph": 0.15156,
+      "inclusive_us_per_graph": 0.15156
+    }
+  ]
+}

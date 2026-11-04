@@ -1,0 +1,4574 @@
+{
+  "formal": [
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "elementwise",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 185.112,
+        "minimum": 184.549,
+        "maximum": 185.504,
+        "rounds": [
+          185.112,
+          185.504,
+          184.549
+        ]
+      },
+      "call_us": {
+        "median": 184.044,
+        "minimum": 183.446,
+        "maximum": 184.363,
+        "rounds": [
+          184.044,
+          184.363,
+          183.446
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 79380480.0,
+        "minimum": 79204352.0,
+        "maximum": 79544320.0,
+        "rounds": [
+          79544320.0,
+          79380480.0,
+          79204352.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "0"
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "elementwise",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 243.858,
+        "minimum": 242.502,
+        "maximum": 244.284,
+        "rounds": [
+          244.284,
+          243.858,
+          242.502
+        ]
+      },
+      "call_us": {
+        "median": 243.464,
+        "minimum": 242.145,
+        "maximum": 243.841,
+        "rounds": [
+          243.841,
+          243.464,
+          242.145
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 545005568.0,
+        "minimum": 544768000.0,
+        "maximum": 545554432.0,
+        "rounds": [
+          545005568.0,
+          545554432.0,
+          544768000.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 856.348,
+        "minimum": 855.796,
+        "maximum": 859.72,
+        "rounds": [
+          856.348,
+          859.72,
+          855.796
+        ]
+      },
+      "call_us": {
+        "median": 854.778,
+        "minimum": 854.273,
+        "maximum": 858.131,
+        "rounds": [
+          854.778,
+          858.131,
+          854.273
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 83927040.0,
+        "minimum": 83869696.0,
+        "maximum": 84250624.0,
+        "rounds": [
+          84250624.0,
+          83927040.0,
+          83869696.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "4096"
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 675.493,
+        "minimum": 672.008,
+        "maximum": 681.82,
+        "rounds": [
+          675.493,
+          681.82,
+          672.008
+        ]
+      },
+      "call_us": {
+        "median": 675.062,
+        "minimum": 671.4,
+        "maximum": 681.221,
+        "rounds": [
+          675.062,
+          681.221,
+          671.4
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 544829440.0,
+        "minimum": 544669696.0,
+        "maximum": 545849344.0,
+        "rounds": [
+          544829440.0,
+          544669696.0,
+          545849344.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "fork_join",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 623.893,
+        "minimum": 607.006,
+        "maximum": 636.734,
+        "rounds": [
+          607.006,
+          636.734,
+          623.893
+        ]
+      },
+      "call_us": {
+        "median": 622.019,
+        "minimum": 605.313,
+        "maximum": 635.088,
+        "rounds": [
+          605.313,
+          635.088,
+          622.019
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 92192768.0,
+        "minimum": 91963392.0,
+        "maximum": 92196864.0,
+        "rounds": [
+          92196864.0,
+          92192768.0,
+          91963392.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "8192"
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "fork_join",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 558.188,
+        "minimum": 549.416,
+        "maximum": 564.738,
+        "rounds": [
+          549.416,
+          558.188,
+          564.738
+        ]
+      },
+      "call_us": {
+        "median": 557.619,
+        "minimum": 549.03,
+        "maximum": 564.222,
+        "rounds": [
+          549.03,
+          557.619,
+          564.222
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 560455680.0,
+        "minimum": 558882816.0,
+        "maximum": 560492544.0,
+        "rounds": [
+          558882816.0,
+          560492544.0,
+          560455680.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "matmul",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 178.351,
+        "minimum": 177.153,
+        "maximum": 180.175,
+        "rounds": [
+          178.351,
+          177.153,
+          180.175
+        ]
+      },
+      "call_us": {
+        "median": 177.33,
+        "minimum": 176.124,
+        "maximum": 179.182,
+        "rounds": [
+          177.33,
+          176.124,
+          179.182
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 64483328.0,
+        "minimum": 64466944.0,
+        "maximum": 64487424.0,
+        "rounds": [
+          64487424.0,
+          64483328.0,
+          64466944.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "0"
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "matmul",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 71.584,
+        "minimum": 71.559,
+        "maximum": 71.6,
+        "rounds": [
+          71.559,
+          71.584,
+          71.6
+        ]
+      },
+      "call_us": {
+        "median": 71.277,
+        "minimum": 71.247,
+        "maximum": 71.289,
+        "rounds": [
+          71.247,
+          71.289,
+          71.277
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 533188608.0,
+        "minimum": 533102592.0,
+        "maximum": 533266432.0,
+        "rounds": [
+          533266432.0,
+          533102592.0,
+          533188608.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "elementwise",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 214.353,
+        "minimum": 206.199,
+        "maximum": 222.297,
+        "rounds": [
+          222.297,
+          214.353,
+          206.199
+        ]
+      },
+      "call_us": {
+        "median": 187.706,
+        "minimum": 187.073,
+        "maximum": 193.612,
+        "rounds": [
+          193.612,
+          187.706,
+          187.073
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 167202816.0,
+        "minimum": 166256640.0,
+        "maximum": 168366080.0,
+        "rounds": [
+          166256640.0,
+          168366080.0,
+          167202816.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "1048576"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "elementwise",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 157.056,
+        "minimum": 144.869,
+        "maximum": 159.588,
+        "rounds": [
+          159.588,
+          157.056,
+          144.869
+        ]
+      },
+      "call_us": {
+        "median": 127.184,
+        "minimum": 120.165,
+        "maximum": 136.763,
+        "rounds": [
+          136.763,
+          127.184,
+          120.165
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 680468480.0,
+        "minimum": 680341504.0,
+        "maximum": 681054208.0,
+        "rounds": [
+          680341504.0,
+          680468480.0,
+          681054208.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "2097152"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 584.371,
+        "minimum": 576.472,
+        "maximum": 605.877,
+        "rounds": [
+          584.371,
+          576.472,
+          605.877
+        ]
+      },
+      "call_us": {
+        "median": 549.652,
+        "minimum": 534.877,
+        "maximum": 574.406,
+        "rounds": [
+          534.877,
+          549.652,
+          574.406
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 167411712.0,
+        "minimum": 166588416.0,
+        "maximum": 167895040.0,
+        "rounds": [
+          167895040.0,
+          167411712.0,
+          166588416.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "1052672"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 606.04,
+        "minimum": 600.492,
+        "maximum": 636.317,
+        "rounds": [
+          636.317,
+          606.04,
+          600.492
+        ]
+      },
+      "call_us": {
+        "median": 584.243,
+        "minimum": 562.174,
+        "maximum": 599.499,
+        "rounds": [
+          599.499,
+          584.243,
+          562.174
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 686182400.0,
+        "minimum": 685289472.0,
+        "maximum": 686813184.0,
+        "rounds": [
+          686182400.0,
+          686813184.0,
+          685289472.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "2097152"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "fork_join",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 512.023,
+        "minimum": 410.115,
+        "maximum": 514.569,
+        "rounds": [
+          514.569,
+          410.115,
+          512.023
+        ]
+      },
+      "call_us": {
+        "median": 465.159,
+        "minimum": 385.122,
+        "maximum": 470.881,
+        "rounds": [
+          470.881,
+          385.122,
+          465.159
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 187813888.0,
+        "minimum": 186679296.0,
+        "maximum": 188149760.0,
+        "rounds": [
+          187813888.0,
+          186679296.0,
+          188149760.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "4196352"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "fork_join",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 415.227,
+        "minimum": 393.79,
+        "maximum": 421.932,
+        "rounds": [
+          415.227,
+          421.932,
+          393.79
+        ]
+      },
+      "call_us": {
+        "median": 381.626,
+        "minimum": 368.01,
+        "maximum": 387.97,
+        "rounds": [
+          381.626,
+          387.97,
+          368.01
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 701980672.0,
+        "minimum": 701657088.0,
+        "maximum": 702210048.0,
+        "rounds": [
+          701657088.0,
+          701980672.0,
+          702210048.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "6291456"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "matmul",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 153.287,
+        "minimum": 136.362,
+        "maximum": 172.724,
+        "rounds": [
+          153.287,
+          172.724,
+          136.362
+        ]
+      },
+      "call_us": {
+        "median": 113.925,
+        "minimum": 111.573,
+        "maximum": 143.03,
+        "rounds": [
+          113.925,
+          143.03,
+          111.573
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 429264896.0,
+        "minimum": 428224512.0,
+        "maximum": 429580288.0,
+        "rounds": [
+          429264896.0,
+          429580288.0,
+          428224512.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "196608"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "matmul",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 77.279,
+        "minimum": 76.528,
+        "maximum": 78.632,
+        "rounds": [
+          76.528,
+          77.279,
+          78.632
+        ]
+      },
+      "call_us": {
+        "median": 47.005,
+        "minimum": 46.737,
+        "maximum": 47.188,
+        "rounds": [
+          47.188,
+          46.737,
+          47.005
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 738996224.0,
+        "minimum": 738488320.0,
+        "maximum": 739373056.0,
+        "rounds": [
+          738488320.0,
+          739373056.0,
+          738996224.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "23068672"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "elementwise",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 144.069,
+        "minimum": 138.975,
+        "maximum": 144.915,
+        "rounds": [
+          144.915,
+          144.069,
+          138.975
+        ]
+      },
+      "call_us": {
+        "median": 142.862,
+        "minimum": 137.956,
+        "maximum": 143.649,
+        "rounds": [
+          143.649,
+          142.862,
+          137.956
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 90685440.0,
+        "minimum": 90112000.0,
+        "maximum": 91402240.0,
+        "rounds": [
+          91402240.0,
+          90112000.0,
+          90685440.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "0"
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "elementwise",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 243.439,
+        "minimum": 242.877,
+        "maximum": 251.254,
+        "rounds": [
+          243.439,
+          251.254,
+          242.877
+        ]
+      },
+      "call_us": {
+        "median": 243.103,
+        "minimum": 242.453,
+        "maximum": 250.727,
+        "rounds": [
+          243.103,
+          250.727,
+          242.453
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 544878592.0,
+        "minimum": 544538624.0,
+        "maximum": 544923648.0,
+        "rounds": [
+          544878592.0,
+          544923648.0,
+          544538624.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 514.965,
+        "minimum": 510.968,
+        "maximum": 516.001,
+        "rounds": [
+          510.968,
+          514.965,
+          516.001
+        ]
+      },
+      "call_us": {
+        "median": 513.185,
+        "minimum": 509.736,
+        "maximum": 514.727,
+        "rounds": [
+          509.736,
+          513.185,
+          514.727
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 94228480.0,
+        "minimum": 93794304.0,
+        "maximum": 94429184.0,
+        "rounds": [
+          93794304.0,
+          94429184.0,
+          94228480.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "4096"
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 686.103,
+        "minimum": 679.041,
+        "maximum": 700.494,
+        "rounds": [
+          686.103,
+          700.494,
+          679.041
+        ]
+      },
+      "call_us": {
+        "median": 685.65,
+        "minimum": 678.607,
+        "maximum": 699.836,
+        "rounds": [
+          685.65,
+          699.836,
+          678.607
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 544882688.0,
+        "minimum": 544727040.0,
+        "maximum": 544960512.0,
+        "rounds": [
+          544882688.0,
+          544727040.0,
+          544960512.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "fork_join",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 397.401,
+        "minimum": 392.358,
+        "maximum": 397.838,
+        "rounds": [
+          392.358,
+          397.838,
+          397.401
+        ]
+      },
+      "call_us": {
+        "median": 395.919,
+        "minimum": 390.986,
+        "maximum": 396.493,
+        "rounds": [
+          390.986,
+          396.493,
+          395.919
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 96837632.0,
+        "minimum": 96460800.0,
+        "maximum": 96985088.0,
+        "rounds": [
+          96837632.0,
+          96460800.0,
+          96985088.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "8192"
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "fork_join",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 549.306,
+        "minimum": 542.237,
+        "maximum": 555.708,
+        "rounds": [
+          542.237,
+          555.708,
+          549.306
+        ]
+      },
+      "call_us": {
+        "median": 548.858,
+        "minimum": 541.704,
+        "maximum": 555.155,
+        "rounds": [
+          541.704,
+          555.155,
+          548.858
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 560594944.0,
+        "minimum": 560353280.0,
+        "maximum": 561033216.0,
+        "rounds": [
+          560353280.0,
+          561033216.0,
+          560594944.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "matmul",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 166.401,
+        "minimum": 165.466,
+        "maximum": 171.758,
+        "rounds": [
+          171.758,
+          166.401,
+          165.466
+        ]
+      },
+      "call_us": {
+        "median": 165.419,
+        "minimum": 164.508,
+        "maximum": 170.562,
+        "rounds": [
+          170.562,
+          165.419,
+          164.508
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 70717440.0,
+        "minimum": 70361088.0,
+        "maximum": 71045120.0,
+        "rounds": [
+          70717440.0,
+          70361088.0,
+          71045120.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        "0"
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "matmul",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 71.282,
+        "minimum": 71.052,
+        "maximum": 71.805,
+        "rounds": [
+          71.282,
+          71.805,
+          71.052
+        ]
+      },
+      "call_us": {
+        "median": 70.999,
+        "minimum": 70.75,
+        "maximum": 71.512,
+        "rounds": [
+          70.999,
+          71.512,
+          70.75
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 533266432.0,
+        "minimum": 533135360.0,
+        "maximum": 533962752.0,
+        "rounds": [
+          533266432.0,
+          533135360.0,
+          533962752.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        ""
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "elementwise",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 162.673,
+        "minimum": 133.927,
+        "maximum": 169.261,
+        "rounds": [
+          162.673,
+          133.927,
+          169.261
+        ]
+      },
+      "call_us": {
+        "median": 133.055,
+        "minimum": 120.903,
+        "maximum": 153.784,
+        "rounds": [
+          133.055,
+          120.903,
+          153.784
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 179392512.0,
+        "minimum": 179359744.0,
+        "maximum": 180113408.0,
+        "rounds": [
+          180113408.0,
+          179392512.0,
+          179359744.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "1048576"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "elementwise",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 167.696,
+        "minimum": 156.531,
+        "maximum": 171.9,
+        "rounds": [
+          171.9,
+          167.696,
+          156.531
+        ]
+      },
+      "call_us": {
+        "median": 136.736,
+        "minimum": 129.966,
+        "maximum": 144.268,
+        "rounds": [
+          144.268,
+          136.736,
+          129.966
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 679510016.0,
+        "minimum": 678883328.0,
+        "maximum": 680538112.0,
+        "rounds": [
+          680538112.0,
+          679510016.0,
+          678883328.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "2097152"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 273.295,
+        "minimum": 254.715,
+        "maximum": 300.211,
+        "rounds": [
+          273.295,
+          254.715,
+          300.211
+        ]
+      },
+      "call_us": {
+        "median": 253.542,
+        "minimum": 222.068,
+        "maximum": 255.145,
+        "rounds": [
+          253.542,
+          222.068,
+          255.145
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 175812608.0,
+        "minimum": 175546368.0,
+        "maximum": 175943680.0,
+        "rounds": [
+          175943680.0,
+          175812608.0,
+          175546368.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "1052672"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 637.958,
+        "minimum": 607.222,
+        "maximum": 639.337,
+        "rounds": [
+          639.337,
+          607.222,
+          637.958
+        ]
+      },
+      "call_us": {
+        "median": 594.5,
+        "minimum": 570.656,
+        "maximum": 612.152,
+        "rounds": [
+          612.152,
+          570.656,
+          594.5
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 685654016.0,
+        "minimum": 685428736.0,
+        "maximum": 686854144.0,
+        "rounds": [
+          686854144.0,
+          685428736.0,
+          685654016.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "2097152"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "fork_join",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 213.102,
+        "minimum": 195.377,
+        "maximum": 213.259,
+        "rounds": [
+          213.102,
+          195.377,
+          213.259
+        ]
+      },
+      "call_us": {
+        "median": 180.644,
+        "minimum": 178.227,
+        "maximum": 186.932,
+        "rounds": [
+          180.644,
+          178.227,
+          186.932
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 195915776.0,
+        "minimum": 195235840.0,
+        "maximum": 196251648.0,
+        "rounds": [
+          195235840.0,
+          195915776.0,
+          196251648.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "4196352"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "fork_join",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 409.43,
+        "minimum": 406.695,
+        "maximum": 412.141,
+        "rounds": [
+          409.43,
+          406.695,
+          412.141
+        ]
+      },
+      "call_us": {
+        "median": 369.214,
+        "minimum": 367.711,
+        "maximum": 371.87,
+        "rounds": [
+          369.214,
+          367.711,
+          371.87
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 700387328.0,
+        "minimum": 700174336.0,
+        "maximum": 700542976.0,
+        "rounds": [
+          700542976.0,
+          700387328.0,
+          700174336.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "6291456"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "matmul",
+      "backend": "fuga",
+      "complete_us": {
+        "median": 176.157,
+        "minimum": 153.649,
+        "maximum": 179.541,
+        "rounds": [
+          179.541,
+          176.157,
+          153.649
+        ]
+      },
+      "call_us": {
+        "median": 147.668,
+        "minimum": 112.968,
+        "maximum": 148.891,
+        "rounds": [
+          147.668,
+          148.891,
+          112.968
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 437547008.0,
+        "minimum": 436547584.0,
+        "maximum": 437555200.0,
+        "rounds": [
+          437547008.0,
+          436547584.0,
+          437555200.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "196608"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "matmul",
+      "backend": "torch_eager",
+      "complete_us": {
+        "median": 76.645,
+        "minimum": 75.374,
+        "maximum": 78.41,
+        "rounds": [
+          76.645,
+          78.41,
+          75.374
+        ]
+      },
+      "call_us": {
+        "median": 46.712,
+        "minimum": 45.568,
+        "maximum": 48.294,
+        "rounds": [
+          46.712,
+          48.294,
+          45.568
+        ]
+      },
+      "host_peak_rss_bytes": {
+        "median": 738263040.0,
+        "minimum": 737792000.0,
+        "maximum": 739106816.0,
+        "rounds": [
+          737792000.0,
+          738263040.0,
+          739106816.0
+        ]
+      },
+      "device_peak_reserved_bytes": [
+        "23068672"
+      ],
+      "host_workspace_bytes": [
+        ""
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 58.583,
+        "minimum": 58.136,
+        "maximum": 59.519,
+        "rounds": [
+          58.136,
+          58.583,
+          59.519
+        ]
+      },
+      "evaluate_us": {
+        "median": 122.757,
+        "minimum": 121.64,
+        "maximum": 123.096,
+        "rounds": [
+          123.096,
+          121.64,
+          122.757
+        ]
+      },
+      "sync_us": {
+        "median": 1.071,
+        "minimum": 1.041,
+        "maximum": 1.101,
+        "rounds": [
+          1.041,
+          1.101,
+          1.071
+        ]
+      },
+      "complete_us": {
+        "median": 183.378,
+        "minimum": 182.183,
+        "maximum": 183.943,
+        "rounds": [
+          182.183,
+          183.378,
+          183.943
+        ]
+      },
+      "release_us": {
+        "median": 1.5,
+        "minimum": 1.457,
+        "maximum": 1.62,
+        "rounds": [
+          1.457,
+          1.5,
+          1.62
+        ]
+      },
+      "lifecycle_us": {
+        "median": 184.828,
+        "minimum": 183.839,
+        "maximum": 185.467,
+        "rounds": [
+          183.839,
+          184.828,
+          185.467
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 126.81,
+        "minimum": 126.153,
+        "maximum": 127.175,
+        "rounds": [
+          127.175,
+          126.153,
+          126.81
+        ]
+      },
+      "collect_us": {
+        "median": 20.192,
+        "minimum": 19.867,
+        "maximum": 20.565,
+        "rounds": [
+          19.867,
+          20.192,
+          20.565
+        ]
+      },
+      "cache_get_us": {
+        "median": 3.574,
+        "minimum": 3.557,
+        "maximum": 3.662,
+        "rounds": [
+          3.557,
+          3.574,
+          3.662
+        ]
+      },
+      "execute_us": {
+        "median": 90.235,
+        "minimum": 89.827,
+        "maximum": 91.515,
+        "rounds": [
+          91.515,
+          90.235,
+          89.827
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 366.166,
+        "minimum": 366.022,
+        "maximum": 368.293,
+        "rounds": [
+          366.022,
+          366.166,
+          368.293
+        ]
+      },
+      "evaluate_us": {
+        "median": 471.698,
+        "minimum": 469.358,
+        "maximum": 479.743,
+        "rounds": [
+          469.358,
+          471.698,
+          479.743
+        ]
+      },
+      "sync_us": {
+        "median": 1.472,
+        "minimum": 1.301,
+        "maximum": 1.603,
+        "rounds": [
+          1.603,
+          1.301,
+          1.472
+        ]
+      },
+      "complete_us": {
+        "median": 861.974,
+        "minimum": 854.221,
+        "maximum": 866.475,
+        "rounds": [
+          861.974,
+          854.221,
+          866.475
+        ]
+      },
+      "release_us": {
+        "median": 6.239,
+        "minimum": 6.092,
+        "maximum": 6.371,
+        "rounds": [
+          6.092,
+          6.371,
+          6.239
+        ]
+      },
+      "lifecycle_us": {
+        "median": 868.517,
+        "minimum": 861.435,
+        "maximum": 872.811,
+        "rounds": [
+          868.517,
+          861.435,
+          872.811
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 479.319,
+        "minimum": 478.594,
+        "maximum": 490.504,
+        "rounds": [
+          479.319,
+          478.594,
+          490.504
+        ]
+      },
+      "collect_us": {
+        "median": 83.164,
+        "minimum": 82.704,
+        "maximum": 83.168,
+        "rounds": [
+          83.164,
+          82.704,
+          83.168
+        ]
+      },
+      "cache_get_us": {
+        "median": 9.473,
+        "minimum": 9.436,
+        "maximum": 9.526,
+        "rounds": [
+          9.473,
+          9.436,
+          9.526
+        ]
+      },
+      "execute_us": {
+        "median": 364.667,
+        "minimum": 364.656,
+        "maximum": 364.686,
+        "rounds": [
+          364.667,
+          364.656,
+          364.686
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 235.761,
+        "minimum": 233.919,
+        "maximum": 247.299,
+        "rounds": [
+          235.761,
+          233.919,
+          247.299
+        ]
+      },
+      "evaluate_us": {
+        "median": 364.721,
+        "minimum": 359.618,
+        "maximum": 364.898,
+        "rounds": [
+          364.898,
+          359.618,
+          364.721
+        ]
+      },
+      "sync_us": {
+        "median": 1.387,
+        "minimum": 1.346,
+        "maximum": 1.474,
+        "rounds": [
+          1.346,
+          1.387,
+          1.474
+        ]
+      },
+      "complete_us": {
+        "median": 611.493,
+        "minimum": 608.792,
+        "maximum": 633.22,
+        "rounds": [
+          608.792,
+          611.493,
+          633.22
+        ]
+      },
+      "release_us": {
+        "median": 3.989,
+        "minimum": 3.96,
+        "maximum": 4.161,
+        "rounds": [
+          3.96,
+          3.989,
+          4.161
+        ]
+      },
+      "lifecycle_us": {
+        "median": 615.591,
+        "minimum": 612.937,
+        "maximum": 637.132,
+        "rounds": [
+          612.937,
+          615.591,
+          637.132
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 367.521,
+        "minimum": 365.947,
+        "maximum": 371.909,
+        "rounds": [
+          367.521,
+          365.947,
+          371.909
+        ]
+      },
+      "collect_us": {
+        "median": 62.038,
+        "minimum": 61.385,
+        "maximum": 63.197,
+        "rounds": [
+          63.197,
+          61.385,
+          62.038
+        ]
+      },
+      "cache_get_us": {
+        "median": 7.821,
+        "minimum": 7.717,
+        "maximum": 7.886,
+        "rounds": [
+          7.717,
+          7.821,
+          7.886
+        ]
+      },
+      "execute_us": {
+        "median": 275.782,
+        "minimum": 274.906,
+        "maximum": 280.334,
+        "rounds": [
+          275.782,
+          274.906,
+          280.334
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 20.417,
+        "minimum": 19.654,
+        "maximum": 20.432,
+        "rounds": [
+          20.417,
+          19.654,
+          20.432
+        ]
+      },
+      "evaluate_us": {
+        "median": 156.843,
+        "minimum": 155.277,
+        "maximum": 157.153,
+        "rounds": [
+          157.153,
+          155.277,
+          156.843
+        ]
+      },
+      "sync_us": {
+        "median": 0.927,
+        "minimum": 0.883,
+        "maximum": 0.953,
+        "rounds": [
+          0.927,
+          0.883,
+          0.953
+        ]
+      },
+      "complete_us": {
+        "median": 178.273,
+        "minimum": 175.637,
+        "maximum": 179.496,
+        "rounds": [
+          179.496,
+          175.637,
+          178.273
+        ]
+      },
+      "release_us": {
+        "median": 0.827,
+        "minimum": 0.754,
+        "maximum": 0.967,
+        "rounds": [
+          0.827,
+          0.754,
+          0.967
+        ]
+      },
+      "lifecycle_us": {
+        "median": 179.154,
+        "minimum": 176.371,
+        "maximum": 180.29,
+        "rounds": [
+          180.29,
+          176.371,
+          179.154
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 160.408,
+        "minimum": 159.031,
+        "maximum": 161.219,
+        "rounds": [
+          161.219,
+          159.031,
+          160.408
+        ]
+      },
+      "collect_us": {
+        "median": 11.409,
+        "minimum": 11.323,
+        "maximum": 11.43,
+        "rounds": [
+          11.323,
+          11.43,
+          11.409
+        ]
+      },
+      "cache_get_us": {
+        "median": 2.041,
+        "minimum": 2.009,
+        "maximum": 2.09,
+        "rounds": [
+          2.09,
+          2.009,
+          2.041
+        ]
+      },
+      "execute_us": {
+        "median": 135.802,
+        "minimum": 134.97,
+        "maximum": 136.315,
+        "rounds": [
+          136.315,
+          134.97,
+          135.802
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 62.517,
+        "minimum": 61.347,
+        "maximum": 62.691,
+        "rounds": [
+          62.691,
+          61.347,
+          62.517
+        ]
+      },
+      "evaluate_us": {
+        "median": 99.208,
+        "minimum": 98.345,
+        "maximum": 101.749,
+        "rounds": [
+          101.749,
+          98.345,
+          99.208
+        ]
+      },
+      "sync_us": {
+        "median": 16.918,
+        "minimum": 16.762,
+        "maximum": 23.409,
+        "rounds": [
+          23.409,
+          16.762,
+          16.918
+        ]
+      },
+      "complete_us": {
+        "median": 182.725,
+        "minimum": 182.211,
+        "maximum": 195.64,
+        "rounds": [
+          195.64,
+          182.211,
+          182.725
+        ]
+      },
+      "release_us": {
+        "median": 2.705,
+        "minimum": 2.599,
+        "maximum": 2.765,
+        "rounds": [
+          2.705,
+          2.599,
+          2.765
+        ]
+      },
+      "lifecycle_us": {
+        "median": 185.579,
+        "minimum": 184.798,
+        "maximum": 198.385,
+        "rounds": [
+          198.385,
+          184.798,
+          185.579
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 105.02,
+        "minimum": 103.991,
+        "maximum": 105.836,
+        "rounds": [
+          105.836,
+          103.991,
+          105.02
+        ]
+      },
+      "collect_us": {
+        "median": 22.785,
+        "minimum": 21.904,
+        "maximum": 22.923,
+        "rounds": [
+          22.923,
+          21.904,
+          22.785
+        ]
+      },
+      "cache_get_us": {
+        "median": 3.931,
+        "minimum": 3.792,
+        "maximum": 3.972,
+        "rounds": [
+          3.792,
+          3.972,
+          3.931
+        ]
+      },
+      "execute_us": {
+        "median": 64.819,
+        "minimum": 64.074,
+        "maximum": 64.959,
+        "rounds": [
+          64.959,
+          64.074,
+          64.819
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 353.245,
+        "minimum": 348.422,
+        "maximum": 361.718,
+        "rounds": [
+          348.422,
+          361.718,
+          353.245
+        ]
+      },
+      "evaluate_us": {
+        "median": 173.368,
+        "minimum": 172.739,
+        "maximum": 177.271,
+        "rounds": [
+          172.739,
+          177.271,
+          173.368
+        ]
+      },
+      "sync_us": {
+        "median": 22.846,
+        "minimum": 18.285,
+        "maximum": 31.222,
+        "rounds": [
+          31.222,
+          18.285,
+          22.846
+        ]
+      },
+      "complete_us": {
+        "median": 602.585,
+        "minimum": 566.818,
+        "maximum": 612.078,
+        "rounds": [
+          612.078,
+          602.585,
+          566.818
+        ]
+      },
+      "release_us": {
+        "median": 7.036,
+        "minimum": 6.874,
+        "maximum": 7.158,
+        "rounds": [
+          6.874,
+          7.158,
+          7.036
+        ]
+      },
+      "lifecycle_us": {
+        "median": 610.053,
+        "minimum": 574.081,
+        "maximum": 619.447,
+        "rounds": [
+          619.447,
+          610.053,
+          574.081
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 181.323,
+        "minimum": 180.126,
+        "maximum": 186.736,
+        "rounds": [
+          181.323,
+          186.736,
+          180.126
+        ]
+      },
+      "collect_us": {
+        "median": 76.594,
+        "minimum": 76.426,
+        "maximum": 77.45,
+        "rounds": [
+          77.45,
+          76.594,
+          76.426
+        ]
+      },
+      "cache_get_us": {
+        "median": 9.057,
+        "minimum": 8.761,
+        "maximum": 9.145,
+        "rounds": [
+          9.057,
+          8.761,
+          9.145
+        ]
+      },
+      "execute_us": {
+        "median": 77.406,
+        "minimum": 74.274,
+        "maximum": 80.105,
+        "rounds": [
+          74.274,
+          80.105,
+          77.406
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 225.617,
+        "minimum": 221.763,
+        "maximum": 226.731,
+        "rounds": [
+          225.617,
+          221.763,
+          226.731
+        ]
+      },
+      "evaluate_us": {
+        "median": 155.439,
+        "minimum": 152.831,
+        "maximum": 156.372,
+        "rounds": [
+          156.372,
+          152.831,
+          155.439
+        ]
+      },
+      "sync_us": {
+        "median": 17.223,
+        "minimum": 16.447,
+        "maximum": 17.48,
+        "rounds": [
+          17.48,
+          17.223,
+          16.447
+        ]
+      },
+      "complete_us": {
+        "median": 405.621,
+        "minimum": 397.292,
+        "maximum": 414.99,
+        "rounds": [
+          414.99,
+          397.292,
+          405.621
+        ]
+      },
+      "release_us": {
+        "median": 5.092,
+        "minimum": 5.048,
+        "maximum": 5.198,
+        "rounds": [
+          5.198,
+          5.092,
+          5.048
+        ]
+      },
+      "lifecycle_us": {
+        "median": 410.615,
+        "minimum": 402.543,
+        "maximum": 425.082,
+        "rounds": [
+          425.082,
+          402.543,
+          410.615
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 162.306,
+        "minimum": 161.677,
+        "maximum": 162.425,
+        "rounds": [
+          161.677,
+          162.425,
+          162.306
+        ]
+      },
+      "collect_us": {
+        "median": 56.642,
+        "minimum": 56.485,
+        "maximum": 57.265,
+        "rounds": [
+          57.265,
+          56.642,
+          56.485
+        ]
+      },
+      "cache_get_us": {
+        "median": 7.496,
+        "minimum": 7.139,
+        "maximum": 7.558,
+        "rounds": [
+          7.139,
+          7.496,
+          7.558
+        ]
+      },
+      "execute_us": {
+        "median": 81.328,
+        "minimum": 80.433,
+        "maximum": 81.379,
+        "rounds": [
+          80.433,
+          81.379,
+          81.328
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 24.864,
+        "minimum": 24.564,
+        "maximum": 25.846,
+        "rounds": [
+          24.864,
+          24.564,
+          25.846
+        ]
+      },
+      "evaluate_us": {
+        "median": 83.293,
+        "minimum": 81.499,
+        "maximum": 88.778,
+        "rounds": [
+          81.499,
+          83.293,
+          88.778
+        ]
+      },
+      "sync_us": {
+        "median": 19.321,
+        "minimum": 17.859,
+        "maximum": 20.252,
+        "rounds": [
+          20.252,
+          19.321,
+          17.859
+        ]
+      },
+      "complete_us": {
+        "median": 130.595,
+        "minimum": 128.47,
+        "maximum": 136.037,
+        "rounds": [
+          130.595,
+          128.47,
+          136.037
+        ]
+      },
+      "release_us": {
+        "median": 1.815,
+        "minimum": 1.702,
+        "maximum": 1.946,
+        "rounds": [
+          1.702,
+          1.815,
+          1.946
+        ]
+      },
+      "lifecycle_us": {
+        "median": 132.283,
+        "minimum": 130.31,
+        "maximum": 138.063,
+        "rounds": [
+          132.283,
+          130.31,
+          138.063
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "device": "cuda",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 87.73,
+        "minimum": 87.446,
+        "maximum": 89.108,
+        "rounds": [
+          87.446,
+          87.73,
+          89.108
+        ]
+      },
+      "collect_us": {
+        "median": 13.713,
+        "minimum": 13.65,
+        "maximum": 13.922,
+        "rounds": [
+          13.65,
+          13.922,
+          13.713
+        ]
+      },
+      "cache_get_us": {
+        "median": 2.43,
+        "minimum": 2.346,
+        "maximum": 2.511,
+        "rounds": [
+          2.346,
+          2.511,
+          2.43
+        ]
+      },
+      "execute_us": {
+        "median": 58.525,
+        "minimum": 58.179,
+        "maximum": 61.154,
+        "rounds": [
+          58.525,
+          58.179,
+          61.154
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 21.963,
+        "minimum": 20.815,
+        "maximum": 22.406,
+        "rounds": [
+          20.815,
+          21.963,
+          22.406
+        ]
+      },
+      "evaluate_us": {
+        "median": 116.711,
+        "minimum": 114.531,
+        "maximum": 117.237,
+        "rounds": [
+          114.531,
+          117.237,
+          116.711
+        ]
+      },
+      "sync_us": {
+        "median": 1.063,
+        "minimum": 1.016,
+        "maximum": 1.076,
+        "rounds": [
+          1.016,
+          1.063,
+          1.076
+        ]
+      },
+      "complete_us": {
+        "median": 140.42,
+        "minimum": 136.383,
+        "maximum": 140.855,
+        "rounds": [
+          136.383,
+          140.42,
+          140.855
+        ]
+      },
+      "release_us": {
+        "median": 1.719,
+        "minimum": 1.609,
+        "maximum": 1.779,
+        "rounds": [
+          1.609,
+          1.779,
+          1.719
+        ]
+      },
+      "lifecycle_us": {
+        "median": 142.153,
+        "minimum": 138.02,
+        "maximum": 142.376,
+        "rounds": [
+          138.02,
+          142.153,
+          142.376
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 120.302,
+        "minimum": 119.297,
+        "maximum": 121.803,
+        "rounds": [
+          119.297,
+          121.803,
+          120.302
+        ]
+      },
+      "collect_us": {
+        "median": 12.731,
+        "minimum": 12.593,
+        "maximum": 12.773,
+        "rounds": [
+          12.593,
+          12.773,
+          12.731
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.269,
+        "minimum": 1.265,
+        "maximum": 1.42,
+        "rounds": [
+          1.265,
+          1.42,
+          1.269
+        ]
+      },
+      "execute_us": {
+        "median": 93.317,
+        "minimum": 92.231,
+        "maximum": 93.563,
+        "rounds": [
+          92.231,
+          93.563,
+          93.317
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 91.625,
+        "minimum": 89.72,
+        "maximum": 94.876,
+        "rounds": [
+          91.625,
+          94.876,
+          89.72
+        ]
+      },
+      "evaluate_us": {
+        "median": 416.211,
+        "minimum": 404.992,
+        "maximum": 419.432,
+        "rounds": [
+          416.211,
+          419.432,
+          404.992
+        ]
+      },
+      "sync_us": {
+        "median": 1.261,
+        "minimum": 1.162,
+        "maximum": 1.366,
+        "rounds": [
+          1.366,
+          1.261,
+          1.162
+        ]
+      },
+      "complete_us": {
+        "median": 515.379,
+        "minimum": 499.986,
+        "maximum": 518.126,
+        "rounds": [
+          515.379,
+          518.126,
+          499.986
+        ]
+      },
+      "release_us": {
+        "median": 3.95,
+        "minimum": 3.849,
+        "maximum": 3.988,
+        "rounds": [
+          3.988,
+          3.95,
+          3.849
+        ]
+      },
+      "lifecycle_us": {
+        "median": 519.59,
+        "minimum": 505.646,
+        "maximum": 532.726,
+        "rounds": [
+          519.59,
+          532.726,
+          505.646
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 421.797,
+        "minimum": 409.293,
+        "maximum": 422.486,
+        "rounds": [
+          421.797,
+          422.486,
+          409.293
+        ]
+      },
+      "collect_us": {
+        "median": 34.127,
+        "minimum": 32.432,
+        "maximum": 34.906,
+        "rounds": [
+          34.127,
+          34.906,
+          32.432
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.762,
+        "minimum": 1.534,
+        "maximum": 1.935,
+        "rounds": [
+          1.935,
+          1.762,
+          1.534
+        ]
+      },
+      "execute_us": {
+        "median": 365.516,
+        "minimum": 355.973,
+        "maximum": 365.729,
+        "rounds": [
+          365.516,
+          365.729,
+          355.973
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 64.745,
+        "minimum": 63.347,
+        "maximum": 70.691,
+        "rounds": [
+          63.347,
+          64.745,
+          70.691
+        ]
+      },
+      "evaluate_us": {
+        "median": 332.607,
+        "minimum": 327.617,
+        "maximum": 338.743,
+        "rounds": [
+          327.617,
+          338.743,
+          332.607
+        ]
+      },
+      "sync_us": {
+        "median": 1.35,
+        "minimum": 1.308,
+        "maximum": 1.421,
+        "rounds": [
+          1.308,
+          1.35,
+          1.421
+        ]
+      },
+      "complete_us": {
+        "median": 409.608,
+        "minimum": 399.998,
+        "maximum": 423.39,
+        "rounds": [
+          399.998,
+          409.608,
+          423.39
+        ]
+      },
+      "release_us": {
+        "median": 3.59,
+        "minimum": 3.355,
+        "maximum": 3.649,
+        "rounds": [
+          3.355,
+          3.649,
+          3.59
+        ]
+      },
+      "lifecycle_us": {
+        "median": 413.15,
+        "minimum": 403.059,
+        "maximum": 427.129,
+        "rounds": [
+          403.059,
+          413.15,
+          427.129
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 333.012,
+        "minimum": 330.48,
+        "maximum": 341.548,
+        "rounds": [
+          330.48,
+          341.548,
+          333.012
+        ]
+      },
+      "collect_us": {
+        "median": 29.222,
+        "minimum": 28.427,
+        "maximum": 30.684,
+        "rounds": [
+          28.427,
+          30.684,
+          29.222
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.831,
+        "minimum": 1.716,
+        "maximum": 1.843,
+        "rounds": [
+          1.716,
+          1.843,
+          1.831
+        ]
+      },
+      "execute_us": {
+        "median": 280.731,
+        "minimum": 280.435,
+        "maximum": 288.882,
+        "rounds": [
+          280.435,
+          288.882,
+          280.731
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 8.694,
+        "minimum": 8.481,
+        "maximum": 9.641,
+        "rounds": [
+          9.641,
+          8.481,
+          8.694
+        ]
+      },
+      "evaluate_us": {
+        "median": 159.595,
+        "minimum": 157.224,
+        "maximum": 160.17,
+        "rounds": [
+          159.595,
+          160.17,
+          157.224
+        ]
+      },
+      "sync_us": {
+        "median": 0.969,
+        "minimum": 0.879,
+        "maximum": 1.026,
+        "rounds": [
+          1.026,
+          0.969,
+          0.879
+        ]
+      },
+      "complete_us": {
+        "median": 170.213,
+        "minimum": 166.96,
+        "maximum": 170.268,
+        "rounds": [
+          170.268,
+          170.213,
+          166.96
+        ]
+      },
+      "release_us": {
+        "median": 1.137,
+        "minimum": 0.99,
+        "maximum": 1.245,
+        "rounds": [
+          1.245,
+          1.137,
+          0.99
+        ]
+      },
+      "lifecycle_us": {
+        "median": 171.35,
+        "minimum": 167.828,
+        "maximum": 171.54,
+        "rounds": [
+          171.54,
+          171.35,
+          167.828
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 163.177,
+        "minimum": 162.823,
+        "maximum": 166.067,
+        "rounds": [
+          166.067,
+          163.177,
+          162.823
+        ]
+      },
+      "collect_us": {
+        "median": 8.367,
+        "minimum": 8.307,
+        "maximum": 8.813,
+        "rounds": [
+          8.813,
+          8.307,
+          8.367
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.268,
+        "minimum": 1.141,
+        "maximum": 1.385,
+        "rounds": [
+          1.385,
+          1.141,
+          1.268
+        ]
+      },
+      "execute_us": {
+        "median": 141.082,
+        "minimum": 140.254,
+        "maximum": 142.075,
+        "rounds": [
+          142.075,
+          141.082,
+          140.254
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 24.223,
+        "minimum": 23.575,
+        "maximum": 24.791,
+        "rounds": [
+          24.791,
+          23.575,
+          24.223
+        ]
+      },
+      "evaluate_us": {
+        "median": 90.795,
+        "minimum": 85.626,
+        "maximum": 92.489,
+        "rounds": [
+          92.489,
+          85.626,
+          90.795
+        ]
+      },
+      "sync_us": {
+        "median": 10.925,
+        "minimum": 10.364,
+        "maximum": 11.081,
+        "rounds": [
+          10.925,
+          10.364,
+          11.081
+        ]
+      },
+      "complete_us": {
+        "median": 126.37,
+        "minimum": 120.981,
+        "maximum": 130.206,
+        "rounds": [
+          130.206,
+          120.981,
+          126.37
+        ]
+      },
+      "release_us": {
+        "median": 2.516,
+        "minimum": 2.505,
+        "maximum": 2.873,
+        "rounds": [
+          2.505,
+          2.516,
+          2.873
+        ]
+      },
+      "lifecycle_us": {
+        "median": 129.131,
+        "minimum": 123.615,
+        "maximum": 132.634,
+        "rounds": [
+          132.634,
+          123.615,
+          129.131
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "elementwise",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 97.112,
+        "minimum": 90.647,
+        "maximum": 97.125,
+        "rounds": [
+          97.112,
+          90.647,
+          97.125
+        ]
+      },
+      "collect_us": {
+        "median": 14.263,
+        "minimum": 14.103,
+        "maximum": 14.531,
+        "rounds": [
+          14.531,
+          14.103,
+          14.263
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.545,
+        "minimum": 1.448,
+        "maximum": 1.601,
+        "rounds": [
+          1.601,
+          1.448,
+          1.545
+        ]
+      },
+      "execute_us": {
+        "median": 65.481,
+        "minimum": 60.149,
+        "maximum": 65.506,
+        "rounds": [
+          65.481,
+          60.149,
+          65.506
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 87.933,
+        "minimum": 87.606,
+        "maximum": 91.198,
+        "rounds": [
+          91.198,
+          87.933,
+          87.606
+        ]
+      },
+      "evaluate_us": {
+        "median": 116.911,
+        "minimum": 114.318,
+        "maximum": 120.384,
+        "rounds": [
+          120.384,
+          114.318,
+          116.911
+        ]
+      },
+      "sync_us": {
+        "median": 19.065,
+        "minimum": 18.911,
+        "maximum": 20.102,
+        "rounds": [
+          19.065,
+          18.911,
+          20.102
+        ]
+      },
+      "complete_us": {
+        "median": 225.052,
+        "minimum": 224.673,
+        "maximum": 233.716,
+        "rounds": [
+          233.716,
+          224.673,
+          225.052
+        ]
+      },
+      "release_us": {
+        "median": 4.207,
+        "minimum": 4.09,
+        "maximum": 4.397,
+        "rounds": [
+          4.09,
+          4.207,
+          4.397
+        ]
+      },
+      "lifecycle_us": {
+        "median": 229.379,
+        "minimum": 228.823,
+        "maximum": 237.837,
+        "rounds": [
+          237.837,
+          228.823,
+          229.379
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "reduction_chain",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 122.539,
+        "minimum": 120.797,
+        "maximum": 124.236,
+        "rounds": [
+          124.236,
+          122.539,
+          120.797
+        ]
+      },
+      "collect_us": {
+        "median": 32.89,
+        "minimum": 31.931,
+        "maximum": 33.387,
+        "rounds": [
+          33.387,
+          32.89,
+          31.931
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.823,
+        "minimum": 1.767,
+        "maximum": 1.836,
+        "rounds": [
+          1.823,
+          1.836,
+          1.767
+        ]
+      },
+      "execute_us": {
+        "median": 70.244,
+        "minimum": 70.134,
+        "maximum": 70.59,
+        "rounds": [
+          70.59,
+          70.134,
+          70.244
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 63.087,
+        "minimum": 62.96,
+        "maximum": 66.194,
+        "rounds": [
+          62.96,
+          66.194,
+          63.087
+        ]
+      },
+      "evaluate_us": {
+        "median": 120.263,
+        "minimum": 113.826,
+        "maximum": 126.266,
+        "rounds": [
+          113.826,
+          126.266,
+          120.263
+        ]
+      },
+      "sync_us": {
+        "median": 14.607,
+        "minimum": 14.11,
+        "maximum": 15.256,
+        "rounds": [
+          15.256,
+          14.607,
+          14.11
+        ]
+      },
+      "complete_us": {
+        "median": 199.425,
+        "minimum": 194.729,
+        "maximum": 210.317,
+        "rounds": [
+          194.729,
+          210.317,
+          199.425
+        ]
+      },
+      "release_us": {
+        "median": 3.669,
+        "minimum": 3.568,
+        "maximum": 3.748,
+        "rounds": [
+          3.568,
+          3.748,
+          3.669
+        ]
+      },
+      "lifecycle_us": {
+        "median": 203.061,
+        "minimum": 198.42,
+        "maximum": 213.95,
+        "rounds": [
+          198.42,
+          213.95,
+          203.061
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "fork_join",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 124.946,
+        "minimum": 118.377,
+        "maximum": 128.181,
+        "rounds": [
+          118.377,
+          128.181,
+          124.946
+        ]
+      },
+      "collect_us": {
+        "median": 27.471,
+        "minimum": 26.942,
+        "maximum": 29.003,
+        "rounds": [
+          26.942,
+          29.003,
+          27.471
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.763,
+        "minimum": 1.742,
+        "maximum": 1.873,
+        "rounds": [
+          1.763,
+          1.742,
+          1.873
+        ]
+      },
+      "execute_us": {
+        "median": 78.418,
+        "minimum": 72.211,
+        "maximum": 79.34,
+        "rounds": [
+          72.211,
+          79.34,
+          78.418
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "normal",
+      "build_us": {
+        "median": 11.72,
+        "minimum": 11.449,
+        "maximum": 12.303,
+        "rounds": [
+          11.449,
+          11.72,
+          12.303
+        ]
+      },
+      "evaluate_us": {
+        "median": 85.767,
+        "minimum": 82.281,
+        "maximum": 90.463,
+        "rounds": [
+          82.281,
+          85.767,
+          90.463
+        ]
+      },
+      "sync_us": {
+        "median": 13.488,
+        "minimum": 12.771,
+        "maximum": 17.46,
+        "rounds": [
+          13.488,
+          12.771,
+          17.46
+        ]
+      },
+      "complete_us": {
+        "median": 111.629,
+        "minimum": 110.76,
+        "maximum": 122.599,
+        "rounds": [
+          110.76,
+          111.629,
+          122.599
+        ]
+      },
+      "release_us": {
+        "median": 2.04,
+        "minimum": 1.983,
+        "maximum": 2.16,
+        "rounds": [
+          2.04,
+          1.983,
+          2.16
+        ]
+      },
+      "lifecycle_us": {
+        "median": 113.612,
+        "minimum": 112.835,
+        "maximum": 124.833,
+        "rounds": [
+          112.835,
+          113.612,
+          124.833
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "device": "cuda",
+      "workload": "matmul",
+      "size": "large",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 90.848,
+        "minimum": 86.583,
+        "maximum": 93.812,
+        "rounds": [
+          86.583,
+          90.848,
+          93.812
+        ]
+      },
+      "collect_us": {
+        "median": 9.682,
+        "minimum": 9.598,
+        "maximum": 9.796,
+        "rounds": [
+          9.598,
+          9.682,
+          9.796
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.384,
+        "minimum": 1.333,
+        "maximum": 1.444,
+        "rounds": [
+          1.444,
+          1.384,
+          1.333
+        ]
+      },
+      "execute_us": {
+        "median": 64.253,
+        "minimum": 60.649,
+        "maximum": 66.532,
+        "rounds": [
+          60.649,
+          64.253,
+          66.532
+        ]
+      }
+    }
+  ],
+  "scale": [
+    {
+      "label": "baseline",
+      "depth": "8",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 92.76,
+        "minimum": 91.011,
+        "maximum": 95.061,
+        "rounds": [
+          91.011,
+          95.061,
+          92.76
+        ]
+      },
+      "evaluate_us": {
+        "median": 53.121,
+        "minimum": 50.75,
+        "maximum": 53.645,
+        "rounds": [
+          50.75,
+          53.645,
+          53.121
+        ]
+      },
+      "sync_us": {
+        "median": 0.836,
+        "minimum": 0.824,
+        "maximum": 0.848,
+        "rounds": [
+          0.824,
+          0.848,
+          0.836
+        ]
+      },
+      "complete_us": {
+        "median": 148.991,
+        "minimum": 143.207,
+        "maximum": 150.641,
+        "rounds": [
+          143.207,
+          150.641,
+          148.991
+        ]
+      },
+      "release_us": {
+        "median": 1.845,
+        "minimum": 1.745,
+        "maximum": 1.846,
+        "rounds": [
+          1.745,
+          1.845,
+          1.846
+        ]
+      },
+      "lifecycle_us": {
+        "median": 150.776,
+        "minimum": 145.039,
+        "maximum": 152.377,
+        "rounds": [
+          145.039,
+          152.377,
+          150.776
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "8",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 57.881,
+        "minimum": 56.044,
+        "maximum": 60.664,
+        "rounds": [
+          56.044,
+          57.881,
+          60.664
+        ]
+      },
+      "collect_us": {
+        "median": 24.291,
+        "minimum": 23.709,
+        "maximum": 24.686,
+        "rounds": [
+          23.709,
+          24.291,
+          24.686
+        ]
+      },
+      "cache_get_us": {
+        "median": 4.313,
+        "minimum": 4.136,
+        "maximum": 4.569,
+        "rounds": [
+          4.136,
+          4.313,
+          4.569
+        ]
+      },
+      "execute_us": {
+        "median": 17.628,
+        "minimum": 17.175,
+        "maximum": 18.752,
+        "rounds": [
+          17.175,
+          17.628,
+          18.752
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "8",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 92.522,
+        "minimum": 90.485,
+        "maximum": 92.8,
+        "rounds": [
+          92.522,
+          92.8,
+          90.485
+        ]
+      },
+      "evaluate_us": {
+        "median": 65.285,
+        "minimum": 64.546,
+        "maximum": 66.341,
+        "rounds": [
+          66.341,
+          65.285,
+          64.546
+        ]
+      },
+      "sync_us": {
+        "median": 0.849,
+        "minimum": 0.839,
+        "maximum": 0.88,
+        "rounds": [
+          0.849,
+          0.88,
+          0.839
+        ]
+      },
+      "complete_us": {
+        "median": 159.507,
+        "minimum": 156.085,
+        "maximum": 160.821,
+        "rounds": [
+          160.821,
+          159.507,
+          156.085
+        ]
+      },
+      "release_us": {
+        "median": 1.881,
+        "minimum": 1.869,
+        "maximum": 1.92,
+        "rounds": [
+          1.92,
+          1.881,
+          1.869
+        ]
+      },
+      "lifecycle_us": {
+        "median": 161.248,
+        "minimum": 157.823,
+        "maximum": 162.909,
+        "rounds": [
+          162.909,
+          161.248,
+          157.823
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "8",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 69.433,
+        "minimum": 69.175,
+        "maximum": 70.932,
+        "rounds": [
+          69.175,
+          70.932,
+          69.433
+        ]
+      },
+      "collect_us": {
+        "median": 27.643,
+        "minimum": 27.558,
+        "maximum": 27.865,
+        "rounds": [
+          27.643,
+          27.865,
+          27.558
+        ]
+      },
+      "cache_get_us": {
+        "median": 4.573,
+        "minimum": 4.429,
+        "maximum": 4.605,
+        "rounds": [
+          4.429,
+          4.573,
+          4.605
+        ]
+      },
+      "execute_us": {
+        "median": 25.52,
+        "minimum": 25.302,
+        "maximum": 25.641,
+        "rounds": [
+          25.302,
+          25.641,
+          25.52
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "32",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 340.787,
+        "minimum": 340.141,
+        "maximum": 436.442,
+        "rounds": [
+          340.141,
+          340.787,
+          436.442
+        ]
+      },
+      "evaluate_us": {
+        "median": 129.466,
+        "minimum": 127.289,
+        "maximum": 155.672,
+        "rounds": [
+          127.289,
+          129.466,
+          155.672
+        ]
+      },
+      "sync_us": {
+        "median": 1.034,
+        "minimum": 0.994,
+        "maximum": 1.212,
+        "rounds": [
+          0.994,
+          1.034,
+          1.212
+        ]
+      },
+      "complete_us": {
+        "median": 473.545,
+        "minimum": 473.38,
+        "maximum": 598.115,
+        "rounds": [
+          473.545,
+          473.38,
+          598.115
+        ]
+      },
+      "release_us": {
+        "median": 6.111,
+        "minimum": 5.905,
+        "maximum": 6.575,
+        "rounds": [
+          6.111,
+          5.905,
+          6.575
+        ]
+      },
+      "lifecycle_us": {
+        "median": 479.738,
+        "minimum": 479.216,
+        "maximum": 605.954,
+        "rounds": [
+          479.738,
+          479.216,
+          605.954
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "32",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 134.712,
+        "minimum": 129.731,
+        "maximum": 163.559,
+        "rounds": [
+          129.731,
+          134.712,
+          163.559
+        ]
+      },
+      "collect_us": {
+        "median": 84.634,
+        "minimum": 81.136,
+        "maximum": 101.392,
+        "rounds": [
+          81.136,
+          84.634,
+          101.392
+        ]
+      },
+      "cache_get_us": {
+        "median": 10.901,
+        "minimum": 10.853,
+        "maximum": 11.578,
+        "rounds": [
+          10.853,
+          10.901,
+          11.578
+        ]
+      },
+      "execute_us": {
+        "median": 21.877,
+        "minimum": 21.033,
+        "maximum": 27.671,
+        "rounds": [
+          21.033,
+          21.877,
+          27.671
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "32",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 341.524,
+        "minimum": 337.84,
+        "maximum": 342.302,
+        "rounds": [
+          342.302,
+          341.524,
+          337.84
+        ]
+      },
+      "evaluate_us": {
+        "median": 140.065,
+        "minimum": 136.663,
+        "maximum": 143.877,
+        "rounds": [
+          140.065,
+          143.877,
+          136.663
+        ]
+      },
+      "sync_us": {
+        "median": 1.04,
+        "minimum": 1.028,
+        "maximum": 1.084,
+        "rounds": [
+          1.084,
+          1.028,
+          1.04
+        ]
+      },
+      "complete_us": {
+        "median": 489.912,
+        "minimum": 475.59,
+        "maximum": 494.873,
+        "rounds": [
+          489.912,
+          494.873,
+          475.59
+        ]
+      },
+      "release_us": {
+        "median": 5.966,
+        "minimum": 5.965,
+        "maximum": 6.189,
+        "rounds": [
+          5.966,
+          5.965,
+          6.189
+        ]
+      },
+      "lifecycle_us": {
+        "median": 500.793,
+        "minimum": 481.74,
+        "maximum": 502.019,
+        "rounds": [
+          502.019,
+          500.793,
+          481.74
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "32",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 147.053,
+        "minimum": 145.154,
+        "maximum": 147.658,
+        "rounds": [
+          147.053,
+          147.658,
+          145.154
+        ]
+      },
+      "collect_us": {
+        "median": 86.884,
+        "minimum": 85.682,
+        "maximum": 87.16,
+        "rounds": [
+          85.682,
+          87.16,
+          86.884
+        ]
+      },
+      "cache_get_us": {
+        "median": 11.181,
+        "minimum": 10.907,
+        "maximum": 11.202,
+        "rounds": [
+          11.202,
+          11.181,
+          10.907
+        ]
+      },
+      "execute_us": {
+        "median": 31.249,
+        "minimum": 30.108,
+        "maximum": 31.94,
+        "rounds": [
+          31.94,
+          31.249,
+          30.108
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "128",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 1407.355,
+        "minimum": 1379.1,
+        "maximum": 1538.454,
+        "rounds": [
+          1407.355,
+          1379.1,
+          1538.454
+        ]
+      },
+      "evaluate_us": {
+        "median": 380.677,
+        "minimum": 376.084,
+        "maximum": 438.596,
+        "rounds": [
+          380.677,
+          376.084,
+          438.596
+        ]
+      },
+      "sync_us": {
+        "median": 1.337,
+        "minimum": 1.243,
+        "maximum": 1.556,
+        "rounds": [
+          1.337,
+          1.243,
+          1.556
+        ]
+      },
+      "complete_us": {
+        "median": 1798.831,
+        "minimum": 1777.035,
+        "maximum": 1987.337,
+        "rounds": [
+          1798.831,
+          1777.035,
+          1987.337
+        ]
+      },
+      "release_us": {
+        "median": 23.829,
+        "minimum": 22.867,
+        "maximum": 23.981,
+        "rounds": [
+          23.829,
+          22.867,
+          23.981
+        ]
+      },
+      "lifecycle_us": {
+        "median": 1820.271,
+        "minimum": 1799.641,
+        "maximum": 2017.853,
+        "rounds": [
+          1820.271,
+          1799.641,
+          2017.853
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "128",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 398.672,
+        "minimum": 390.27,
+        "maximum": 429.621,
+        "rounds": [
+          390.27,
+          398.672,
+          429.621
+        ]
+      },
+      "collect_us": {
+        "median": 292.761,
+        "minimum": 287.775,
+        "maximum": 319.351,
+        "rounds": [
+          292.761,
+          287.775,
+          319.351
+        ]
+      },
+      "cache_get_us": {
+        "median": 37.422,
+        "minimum": 36.108,
+        "maximum": 37.47,
+        "rounds": [
+          37.422,
+          36.108,
+          37.47
+        ]
+      },
+      "execute_us": {
+        "median": 28.613,
+        "minimum": 28.24,
+        "maximum": 30.949,
+        "rounds": [
+          28.613,
+          28.24,
+          30.949
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "128",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 1393.052,
+        "minimum": 1363.445,
+        "maximum": 1394.223,
+        "rounds": [
+          1363.445,
+          1394.223,
+          1393.052
+        ]
+      },
+      "evaluate_us": {
+        "median": 389.431,
+        "minimum": 386.879,
+        "maximum": 396.528,
+        "rounds": [
+          386.879,
+          396.528,
+          389.431
+        ]
+      },
+      "sync_us": {
+        "median": 1.293,
+        "minimum": 1.206,
+        "maximum": 1.37,
+        "rounds": [
+          1.293,
+          1.37,
+          1.206
+        ]
+      },
+      "complete_us": {
+        "median": 1788.971,
+        "minimum": 1768.702,
+        "maximum": 1801.364,
+        "rounds": [
+          1768.702,
+          1801.364,
+          1788.971
+        ]
+      },
+      "release_us": {
+        "median": 23.344,
+        "minimum": 23.022,
+        "maximum": 23.433,
+        "rounds": [
+          23.433,
+          23.022,
+          23.344
+        ]
+      },
+      "lifecycle_us": {
+        "median": 1812.07,
+        "minimum": 1792.692,
+        "maximum": 1824.692,
+        "rounds": [
+          1792.692,
+          1824.692,
+          1812.07
+        ]
+      }
+    },
+    {
+      "label": "baseline",
+      "depth": "128",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 403.219,
+        "minimum": 399.256,
+        "maximum": 405.657,
+        "rounds": [
+          399.256,
+          405.657,
+          403.219
+        ]
+      },
+      "collect_us": {
+        "median": 297.47,
+        "minimum": 294.55,
+        "maximum": 299.25,
+        "rounds": [
+          294.55,
+          299.25,
+          297.47
+        ]
+      },
+      "cache_get_us": {
+        "median": 36.623,
+        "minimum": 36.577,
+        "maximum": 38.152,
+        "rounds": [
+          36.623,
+          38.152,
+          36.577
+        ]
+      },
+      "execute_us": {
+        "median": 36.708,
+        "minimum": 36.626,
+        "maximum": 37.281,
+        "rounds": [
+          36.626,
+          36.708,
+          37.281
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "8",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 29.445,
+        "minimum": 29.381,
+        "maximum": 29.539,
+        "rounds": [
+          29.539,
+          29.445,
+          29.381
+        ]
+      },
+      "evaluate_us": {
+        "median": 37.331,
+        "minimum": 37.174,
+        "maximum": 38.351,
+        "rounds": [
+          37.174,
+          38.351,
+          37.331
+        ]
+      },
+      "sync_us": {
+        "median": 0.804,
+        "minimum": 0.795,
+        "maximum": 0.817,
+        "rounds": [
+          0.795,
+          0.804,
+          0.817
+        ]
+      },
+      "complete_us": {
+        "median": 67.553,
+        "minimum": 67.2,
+        "maximum": 68.647,
+        "rounds": [
+          67.2,
+          68.647,
+          67.553
+        ]
+      },
+      "release_us": {
+        "median": 1.273,
+        "minimum": 1.215,
+        "maximum": 1.284,
+        "rounds": [
+          1.215,
+          1.273,
+          1.284
+        ]
+      },
+      "lifecycle_us": {
+        "median": 68.827,
+        "minimum": 68.412,
+        "maximum": 69.932,
+        "rounds": [
+          68.412,
+          69.932,
+          68.827
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "8",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 41.64,
+        "minimum": 40.864,
+        "maximum": 43.648,
+        "rounds": [
+          41.64,
+          43.648,
+          40.864
+        ]
+      },
+      "collect_us": {
+        "median": 11.424,
+        "minimum": 11.152,
+        "maximum": 11.952,
+        "rounds": [
+          11.424,
+          11.952,
+          11.152
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.125,
+        "minimum": 1.081,
+        "maximum": 1.202,
+        "rounds": [
+          1.081,
+          1.202,
+          1.125
+        ]
+      },
+      "execute_us": {
+        "median": 17.831,
+        "minimum": 17.592,
+        "maximum": 18.506,
+        "rounds": [
+          17.831,
+          18.506,
+          17.592
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "8",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 29.416,
+        "minimum": 29.305,
+        "maximum": 29.582,
+        "rounds": [
+          29.582,
+          29.305,
+          29.416
+        ]
+      },
+      "evaluate_us": {
+        "median": 49.858,
+        "minimum": 49.43,
+        "maximum": 50.937,
+        "rounds": [
+          50.937,
+          49.43,
+          49.858
+        ]
+      },
+      "sync_us": {
+        "median": 0.822,
+        "minimum": 0.808,
+        "maximum": 0.862,
+        "rounds": [
+          0.862,
+          0.808,
+          0.822
+        ]
+      },
+      "complete_us": {
+        "median": 79.692,
+        "minimum": 79.53,
+        "maximum": 81.704,
+        "rounds": [
+          81.704,
+          79.692,
+          79.53
+        ]
+      },
+      "release_us": {
+        "median": 1.32,
+        "minimum": 1.264,
+        "maximum": 1.376,
+        "rounds": [
+          1.32,
+          1.376,
+          1.264
+        ]
+      },
+      "lifecycle_us": {
+        "median": 81.032,
+        "minimum": 80.777,
+        "maximum": 82.977,
+        "rounds": [
+          82.977,
+          81.032,
+          80.777
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "8",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 53.969,
+        "minimum": 53.884,
+        "maximum": 54.423,
+        "rounds": [
+          54.423,
+          53.884,
+          53.969
+        ]
+      },
+      "collect_us": {
+        "median": 12.788,
+        "minimum": 12.739,
+        "maximum": 12.821,
+        "rounds": [
+          12.788,
+          12.821,
+          12.739
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.215,
+        "minimum": 1.144,
+        "maximum": 1.262,
+        "rounds": [
+          1.144,
+          1.215,
+          1.262
+        ]
+      },
+      "execute_us": {
+        "median": 28.149,
+        "minimum": 28.102,
+        "maximum": 28.172,
+        "rounds": [
+          28.102,
+          28.149,
+          28.172
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "32",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 108.704,
+        "minimum": 106.514,
+        "maximum": 125.584,
+        "rounds": [
+          106.514,
+          108.704,
+          125.584
+        ]
+      },
+      "evaluate_us": {
+        "median": 60.801,
+        "minimum": 59.51,
+        "maximum": 66.971,
+        "rounds": [
+          59.51,
+          60.801,
+          66.971
+        ]
+      },
+      "sync_us": {
+        "median": 0.845,
+        "minimum": 0.812,
+        "maximum": 1.029,
+        "rounds": [
+          0.812,
+          0.845,
+          1.029
+        ]
+      },
+      "complete_us": {
+        "median": 170.993,
+        "minimum": 165.408,
+        "maximum": 192.237,
+        "rounds": [
+          165.408,
+          170.993,
+          192.237
+        ]
+      },
+      "release_us": {
+        "median": 3.046,
+        "minimum": 2.965,
+        "maximum": 3.05,
+        "rounds": [
+          2.965,
+          3.05,
+          3.046
+        ]
+      },
+      "lifecycle_us": {
+        "median": 173.934,
+        "minimum": 168.288,
+        "maximum": 195.294,
+        "rounds": [
+          168.288,
+          173.934,
+          195.294
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "32",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 64.166,
+        "minimum": 62.931,
+        "maximum": 72.997,
+        "rounds": [
+          64.166,
+          62.931,
+          72.997
+        ]
+      },
+      "collect_us": {
+        "median": 29.926,
+        "minimum": 29.792,
+        "maximum": 32.606,
+        "rounds": [
+          29.926,
+          29.792,
+          32.606
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.512,
+        "minimum": 1.423,
+        "maximum": 1.652,
+        "rounds": [
+          1.423,
+          1.512,
+          1.652
+        ]
+      },
+      "execute_us": {
+        "median": 19.24,
+        "minimum": 19.132,
+        "maximum": 23.837,
+        "rounds": [
+          19.132,
+          19.24,
+          23.837
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "32",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 108.219,
+        "minimum": 104.77,
+        "maximum": 137.035,
+        "rounds": [
+          137.035,
+          104.77,
+          108.219
+        ]
+      },
+      "evaluate_us": {
+        "median": 74.178,
+        "minimum": 72.291,
+        "maximum": 81.047,
+        "rounds": [
+          81.047,
+          72.291,
+          74.178
+        ]
+      },
+      "sync_us": {
+        "median": 0.915,
+        "minimum": 0.9,
+        "maximum": 1.074,
+        "rounds": [
+          1.074,
+          0.9,
+          0.915
+        ]
+      },
+      "complete_us": {
+        "median": 183.523,
+        "minimum": 178.033,
+        "maximum": 219.47,
+        "rounds": [
+          219.47,
+          178.033,
+          183.523
+        ]
+      },
+      "release_us": {
+        "median": 3.061,
+        "minimum": 3.021,
+        "maximum": 3.095,
+        "rounds": [
+          3.095,
+          3.021,
+          3.061
+        ]
+      },
+      "lifecycle_us": {
+        "median": 186.68,
+        "minimum": 181.086,
+        "maximum": 222.565,
+        "rounds": [
+          222.565,
+          181.086,
+          186.68
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "32",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 77.854,
+        "minimum": 77.84,
+        "maximum": 83.567,
+        "rounds": [
+          83.567,
+          77.84,
+          77.854
+        ]
+      },
+      "collect_us": {
+        "median": 31.784,
+        "minimum": 31.61,
+        "maximum": 33.379,
+        "rounds": [
+          33.379,
+          31.61,
+          31.784
+        ]
+      },
+      "cache_get_us": {
+        "median": 1.618,
+        "minimum": 1.487,
+        "maximum": 1.738,
+        "rounds": [
+          1.738,
+          1.487,
+          1.618
+        ]
+      },
+      "execute_us": {
+        "median": 30.97,
+        "minimum": 30.405,
+        "maximum": 32.531,
+        "rounds": [
+          32.531,
+          30.405,
+          30.97
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "128",
+      "leaves": "1",
+      "phase": "normal",
+      "build_us": {
+        "median": 430.554,
+        "minimum": 421.571,
+        "maximum": 441.897,
+        "rounds": [
+          421.571,
+          441.897,
+          430.554
+        ]
+      },
+      "evaluate_us": {
+        "median": 166.552,
+        "minimum": 158.077,
+        "maximum": 167.233,
+        "rounds": [
+          166.552,
+          158.077,
+          167.233
+        ]
+      },
+      "sync_us": {
+        "median": 1.129,
+        "minimum": 1.005,
+        "maximum": 1.199,
+        "rounds": [
+          1.129,
+          1.005,
+          1.199
+        ]
+      },
+      "complete_us": {
+        "median": 613.96,
+        "minimum": 602.885,
+        "maximum": 624.046,
+        "rounds": [
+          613.96,
+          602.885,
+          624.046
+        ]
+      },
+      "release_us": {
+        "median": 10.185,
+        "minimum": 10.073,
+        "maximum": 10.39,
+        "rounds": [
+          10.39,
+          10.073,
+          10.185
+        ]
+      },
+      "lifecycle_us": {
+        "median": 624.394,
+        "minimum": 615.472,
+        "maximum": 634.269,
+        "rounds": [
+          624.394,
+          615.472,
+          634.269
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "128",
+      "leaves": "1",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 172.091,
+        "minimum": 168.665,
+        "maximum": 173.099,
+        "rounds": [
+          173.099,
+          172.091,
+          168.665
+        ]
+      },
+      "collect_us": {
+        "median": 120.715,
+        "minimum": 119.186,
+        "maximum": 121.088,
+        "rounds": [
+          120.715,
+          121.088,
+          119.186
+        ]
+      },
+      "cache_get_us": {
+        "median": 2.574,
+        "minimum": 2.533,
+        "maximum": 2.629,
+        "rounds": [
+          2.574,
+          2.533,
+          2.629
+        ]
+      },
+      "execute_us": {
+        "median": 28.289,
+        "minimum": 26.316,
+        "maximum": 29.207,
+        "rounds": [
+          29.207,
+          28.289,
+          26.316
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "128",
+      "leaves": "8",
+      "phase": "normal",
+      "build_us": {
+        "median": 416.147,
+        "minimum": 394.236,
+        "maximum": 422.447,
+        "rounds": [
+          422.447,
+          416.147,
+          394.236
+        ]
+      },
+      "evaluate_us": {
+        "median": 181.259,
+        "minimum": 176.439,
+        "maximum": 191.027,
+        "rounds": [
+          191.027,
+          181.259,
+          176.439
+        ]
+      },
+      "sync_us": {
+        "median": 1.195,
+        "minimum": 1.07,
+        "maximum": 1.209,
+        "rounds": [
+          1.195,
+          1.209,
+          1.07
+        ]
+      },
+      "complete_us": {
+        "median": 612.71,
+        "minimum": 572.347,
+        "maximum": 616.665,
+        "rounds": [
+          616.665,
+          612.71,
+          572.347
+        ]
+      },
+      "release_us": {
+        "median": 10.129,
+        "minimum": 10.117,
+        "maximum": 10.248,
+        "rounds": [
+          10.248,
+          10.117,
+          10.129
+        ]
+      },
+      "lifecycle_us": {
+        "median": 623.048,
+        "minimum": 582.526,
+        "maximum": 626.763,
+        "rounds": [
+          626.763,
+          623.048,
+          582.526
+        ]
+      }
+    },
+    {
+      "label": "final",
+      "depth": "128",
+      "leaves": "8",
+      "phase": "diagnostic",
+      "evaluate_us": {
+        "median": 185.825,
+        "minimum": 179.066,
+        "maximum": 192.406,
+        "rounds": [
+          192.406,
+          185.825,
+          179.066
+        ]
+      },
+      "collect_us": {
+        "median": 122.4,
+        "minimum": 121.157,
+        "maximum": 131.273,
+        "rounds": [
+          131.273,
+          121.157,
+          122.4
+        ]
+      },
+      "cache_get_us": {
+        "median": 2.636,
+        "minimum": 2.505,
+        "maximum": 2.65,
+        "rounds": [
+          2.636,
+          2.65,
+          2.505
+        ]
+      },
+      "execute_us": {
+        "median": 38.019,
+        "minimum": 36.731,
+        "maximum": 39.564,
+        "rounds": [
+          38.019,
+          39.564,
+          36.731
+        ]
+      }
+    }
+  ],
+  "lifetime": [
+    {
+      "label": "baseline",
+      "depth": "8",
+      "burst_delta": {
+        "python_current_bytes": 393368,
+        "rss_bytes": 1142784,
+        "libc_allocated_bytes": 698896,
+        "tracemalloc_internal_bytes": 351808
+      },
+      "python_tensor_objects": 900,
+      "native_burst_reserved_node_bytes": null,
+      "native_burst_reserved_edge_bytes": null
+    },
+    {
+      "label": "baseline",
+      "depth": "128",
+      "burst_delta": {
+        "python_current_bytes": 4355480,
+        "rss_bytes": 13127680,
+        "libc_allocated_bytes": 6517216,
+        "tracemalloc_internal_bytes": 4697664
+      },
+      "python_tensor_objects": 12900,
+      "native_burst_reserved_node_bytes": null,
+      "native_burst_reserved_edge_bytes": null
+    },
+    {
+      "label": "final",
+      "depth": "8",
+      "burst_delta": {
+        "python_current_bytes": 72373,
+        "rss_bytes": 282624,
+        "libc_allocated_bytes": 207680,
+        "tracemalloc_internal_bytes": 58752
+      },
+      "python_tensor_objects": 200,
+      "native_burst_reserved_node_bytes": "65536",
+      "native_burst_reserved_edge_bytes": "8192"
+    },
+    {
+      "label": "final",
+      "depth": "128",
+      "burst_delta": {
+        "python_current_bytes": 84713,
+        "rss_bytes": 1507328,
+        "libc_allocated_bytes": 388816,
+        "tracemalloc_internal_bytes": 66720
+      },
+      "python_tensor_objects": 200,
+      "native_burst_reserved_node_bytes": "1048576",
+      "native_burst_reserved_edge_bytes": "131072"
+    }
+  ]
+}

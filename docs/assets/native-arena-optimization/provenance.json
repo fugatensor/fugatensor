@@ -1,0 +1,135 @@
+{
+  "fuga_baseline": "bb4cf7960dff7d3cfeb5f7ebd5dd242b3a933782",
+  "fuga_measured_final": "54c7698745036f18f38955262f194808c6bc3057",
+  "ask_baseline_and_final": "266e5e7d678ae942880ae445887c70ac324ce661",
+  "production_changes_after_final_build": false,
+  "ask_source_changed": false,
+  "formal_command": "build/torch-benchmark-env/bin/python tools/benchmark_torch.py --backends fuga torch_eager --rounds 3 --samples 41 --warmup 10 --cpu-core 2 --output build/benchmarks/pod-arena-final",
+  "formal_measurement": {
+    "rounds": 3,
+    "warmup": 10,
+    "hot_samples": 41,
+    "cases_per_version": 96,
+    "raw_rows_per_version": 4032,
+    "cpu_affinity": [
+      2
+    ],
+    "cuda_host_affinity": "default",
+    "fuga_compilations_per_case": 1,
+    "fuga_executions_per_case": 52
+  },
+  "layers_measurement": {
+    "rounds": 3,
+    "warmup": 5,
+    "initial_validation_calls": 1,
+    "normal_samples": 31,
+    "diagnostic_samples": 31,
+    "cases_per_version": 48,
+    "raw_rows_per_version": 2976,
+    "host_affinity_all_devices": [
+      2
+    ],
+    "fuga_compilations_per_case": 1,
+    "fuga_executions_per_case": 68,
+    "normal_intervals": "Consecutive build, evaluate, synchronize, release timestamps; complete excludes release; lifecycle includes release.",
+    "diagnostic_intervals": "Separate inclusive wrappers for collect_pending, cache.get, Engine._execute; no phase sums with normal timing."
+  },
+  "scale_measurement": {
+    "depths": [
+      8,
+      32,
+      128
+    ],
+    "leaves": [
+      1,
+      8
+    ],
+    "rounds": 3,
+    "warmup": 5,
+    "normal_samples": 31,
+    "diagnostic_samples": 31,
+    "cases_per_version": 18,
+    "raw_rows_per_version": 1116,
+    "host_affinity": [
+      2
+    ]
+  },
+  "lifetime_measurement": {
+    "depths": [
+      8,
+      128
+    ],
+    "retained_roots": [
+      0,
+      4
+    ],
+    "evaluated": [
+      false,
+      true
+    ],
+    "warmup_graphs": 10,
+    "simultaneous_burst_graphs": 100,
+    "steady_batches": 10,
+    "graphs_per_batch": 100,
+    "graphs_per_version": 8880,
+    "snapshots_per_version": 128,
+    "host_affinity": [
+      2
+    ],
+    "engine_closed_row": "Native counters captured after Engine.close before deleting Engine; Python/process snapshot captured after deleting Engine and gc.collect."
+  },
+  "matmul_paired_measurement": {
+    "rounds": 5,
+    "host_affinities": [
+      "default",
+      "core2"
+    ],
+    "versions": [
+      "baseline",
+      "final"
+    ],
+    "processes": 20,
+    "warmup": 10,
+    "hot_samples": 41,
+    "raw_rows": 840,
+    "order": "Alternate baseline/final first across rounds and affinities; use frozen formal worker and workload."
+  },
+  "construction_cprofile": {
+    "warmup_graphs": 10,
+    "profiled_graphs": 100,
+    "compilations": 0,
+    "executions": 0,
+    "scope": "Instrumented CPU large reduction_chain construction and deletion; inclusive times overlap and differ from normal wall time."
+  },
+  "rebuilds": {
+    "ask_core": "cmake --build --preset core; ninja: no work to do.",
+    "fuga_cp313": "CMAKE_PREFIX_PATH=/home/asuka/ask/build/sdk CMAKE_BUILD_PARALLEL_LEVEL=4 uv pip install --python .venv/bin/python --reinstall --no-deps -e .",
+    "fuga_cp312": "CMAKE_PREFIX_PATH=/home/asuka/ask/build/sdk CMAKE_BUILD_PARALLEL_LEVEL=4 uv pip install --python build/torch-benchmark-env/bin/python --reinstall --no-deps .",
+    "pip_check": "Both environments passed uv pip check; Torch benchmark environment shares Torch from the existing Python 3.12 environment."
+  },
+  "validation": {
+    "targeted_methods_passed": 33,
+    "targeted_skipped": 0,
+    "full_regression_command": "FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 PYTHONFAULTHANDLER=1 .venv/bin/python -m unittest -v",
+    "full_regression": "211 methods covered: initial full run passed 210; one test fixture had 2 subtest errors; fixture-only correction followed by 9 passing registration/worker tests including the corrected method.",
+    "ask_tests": "Not rerun in this change; ASK source and shared libraries unchanged.",
+    "relative_links_checked": 583,
+    "markdown_files_checked": 45,
+    "full_regression_methods": 211,
+    "full_regression_initial_methods_passed": 210,
+    "full_regression_initial_error_subtests": 2,
+    "full_regression_initial_elapsed_seconds": 1662.183,
+    "full_regression_skipped": 0,
+    "retest_command": "FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v tests.test_triton.TritonRegistrationTests tests.test_triton.TritonWorkerContractTests",
+    "retest_methods_passed": 9,
+    "retest_elapsed_seconds": 0.087,
+    "retest_skipped": 0,
+    "test_fixture_fix": "tests/test_triton.py capture receives a Fuga Module directly; removed stale context.module access. Only this fixture changed after the full run; production code and measured libraries unchanged.",
+    "full_suite_repeated_after_fixture_fix": false
+  },
+  "cleanup": {
+    "temporary_directory": "/tmp/fuga-pod-arena-audit",
+    "status": "complete",
+    "retained": "Baseline/final raw CSV, measurement metadata, profiler JSON, build/test logs; permanent benchmark tool unchanged."
+  }
+}

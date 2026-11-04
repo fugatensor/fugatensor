@@ -1,0 +1,169 @@
+{
+  "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+  "construction_calls": 100,
+  "method": "cProfile instrumented CPU construction/deletion attribution only. Input allocation and template warmup are excluded; graph evaluation never runs. Absolute durations differ from uninstrumented wall time and inclusive times overlap.",
+  "functions": [
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_jit.py",
+      "line": 158,
+      "function": "__call__",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 90.38319000000001,
+      "inclusive_us_per_graph": 127.42935
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/tensor.py",
+      "line": 127,
+      "function": "_binary",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 18.6847,
+      "inclusive_us_per_graph": 64.83152000000001
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_jit.py",
+      "line": 62,
+      "function": "_definition_key",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 15.03898,
+      "inclusive_us_per_graph": 25.22036
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 80,
+      "function": "operation",
+      "primitive_calls": 100,
+      "calls": 100,
+      "self_us_per_graph": 12.137410000000001,
+      "inclusive_us_per_graph": 188.7389
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.getattr>",
+      "primitive_calls": 7200,
+      "calls": 7200,
+      "self_us_per_graph": 10.18138,
+      "inclusive_us_per_graph": 10.18138
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/ops.py",
+      "line": 178,
+      "function": "amax",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 7.87722,
+      "inclusive_us_per_graph": 56.398160000000004
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/ops.py",
+      "line": 124,
+      "function": "broadcast_to",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 6.2218100000000005,
+      "inclusive_us_per_graph": 48.27559
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'get' of '_contextvars.ContextVar' objects>",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 4.50791,
+      "inclusive_us_per_graph": 4.50791
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.len>",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 3.91977,
+      "inclusive_us_per_graph": 3.91977
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/tensor.py",
+      "line": 134,
+      "function": "__add__",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 3.4902,
+      "inclusive_us_per_graph": 68.32172
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 69,
+      "function": "<lambda>",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 3.4847800000000007,
+      "inclusive_us_per_graph": 59.882940000000005
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/engine.py",
+      "line": 173,
+      "function": "_check_open",
+      "primitive_calls": 2400,
+      "calls": 2400,
+      "self_us_per_graph": 3.3981200000000005,
+      "inclusive_us_per_graph": 3.3981200000000005
+    },
+    {
+      "file": "<frozen importlib._bootstrap>",
+      "line": 645,
+      "function": "parent",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 3.17375,
+      "inclusive_us_per_graph": 5.82644
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'rpartition' of 'str' objects>",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 2.6526899999999998,
+      "inclusive_us_per_graph": 2.6526899999999998
+    },
+    {
+      "file": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/ops.py",
+      "line": 147,
+      "function": "_axis_parameter",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 2.19512,
+      "inclusive_us_per_graph": 2.19512
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.isinstance>",
+      "primitive_calls": 800,
+      "calls": 800,
+      "self_us_per_graph": 1.2706300000000001,
+      "inclusive_us_per_graph": 1.2706300000000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+      "primitive_calls": 1,
+      "calls": 1,
+      "self_us_per_graph": 0.15648,
+      "inclusive_us_per_graph": 0.15648
+    },
+    {
+      "file": "/tmp/fuga-pod-arena-audit/benchmark_workloads.py",
+      "line": 67,
+      "function": "<lambda>",
+      "primitive_calls": 100,
+      "calls": 100,
+      "self_us_per_graph": 0.12124000000000001,
+      "inclusive_us_per_graph": 0.12124000000000001
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+[
+  {
+    "affinity": "default",
+    "label": "baseline",
+    "complete_us": {
+      "rounds": [
+        157.414,
+        190.36,
+        165.233,
+        161.598,
+        157.823
+      ],
+      "median": 161.598,
+      "minimum": 157.414,
+      "maximum": 190.36
+    }
+  },
+  {
+    "affinity": "default",
+    "label": "final",
+    "complete_us": {
+      "rounds": [
+        157.569,
+        165.594,
+        118.088,
+        159.788,
+        137.075
+      ],
+      "median": 157.569,
+      "minimum": 118.088,
+      "maximum": 165.594
+    }
+  },
+  {
+    "affinity": "core2",
+    "label": "baseline",
+    "complete_us": {
+      "rounds": [
+        127.233,
+        121.866,
+        123.991,
+        122.044,
+        131.476
+      ],
+      "median": 123.991,
+      "minimum": 121.866,
+      "maximum": 131.476
+    }
+  },
+  {
+    "affinity": "core2",
+    "label": "final",
+    "complete_us": {
+      "rounds": [
+        112.083,
+        106.362,
+        108.828,
+        106.394,
+        107.033
+      ],
+      "median": 107.033,
+      "minimum": 106.362,
+      "maximum": 112.083
+    }
+  }
+]

@@ -1,0 +1,17 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cpu,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,106.601,18.75,5.685386666666667,468.5386666666667,3,3
+cpu,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,185.112,243.858,0.7590975075658785,-24.090249243412153,3,3
+cpu,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,497.594,72.846,6.8307662740576,583.0766274057601,3,3
+cpu,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,856.348,675.493,1.2677377855877114,26.773778558771145,3,3
+cpu,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,340.374,49.947,6.814703585800949,581.4703585800949,3,3
+cpu,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,623.893,558.188,1.1177112370742475,11.771123707424746,3,3
+cpu,matmul,small,fp32,row_major,16,16,0,1,torch_eager,53.906,3.438,15.679464805119254,1467.9464805119255,3,3
+cpu,matmul,large,fp32,row_major,128,128,0,1,torch_eager,178.351,71.584,2.4914925122932496,149.14925122932496,3,3
+cuda,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,265.194,183.116,1.4482295375608905,44.82295375608905,3,3
+cuda,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,214.353,157.056,1.3648189180929096,36.48189180929096,3,3
+cuda,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,602.975,617.602,0.9763164627057556,-2.368353729424444,3,3
+cuda,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,584.371,606.04,0.9642449343277671,-3.5755065672232855,3,3
+cuda,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,426.257,399.265,1.0676042227593203,6.760422275932032,3,3
+cuda,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,512.023,415.227,1.2331158619261273,23.311586192612733,3,3
+cuda,matmul,small,fp32,row_major,16,16,0,1,torch_eager,137.913,74.293,1.856339089820037,85.63390898200369,3,3
+cuda,matmul,large,fp32,row_major,128,128,0,1,torch_eager,153.287,77.279,1.9835530998071922,98.35530998071921,3,3
