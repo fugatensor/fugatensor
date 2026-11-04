@@ -1,0 +1,152 @@
+{
+  "date": "2026-11-04",
+  "baseline": {
+    "ask": "d767b9a917c48fa4bd67960df8b631063b662b58",
+    "fugatensor": "a484609d687048ae8b397b0c90a3d8548dae66d5"
+  },
+  "candidate": {
+    "ask": "c47cde6856ed4609545b4dc457bf0cc19265275e",
+    "fugatensor": "94004fffbc487f2543ad97bf5f66cc3bd392f0b9"
+  },
+  "compiler_sha256": {
+    "/home/asuka/ask/build/core/lib/libask_compiler.so.0.1.0": "6a6507ed4837c9a3acab3edac8c5539be418038492f67d00880aab9c14741fac",
+    "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0": "6a6507ed4837c9a3acab3edac8c5539be418038492f67d00880aab9c14741fac",
+    "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_compiler.so.0": "6a6507ed4837c9a3acab3edac8c5539be418038492f67d00880aab9c14741fac",
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_compiler.so.0": "6a6507ed4837c9a3acab3edac8c5539be418038492f67d00880aab9c14741fac"
+  },
+  "runtime_sha256": {
+    "/home/asuka/ask/build/core/lib/libask_runtime.so.0.1.0": "bd09c738c2553675d2358383b3665bec72f746deec6753d200b9f3cf332ebcac",
+    "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0.1.0": "bd09c738c2553675d2358383b3665bec72f746deec6753d200b9f3cf332ebcac",
+    "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_runtime.so.0": "bd09c738c2553675d2358383b3665bec72f746deec6753d200b9f3cf332ebcac",
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_runtime.so.0": "bd09c738c2553675d2358383b3665bec72f746deec6753d200b9f3cf332ebcac"
+  },
+  "baseline_compiler_sha256": "5b30943de8845711e9cdb84cf03a97ab5ea2c010e0bba6fbb73687825a8ea208",
+  "machine": {
+    "cpu": "Intel Xeon E5-2696 v4",
+    "gpu": "NVIDIA GeForce RTX 3080",
+    "platform": "WSL2",
+    "llvm": "23.1.4",
+    "python_benchmark": "3.12.15",
+    "torch": "2.14.0+cu130",
+    "mkl": "2024.2",
+    "cpu_affinity": 2,
+    "threads": 1
+  },
+  "validation": {
+    "ask_ctest": {
+      "passed": 6,
+      "skipped": 0,
+      "host_static_matmul_cases": 768,
+      "host_workspace_cases": 650
+    },
+    "sdk_consumer": {
+      "compiler_passed": 2,
+      "runtime_passed": 2,
+      "llvm_mlir_package_lookup": false
+    },
+    "fuga_full": {
+      "passed": 190,
+      "skipped": 0,
+      "seconds": 1328.005,
+      "scope": "Final Python frontend with intermediate 1x16 Host matmul compiler; CPU, CUDA and Triton enabled."
+    },
+    "fuga_final_host": {
+      "passed": 12,
+      "skipped": 0,
+      "seconds": 522.095,
+      "scope": "Final 4x16 compiler; new Host matmul matrix plus existing Host primitive matrix.",
+      "new_numeric_matrix_cases": 1536,
+      "strict_rounding_cases": 6,
+      "nonfinite_tail_cases": 18
+    },
+    "host_compiler_numeric_abi": {
+      "passed": 3,
+      "skipped": 0
+    },
+    "environment_dependency_checks": {
+      "cp313": "uv pip check passed, 7 local packages",
+      "cp312": "uv pip check passed, 1 local package; Torch dependencies supplied by recorded shared site-packages .pth path."
+    },
+    "documentation_links": {
+      "checked_files": 6,
+      "status": "passed"
+    }
+  },
+  "measurements": {
+    "overall": {
+      "baseline_cases": 96,
+      "candidate_cases": 96,
+      "rounds": 3,
+      "samples_per_round": 41,
+      "warmup": 10,
+      "raw_rows_per_version": 4032,
+      "fuga_compilations_per_case": 1,
+      "fuga_executions_per_case": 52,
+      "all_verified": true,
+      "max_abs_error": 0
+    },
+    "layers": {
+      "baseline_cases": 16,
+      "candidate_cases": 16,
+      "rounds": 1,
+      "samples_per_phase": 21,
+      "warmup": 5,
+      "phases": [
+        "normal",
+        "diagnostic",
+        "cpu_direct or cuda_direct"
+      ],
+      "raw_rows_per_version": 1008,
+      "fuga_compilations_per_case": 1,
+      "fuga_executions_per_case": 48,
+      "all_verified": true,
+      "max_abs_error": 0
+    },
+    "matmul_scaling": {
+      "cases": 36,
+      "rounds": 3,
+      "samples_per_round": 21,
+      "warmup": 5,
+      "raw_rows": 792,
+      "n": [
+        64,
+        128,
+        256,
+        512
+      ],
+      "dtype": "fp32",
+      "layout": "row_major",
+      "fuga_compilations_per_case": 1,
+      "fuga_executions_per_case": 27,
+      "all_verified": true,
+      "max_abs_error": 0
+    },
+    "cuda_cupti": {
+      "cases": 24,
+      "samples_per_case": 21,
+      "samples_total": 504,
+      "kernels_total": 2688,
+      "tool": "Nsight Systems 2026.1.3",
+      "capture": "cudaProfilerApi, CUDA and NVTX trace, cuda-graph-trace=node; CPU sampling disabled",
+      "sample_mapping": "CUDA API correlationId inside per-call NVTX range",
+      "all_verified": true,
+      "max_abs_error": 0,
+      "scope": "Diagnostic kernel count, durations and device span. Graph node tracing perturbs execution; do not compare its durations as uninstrumented speed."
+    },
+    "cuda_event_crosscheck": {
+      "cases": 4,
+      "raw_rows": 252,
+      "samples_per_phase": 21,
+      "phases": [
+        "normal direct",
+        "empty event pairs",
+        "event bracketed direct"
+      ],
+      "native_submissions_per_case": 48,
+      "all_verified": true,
+      "max_abs_error": 0,
+      "scope": "Candidate large FP32 workloads, preallocated native output buffers; no CUPTI; event interval includes host enqueue gaps."
+    }
+  },
+  "temporary_profiling_resources": "Profiling wrappers, package snapshots, assembly and Nsight intermediate databases are removed after their CSV evidence is archived. Production code has no profiling hooks."
+}

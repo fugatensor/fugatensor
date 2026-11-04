@@ -1,0 +1,2 @@
+label,backend,workload,size,dtype,layout,rows,columns,depth,branches,samples,kernel_count_min,kernel_count_max,kernel_sum_p50_us,device_span_p50_us
+torch_eager,torch_eager,reduction_chain,large,fp32,row_major,512,256,8,1,21,16,16,43.295,845.787

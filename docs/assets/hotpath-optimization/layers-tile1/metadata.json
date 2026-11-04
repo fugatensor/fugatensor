@@ -1,0 +1,338 @@
+{
+  "recorded_at": "2026-11-04T01:35:01.135117+00:00",
+  "settings": {
+    "package_root": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages",
+    "label": "tile1",
+    "output": "/tmp/fuga-hotpath-audit/layers-tile1",
+    "devices": [
+      "cpu"
+    ],
+    "sizes": [
+      "large"
+    ],
+    "workloads": [
+      "matmul"
+    ],
+    "dtypes": [
+      "fp32",
+      "fp16"
+    ],
+    "layouts": [
+      "row_major",
+      "transpose"
+    ],
+    "rounds": 3,
+    "samples": 31,
+    "warmup": 5,
+    "timeout": 600
+  },
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+  "definitions": {
+    "normal": "Uninstrumented fresh expression: build, evaluate and synchronize wall times; total spans all three.",
+    "diagnostic": "Same public call with temporary Python wrappers. Inclusive time contains child hooks; exclusive time subtracts instrumented child intervals. Wrapper/timer overhead is not corrected. Use this phase for attribution, normal for speed comparison.",
+    "cpu_direct": "Preallocated input/output pointers passed to the generated host C function; includes ctypes bridge and generated computation, with no frontend build, lookup or allocation.",
+    "cuda_direct": "Preallocated native buffers passed to CUDAProgram.submit, then Engine.synchronize. submit is native binding/validation/Graph submission wall time; complete also contains waiting and reaping, not pure GPU execution.",
+    "collect": "_lazy._collect: live graph traversal and cached output projection lookup.",
+    "dependencies": "_lazy._dependencies: live custom definition consistency and identity.",
+    "key": "_lazy._structure_key: canonical topology/binding key construction.",
+    "cache_get": "dict.get including key hashing/equality; this is separate from key construction.",
+    "execute": "Engine._execute including inputs, backend call and Tensor wrapping.",
+    "host_run": "HostExecutable.run including ABI input checks, output allocation and native C invocation.",
+    "host_alloc": "HostStorage.__init__ during a measured call; in these workloads this allocates outputs.",
+    "host_native": "Actual ctypes host C function invocation from HostExecutable.run.",
+    "cuda_prepared": "_Prepared.run including Python port checks, reap, native run, ownership retention and result wrapping.",
+    "cuda_ports": "_Prepared._check_ports public input contract/access preparation.",
+    "cuda_reap": "ExecutionSession.reap; includes Python owner/event queue and native reap. Calls inside synchronize are included.",
+    "cuda_native_run": "CUDAProgram.run through nanobind, including native output allocation and submit."
+  },
+  "environments": [
+    {
+      "label": "tile1",
+      "round": 0,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 0,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 0,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 0,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 1,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 1,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 1,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 1,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 2,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 2,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp32",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 2,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "row_major",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    },
+    {
+      "label": "tile1",
+      "round": 2,
+      "device": "cpu",
+      "workload": "matmul",
+      "size": "large",
+      "dtype": "fp16",
+      "layout": "transpose",
+      "rows": 128,
+      "columns": 128,
+      "depth": 0,
+      "branches": 1,
+      "package_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "cpu_affinity": [
+        2
+      ],
+      "verified": true,
+      "max_abs_error": 0.0,
+      "executions": 68,
+      "compilations": 1,
+      "host_workspace_bytes": 0
+    }
+  ]
+}

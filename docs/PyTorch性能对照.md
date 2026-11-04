@@ -4,6 +4,8 @@
 
 [`tools/benchmark_torch.py`](../tools/benchmark_torch.py) 用相同输入和数学表达式比较 Fuga、PyTorch eager 与 `torch.compile`，将结果写入 CSV。在 Linux/WSL 的 Python 环境中安装 Fuga 和 PyTorch 后运行。
 
+ASK Host 与 Fuga 构图优化后的三轮记录见[性能剖析与优化](性能剖析与优化.md#comparison)，包含分层归因、CPU 矩阵尺寸扩展、冷启动与内存成本。
+
 <a id="quick-start"></a>
 
 ## 先跑一个小负载

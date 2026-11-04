@@ -1,0 +1,108 @@
+Start testing: Nov 04 09:25 CST
+----------------------------------------------------------
+1/6 Testing: ask-pass
+1/6 Test: ask-pass
+Command: "/home/asuka/ask/build/core/ask-pass-test"
+Directory: /home/asuka/ask/build/core
+"ask-pass" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+allocation matrix: 2016, cache mutations: 396, large plans: 27, graph cases: 4752
+<end of output>
+Test time =   0.22 sec
+----------------------------------------------------------
+Test Passed.
+"ask-pass" end time: Nov 04 09:25 CST
+"ask-pass" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/6 Testing: ask-compiler
+2/6 Test: ask-compiler
+Command: "/home/asuka/ask/build/core/ask-compiler-test" "/home/asuka/ask/build/core/compiler-test.o"
+Directory: /home/asuka/ask/build/core
+"ask-compiler" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+native prepare, partition, codegen and independent contexts passed
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"ask-compiler" end time: Nov 04 09:25 CST
+"ask-compiler" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/6 Testing: ask-primitives
+3/6 Test: ask-primitives
+Command: "/home/asuka/ask/build/core/ask-primitives-test"
+Directory: /home/asuka/ask/build/core
+"ask-primitives" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+Host workspace matrix: 650 cases
+Host matmul layout matrix: 768 cases
+primitive shape, fusion, reduction and library partition matrices passed
+<end of output>
+Test time =   2.32 sec
+----------------------------------------------------------
+Test Passed.
+"ask-primitives" end time: Nov 04 09:25 CST
+"ask-primitives" time elapsed: 00:00:02
+----------------------------------------------------------
+
+4/6 Testing: ask-core
+4/6 Test: ask-core
+Command: "/home/asuka/ask/build/core/ask-core-test" "--optimize"
+Directory: /home/asuka/ask/build/core
+"ask-core" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+native graph preparation and report contracts passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"ask-core" end time: Nov 04 09:25 CST
+"ask-core" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/6 Testing: ask-runtime
+5/6 Test: ask-runtime
+Command: "/home/asuka/ask/build/core/ask-runtime-test"
+Directory: /home/asuka/ask/build/core
+"ask-runtime" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+graph instances: 1, graph launches: 2
+graph matrix: 640
+deep fork matrix: 16
+<end of output>
+Test time =  10.38 sec
+----------------------------------------------------------
+Test Passed.
+"ask-runtime" end time: Nov 04 09:25 CST
+"ask-runtime" time elapsed: 00:00:10
+----------------------------------------------------------
+
+6/6 Testing: ask-matmul
+6/6 Test: ask-matmul
+Command: "/home/asuka/ask/build/core/ask-matmul-test"
+Directory: /home/asuka/ask/build/core
+"ask-matmul" start time: Nov 04 09:25 CST
+Output:
+----------------------------------------------------------
+matmul matrix: 360 cases
+matmul branch matrix: 48 cases
+matmul scratch: 0 bytes, limit 0, graph 0
+matmul scratch: 4194304 bytes, limit 4194304, graph 0
+matmul scratch: 0 bytes, limit 0, graph 1
+matmul scratch: 4194304 bytes, limit 4194304, graph 1
+<end of output>
+Test time =   6.93 sec
+----------------------------------------------------------
+Test Passed.
+"ask-matmul" end time: Nov 04 09:25 CST
+"ask-matmul" time elapsed: 00:00:06
+----------------------------------------------------------
+
+End testing: Nov 04 09:25 CST

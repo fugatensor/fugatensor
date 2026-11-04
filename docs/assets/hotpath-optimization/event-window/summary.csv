@@ -1,0 +1,5 @@
+workload,size,dtype,layout,rows,columns,depth,branches,normal_direct_submit_us,normal_direct_complete_us,empty_events_event_us,event_direct_submit_us,event_direct_complete_us,event_direct_event_us
+elementwise,large,fp32,row_major,512,256,0,1,20.274,51.733,7.168000098317862,19.288,54.116,19.45599913597107
+reduction_chain,large,fp32,row_major,512,256,8,1,19.815,224.964,7.168000098317862,18.885,223.459,186.27199530601501
+fork_join,large,fp32,row_major,512,256,0,4,16.139,193.703,7.007999811321497,17.871,196.018,160.76800227165222
+matmul,large,fp32,row_major,128,128,0,1,31.723,136.953,7.168000098317862,24.831,192.284,98.43199700117111

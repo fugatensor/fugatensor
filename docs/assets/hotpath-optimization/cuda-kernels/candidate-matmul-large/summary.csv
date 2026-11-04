@@ -1,0 +1,2 @@
+label,backend,workload,size,dtype,layout,rows,columns,depth,branches,samples,kernel_count_min,kernel_count_max,kernel_sum_p50_us,device_span_p50_us
+candidate,fuga,matmul,large,fp32,row_major,128,128,0,1,21,1,1,5.312,5.312

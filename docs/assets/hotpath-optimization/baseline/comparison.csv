@@ -1,0 +1,17 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cpu,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,180.14,19.928,9.039542352468887,803.9542352468887,3,3
+cpu,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,360.322,244.698,1.4725171435810673,47.25171435810673,3,3
+cpu,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,970.243,77.094,12.585194697382418,1158.5194697382417,3,3
+cpu,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,3389.006,685.939,4.94068131422765,394.06813142276496,3,3
+cpu,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,623.183,49.267,12.649095743601192,1164.9095743601192,3,3
+cpu,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,2152.178,551.155,3.9048507225735047,290.48507225735045,3,3
+cpu,matmul,small,fp32,row_major,16,16,0,1,torch_eager,88.687,3.397,26.107447748012955,2510.7447748012955,3,3
+cpu,matmul,large,fp32,row_major,128,128,0,1,torch_eager,2254.512,71.656,31.46298984034833,3046.298984034833,3,3
+cuda,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,250.68,152.981,1.6386348631529406,63.86348631529406,3,3
+cuda,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,257.345,152.806,1.6841288954622202,68.41288954622202,3,3
+cuda,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,1057.842,638.396,1.6570310590918491,65.70310590918491,3,3
+cuda,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,1214.598,605.956,2.0044326650779922,100.44326650779922,3,3
+cuda,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,719.296,399.038,1.8025751933399827,80.25751933399827,3,3
+cuda,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,852.948,400.924,2.1274555776157076,112.74555776157075,3,3
+cuda,matmul,small,fp32,row_major,16,16,0,1,torch_eager,163.391,71.371,2.289319191268162,128.9319191268162,3,3
+cuda,matmul,large,fp32,row_major,128,128,0,1,torch_eager,163.455,77.906,2.098105409082741,109.81054090827409,3,3

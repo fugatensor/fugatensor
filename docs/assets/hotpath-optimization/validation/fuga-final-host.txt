@@ -1,0 +1,17 @@
+test_f32_product_rounding_and_k_order (tests.test_host_matmul.HostMatmulTests.test_f32_product_rounding_and_k_order) ... ok
+test_nonfinite_values_across_row_and_column_tails (tests.test_host_matmul.HostMatmulTests.test_nonfinite_values_across_row_and_column_tails) ... ok
+test_tile_layout_dtype_and_shared_output_matrix (tests.test_host_matmul.HostMatmulTests.test_tile_layout_dtype_and_shared_output_matrix) ... ok
+test_bf16_computation_is_rejected (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_bf16_computation_is_rejected) ... ok
+test_broadcast_reduction_max_and_jvp (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_broadcast_reduction_max_and_jvp) ... ok
+test_elementary_values_gradients_and_fusion (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_elementary_values_gradients_and_fusion) ... ok
+test_geometry_reduction_comparison_matrix (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_geometry_reduction_comparison_matrix) ... ok
+test_materialized_mixed_dtype_matrix (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_materialized_mixed_dtype_matrix) ... ok
+test_materialized_workspace_matrix (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_materialized_workspace_matrix) ... ok
+test_matmul_derivative_transpose_and_composition_matrix (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_matmul_derivative_transpose_and_composition_matrix) ... ok
+test_matmul_dtype_shape_transpose_matrix (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_matmul_dtype_shape_transpose_matrix) ... ok
+test_reduction_rounding_and_exceptional_values (tests.test_tensor_primitives.HostTensorPrimitiveMatrix.test_reduction_rounding_and_exceptional_values) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 522.095s
+
+OK

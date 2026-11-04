@@ -1,0 +1,37 @@
+Start testing: Nov 04 09:35 CST
+----------------------------------------------------------
+1/2 Testing: ask-compiler
+1/2 Test: ask-compiler
+Command: "/home/asuka/ask/build/verification/compiler/ask-compiler-test" "/home/asuka/ask/build/verification/compiler/compiler-test.o"
+Directory: /home/asuka/ask/build/verification/compiler
+"ask-compiler" start time: Nov 04 09:35 CST
+Output:
+----------------------------------------------------------
+native prepare, partition, codegen and independent contexts passed
+<end of output>
+Test time =   0.07 sec
+----------------------------------------------------------
+Test Passed.
+"ask-compiler" end time: Nov 04 09:35 CST
+"ask-compiler" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/2 Testing: ask-primitives
+2/2 Test: ask-primitives
+Command: "/home/asuka/ask/build/verification/compiler/ask-primitives-test"
+Directory: /home/asuka/ask/build/verification/compiler
+"ask-primitives" start time: Nov 04 09:35 CST
+Output:
+----------------------------------------------------------
+Host workspace matrix: 650 cases
+Host matmul layout matrix: 768 cases
+primitive shape, fusion, reduction and library partition matrices passed
+<end of output>
+Test time =   2.61 sec
+----------------------------------------------------------
+Test Passed.
+"ask-primitives" end time: Nov 04 09:36 CST
+"ask-primitives" time elapsed: 00:00:02
+----------------------------------------------------------
+
+End testing: Nov 04 09:36 CST

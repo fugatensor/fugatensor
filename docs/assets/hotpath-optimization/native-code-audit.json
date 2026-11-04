@@ -1,0 +1,46 @@
+{
+  "baseline": {
+    "m": 128,
+    "n": 128,
+    "k": 128,
+    "dtype": "f32",
+    "scalar_multiply_instructions": 1,
+    "scalar_add_instructions": 1,
+    "vector_multiply_instructions": 0,
+    "vector_add_instructions": 0
+  },
+  "candidate": [
+    {
+      "m": 128,
+      "n": 17,
+      "k": 128,
+      "dtype": "f32",
+      "vector_multiply_instructions": 10,
+      "vector_add_instructions": 10,
+      "fma_instructions": 0,
+      "conditional_branches": [
+        "df:\tjne    60 <matmul+0x60>",
+        "1b5:\tjne    140 <matmul+0x140>",
+        "1f5:\tjb     20 <matmul+0x20>"
+      ],
+      "vector_stack_accesses": [],
+      "workspace_bytes": 0
+    },
+    {
+      "m": 128,
+      "n": 128,
+      "k": 128,
+      "dtype": "f32",
+      "vector_multiply_instructions": 8,
+      "vector_add_instructions": 8,
+      "fma_instructions": 0,
+      "conditional_branches": [
+        "113:\tjne    90 <matmul+0x90>",
+        "176:\tjb     40 <matmul+0x40>",
+        "191:\tjb     20 <matmul+0x20>"
+      ],
+      "vector_stack_accesses": [],
+      "workspace_bytes": 0
+    }
+  ]
+}

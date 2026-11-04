@@ -1,0 +1,5 @@
+label,round,device,workload,size,dtype,layout,rows,columns,depth,branches,status,verified,max_abs_error,executions,compilations
+o3,0,cpu,elementwise,large,fp32,row_major,512,256,0,1,ok,True,0.0,68,1
+o3,0,cpu,reduction_chain,large,fp32,row_major,512,256,8,1,ok,True,0.0,68,1
+o3,0,cpu,fork_join,large,fp32,row_major,512,256,0,4,ok,True,0.0,68,1
+o3,0,cpu,matmul,large,fp32,row_major,128,128,0,1,ok,True,0.0,68,1

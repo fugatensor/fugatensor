@@ -1,0 +1,2 @@
+label,backend,workload,size,dtype,layout,rows,columns,depth,branches,samples,kernel_count_min,kernel_count_max,kernel_sum_p50_us,device_span_p50_us
+baseline,fuga,reduction_chain,large,fp32,row_major,512,256,8,1,21,9,9,845.665,847.649

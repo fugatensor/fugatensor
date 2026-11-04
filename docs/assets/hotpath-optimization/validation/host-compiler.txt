@@ -1,0 +1,8 @@
+test_multi_output_loop_fusion_and_group_validation (test_host_compiler.HostCodegenAndFusionTests.test_multi_output_loop_fusion_and_group_validation) ... ok
+test_shapes_scalars_empty_tensors_and_f32_non_contraction (test_host_compiler.HostCodegenAndFusionTests.test_shapes_scalars_empty_tensors_and_f32_non_contraction) ... ok
+test_shared_pointwise_graph_and_full_cast_matrix (test_host_compiler.HostCodegenAndFusionTests.test_shared_pointwise_graph_and_full_cast_matrix) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 2.587s
+
+OK
