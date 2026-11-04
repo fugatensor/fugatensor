@@ -52,6 +52,17 @@ def check_output(output, case, dtype, matmul_precision='ieee'):
     return max((abs(a - b) for a, b in zip(actual, reference)), default=0)
 
 
+def warm_up(invoke, synchronize, iterations, seconds):
+    until = time.perf_counter() + seconds
+    completed = 0
+    while completed < iterations or time.perf_counter() < until:
+        output = invoke()
+        synchronize()
+        del output
+        completed += 1
+    return completed
+
+
 def measure(request):
     case = Case(**request['case'])
     device, backend = request['device'], request['backend']
@@ -123,10 +134,7 @@ def measure(request):
             output = timed('first', 0)
             error = check_output(output, case, dtype, precision)
             del output
-            for _ in range(request['warmup']):
-                output = invoke()
-                synchronize()
-                del output
+            warmup_iterations = warm_up(invoke, synchronize, request['warmup'], request['warmup_seconds'])
             for iteration in range(request['samples']):
                 output = timed('hot', iteration)
                 if iteration == request['samples'] - 1:
@@ -139,7 +147,7 @@ def measure(request):
             if backend == 'fuga':
                 stats = engine.stats
                 executions, compilations = stats['executions'], stats['compilations']
-                if executions != 1 + request['warmup'] + request['samples'] or compilations != 1:
+                if executions != 1 + warmup_iterations + request['samples'] or compilations != 1:
                     raise AssertionError(f"fresh graph execution/cache contract failed: {stats}")
                 if gpu:
                     memory.update(device_reserved_bytes=stats['runtime']['resident_device_bytes'],
@@ -159,7 +167,8 @@ def measure(request):
                        complete_p50_us=statistics.median(s['complete_us'] for s in hot),
                        complete_p90_us=percentile([s['complete_us'] for s in hot], .9),
                        host_peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
-                       executions=executions, compilations=compilations, max_abs_error=error,
+                       executions=executions, compilations=compilations, warmup_iterations=warmup_iterations,
+                       max_abs_error=error,
                        verified=True, **memory)
         environment = dict(python=sys.version, executable=sys.executable,
                            framework_version=version, framework_path=module.__file__,
@@ -222,6 +231,13 @@ def positive(value):
     return value
 
 
+def nonnegative_seconds(value):
+    value = float(value)
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError('must be finite and nonnegative')
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--devices', nargs='+', choices=('cpu', 'cuda'), default=['cpu', 'cuda'])
@@ -241,6 +257,8 @@ def main():
     parser.add_argument('--rounds', type=positive, default=3)
     parser.add_argument('--samples', type=positive, default=31)
     parser.add_argument('--warmup', type=positive, default=5)
+    parser.add_argument('--warmup-seconds', type=nonnegative_seconds, default=1.0,
+                        help='minimum warmup duration in addition to --warmup iterations')
     parser.add_argument('--threads', type=positive, default=1)
     parser.add_argument('--cpu-core', type=int)
     parser.add_argument('--fuga-python', default=sys.executable)
@@ -270,7 +288,8 @@ def main():
                     identity = dict(round=round_, device=device, backend=backend,
                                     matmul_precision=precision, **asdict(case))
                     request = dict(case=asdict(case), device=device, backend=backend,
-                                   samples=args.samples, warmup=args.warmup, threads=args.threads,
+                                   samples=args.samples, warmup=args.warmup, warmup_seconds=args.warmup_seconds,
+                                   threads=args.threads,
                                    cpu_core=args.cpu_core, matmul_precision=precision)
                     python = args.fuga_python if backend == 'fuga' else args.torch_python
                     env = os.environ | {'OMP_NUM_THREADS': str(args.threads), 'MKL_NUM_THREADS': str(args.threads),

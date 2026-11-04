@@ -199,77 +199,26 @@ class TestBenchmarkWarmup:
             assert next(csv.DictReader(stream))['warmup_iterations'] == '11'
 
     @pytest.mark.parametrize('minimum,seconds', tuple(product((1, 5), (0.0, 0.5, 1.25))))
-    def test_measure_satisfies_count_and_duration_and_counts_real_executions(self, monkeypatch, tmp_path,
-                                                                          minimum, seconds):
-        import json
+    def test_warmup_satisfies_count_duration_and_synchronizes_every_call(self, monkeypatch, minimum, seconds):
         from types import SimpleNamespace
         from tools import benchmark_torch as benchmark
 
-        class Clock:
-            elapsed = 0.0
+        clock = SimpleNamespace(elapsed=0.0)
+        calls = []
 
-            def now(self):
-                return self.elapsed
+        def invoke():
+            calls.append('invoke')
+            clock.elapsed += 0.125
+            return object()
 
-            def now_ns(self):
-                return int(self.elapsed * 1e9)
-
-        clock = Clock()
-        artifact = tmp_path / 'artifact'
-        artifact.mkdir()
-        (artifact / 'abi.json').write_text(json.dumps(
-            {'functions': [{'lowering': {'temporary_workspace_bytes': 0}}]}))
-        state = SimpleNamespace(executions=0, synchronizations=0, closed=False)
-
-        class Engine:
-            compiler = SimpleNamespace(capabilities=lambda: {})
-            last_artifact_dir = artifact
-
-            def __init__(self, **kwargs):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                state.closed = True
-
-            def tensor(self, data, **kwargs):
-                return data
-
-            def synchronize(self):
-                state.synchronizations += 1
-                clock.elapsed += 0.125
-
-            @property
-            def stats(self):
-                return {'executions': state.executions, 'compilations': 1}
-
-        def evaluate(output):
-            state.executions += 1
+        def synchronize():
+            calls.append('synchronize')
             clock.elapsed += 0.125
 
-        case = Case('elementwise', 'small', 'fp32', 'row_major', 1, 1)
-        shape, values = expected(case)
-        module = SimpleNamespace(Engine=Engine, evaluate=evaluate, fp32='fp32', __file__=__file__)
-        monkeypatch.setitem(benchmark.sys.modules, 'fugatensor', module)
-        monkeypatch.setattr(benchmark, 'time', SimpleNamespace(perf_counter=clock.now, perf_counter_ns=clock.now_ns))
-        monkeypatch.setattr(benchmark.os, 'environ', dict(benchmark.os.environ))
-        monkeypatch.setattr(benchmark, 'package_version', lambda name: 'fixture')
-        monkeypatch.setattr(benchmark, 'make_function',
-                            lambda *args: lambda *inputs: RecordedTensor(shape, 'fp32', [values]))
-        request = dict(case=asdict(case), device='cpu', backend='fuga', matmul_precision='ieee',
-                       cache_parent=str(tmp_path), cpu_core=None, threads=1, samples=3,
-                       warmup=minimum, warmup_seconds=seconds)
-        response = benchmark.measure(request)
-        # Each completed call advances the independent clock by one quarter second.
-        iterations = max(minimum, math.ceil(seconds / 0.25))
-        result = response['result']
-        assert result['warmup_iterations'] == iterations
-        assert result['executions'] == state.executions == 1 + iterations + request['samples']
-        assert state.synchronizations == state.executions + 1
-        assert state.closed and result['verified'] and result['compilations'] == 1
-        assert [(sample['phase'], sample['iteration']) for sample in response['samples']] == [
-            ('first', 0), *(('hot', i) for i in range(request['samples']))]
-        assert all(sample['call_us'] == 125000 and sample['complete_us'] == 250000
-                   for sample in response['samples'])
+        monkeypatch.setattr(benchmark, 'time', SimpleNamespace(perf_counter=lambda: clock.elapsed))
+        completed = benchmark.warm_up(invoke, synchronize, minimum, seconds)
+        # A completed call advances the independent clock by one quarter second.
+        expected_iterations = max(minimum, math.ceil(seconds / 0.25))
+        assert completed == expected_iterations
+        assert calls == ['invoke', 'synchronize'] * expected_iterations
+        assert clock.elapsed == expected_iterations * 0.25

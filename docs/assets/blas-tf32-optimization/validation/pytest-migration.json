@@ -9,11 +9,16 @@
   },
   "pytest": {
     "frontend_validation_superset": 583,
-    "frontend_default_cpu": 318,
-    "frontend_default_with_cuda_triton": 578,
-    "frontend_exhaustive_with_cuda_triton": 2706,
+    "frontend_default_cpu": 335,
+    "frontend_default_with_cuda_triton": 595,
+    "frontend_exhaustive_with_cuda_triton": 2723,
     "backend_and_packaging_with_cuda": 82,
-    "default_integration_selection": "backend and packaging explicitly selected"
+    "default_integration_selection": "backend and packaging explicitly selected",
+    "migration_stage_collection": {
+      "frontend_default_cpu": 318,
+      "frontend_default_with_cuda_triton": 578,
+      "frontend_exhaustive_with_cuda_triton": 2706
+    }
   },
   "matrix_counts": {
     "host_matmul": {
@@ -70,7 +75,7 @@
   ],
   "validation": {
     "collection": "All original 250 declarations expand to retained or explicitly mapped pytest contracts.",
-    "runtime": "583 frontend tests passed in 975.18 seconds, plus the additional passed attention-selection assertion. All final 578 nodes are in this verified union; exhaustive combinations were collected, not numerically executed.",
+    "runtime": "583 frontend tests passed in 975.18 seconds; the attention-selection assertion and all 29 benchmark unit tests also passed. All final 595 frontend nodes are in this verified union. Exhaustive combinations were collected, not numerically executed.",
     "frontend_command": ".venv/bin/python -m pytest --triton -q --maxfail=3",
     "frontend_passed": 583,
     "frontend_skipped": 0,
@@ -84,7 +89,21 @@
     "runtime_update_scope": "The 583-node frontend run preceded the final ASK repeated-output readonly fix. The final SDK runtime is covered by all 80 backend tests, including both readonly/writable alias permutations.",
     "packaging_passed": 2,
     "packaging_seconds": 21.33,
-    "packaging_wheel_sha256": "b556624fb031ec7c8600ca533fe5f3215351a691f0f88e5fe65663569f12321c"
+    "packaging_wheel_sha256": "b556624fb031ec7c8600ca533fe5f3215351a691f0f88e5fe65663569f12321c",
+    "benchmark_warmup_increment": {
+      "new_parameterized_tests": 17,
+      "module_passed": 29,
+      "module_seconds": 0.11,
+      "command": ".venv/bin/python -m pytest tests/test_benchmark_torch.py -q",
+      "method": "Callback-only warm_up with an independent clock; CLI-to-worker request and result recording use a mock worker. No tensor backend execution.",
+      "coverage": [
+        "finite nonnegative durations",
+        "CLI default, zero and explicit duration",
+        "minimum iteration and elapsed time pairs",
+        "one synchronization after every invocation",
+        "actual warmup count persisted to results"
+      ]
+    }
   },
   "contract_map": [
     {
