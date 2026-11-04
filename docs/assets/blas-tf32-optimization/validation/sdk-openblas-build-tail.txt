@@ -1,9 +1,9 @@
 
-  OS               ... Linux             
-  Architecture     ... x86_64               
-  BINARY           ... 64bit                 
+  OS               ... Linux
+  Architecture     ... x86_64
+  BINARY           ... 64bit
   C compiler       ... GCC  (cmd & version : cc (Debian 14.2.0-19) 14.2.0)
-  Library Name     ... libask_openblas-r0.3.33.a (Single-threading)  
+  Library Name     ... libask_openblas-r0.3.33.a (Single-threading)
   Supporting multiple x86_64 cpu models with minimum requirement for the common code being HASWELL
 
 To install the library, you can run "make PREFIX=/path/to/your/installation install".
