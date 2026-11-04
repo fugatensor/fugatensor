@@ -1,0 +1,13 @@
+-- Install configuration: "Release"
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/libask_compiler.so.0.1.0
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/libask_compiler.so.0
+-- Set non-toolchain portion of runtime path of "/home/asuka/ask/build/verification/openblas-sdk/lib/libask_compiler.so.0.1.0" to "$ORIGIN"
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/libask_compiler.so
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/include/ask/Frontend/CompilerAPI.h
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/cmake/ASK/ASKCompilerTargets.cmake
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/cmake/ASK/ASKCompilerTargets-release.cmake
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/cmake/ASK/ASKConfig.cmake
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/cmake/ASK/ASKConfigVersion.cmake
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/lib/libask_openblas.so.0
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/share/licenses/ask/OpenBLAS/LICENSE
+-- Installing: /home/asuka/ask/build/verification/openblas-sdk/share/ask/openblas.lock.json

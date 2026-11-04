@@ -1,0 +1,37 @@
+{
+  "scope": "Compiler component installed in an independent prefix; LLVM/MLIR package discovery disabled; no GPU execution in this consumer run",
+  "source_commit": "7059129",
+  "consumer_tests": {
+    "passed": 3,
+    "failed": 0,
+    "seconds": 3.68,
+    "names": [
+      "ask-compiler",
+      "ask-primitives",
+      "ask-host-blas"
+    ]
+  },
+  "native_host_matrix_cases": 432,
+  "configure_options": {
+    "ASK_TEST_COMPONENT": "Compiler",
+    "CMAKE_DISABLE_FIND_PACKAGE_LLVM": "ON",
+    "CMAKE_DISABLE_FIND_PACKAGE_MLIR": "ON"
+  },
+  "linked_dependency": "libask_openblas.so.0",
+  "compiler_runpath": "$ORIGIN",
+  "installed_openblas_is_regular_file": true,
+  "receipt_matches_committed_lock": true,
+  "sha256": {
+    "build/verification/openblas-sdk/lib/libask_compiler.so.0": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9",
+    "build/verification/openblas-sdk/lib/libask_openblas.so.0": "c666e41aca958a46bfd654bd140e036c210513e4af3eb7cac617442b81cb19c2",
+    ".deps/openblas-0.3.33/.ask-openblas.json": "fa99e8b904730376b270fb6ba3939feb4dca7065e528da9ad23a64160012bad9",
+    "cmake/openblas.lock.json": "fa99e8b904730376b270fb6ba3939feb4dca7065e528da9ad23a64160012bad9"
+  },
+  "receipt_check": {
+    "method": "Previously executed standalone cmake -P check using the production receipt comparison; no build or numerical test rerun during archival",
+    "matching_receipt": "accepted, exit 0",
+    "changed_USE_THREAD_only": "rejected, exit 1",
+    "rejection_message": "OpenBLAS SDK does not match cmake/openblas.lock.json",
+    "temporary_check_script": "deleted after verification"
+  }
+}

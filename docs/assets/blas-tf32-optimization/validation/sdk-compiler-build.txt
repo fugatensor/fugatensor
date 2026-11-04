@@ -1,0 +1,6 @@
+[1/6] Building CXX object CMakeFiles/ask-primitives-test.dir/primitives.cpp.o
+[2/6] Building CXX object CMakeFiles/ask-host-blas-test.dir/host_blas.cpp.o
+[3/6] Building CXX object CMakeFiles/ask-compiler-test.dir/compiler.cpp.o
+[4/6] Linking CXX executable ask-primitives-test
+[5/6] Linking CXX executable ask-host-blas-test
+[6/6] Linking CXX executable ask-compiler-test

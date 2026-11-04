@@ -1,0 +1,30 @@
+
+  OS               ... Linux             
+  Architecture     ... x86_64               
+  BINARY           ... 64bit                 
+  C compiler       ... GCC  (cmd & version : cc (Debian 14.2.0-19) 14.2.0)
+  Library Name     ... libask_openblas-r0.3.33.a (Single-threading)  
+  Supporting multiple x86_64 cpu models with minimum requirement for the common code being HASWELL
+
+To install the library, you can run "make PREFIX=/path/to/your/installation install".
+
+Note that any flags passed to make during build should also be passed to make install
+to circumvent any install errors.
+
+make -f Makefile.install install
+make[1]: Entering directory '/home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/OpenBLAS-0.3.33'
+Generating openblas_config.h in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/include
+Generating f77blas.h in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/include
+Generating cblas.h in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/include
+#change back any openblas_complex_float and double that got hit
+Copying the static library to /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib
+Copying the shared library to /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib
+PKGFILE="/home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib/pkgconfig/openblas.pc"
+Generating openblas.pc in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib/pkgconfig
+Generating OpenBLASConfig.cmake in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib/cmake/openblas
+add_library(OpenBLAS::OpenBLAS SHARED IMPORTED)
+target_include_directories(OpenBLAS::OpenBLAS INTERFACE ${OpenBLAS_INCLUDE_DIRS})
+Generating OpenBLASConfigVersion.cmake in /home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/sdk/lib/cmake/openblas
+Install OK!
+make[1]: Leaving directory '/home/asuka/ask/.deps/.ask-openblas-build-9cjwytph/OpenBLAS-0.3.33'
+/home/asuka/ask/.deps/openblas-0.3.33

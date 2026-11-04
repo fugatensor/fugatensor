@@ -1,0 +1,8 @@
+[1/8] Building CXX object CMakeFiles/ask-primitives-test.dir/tests/cpp/primitives.cpp.o
+[2/8] Building CXX object CMakeFiles/ask_core.dir/lib/Frontend/Compiler.cpp.o
+[3/8] Linking CXX static library libask_core.a
+[4/8] Linking CXX shared library lib/libask_compiler.so.0.1.0
+[5/8] Creating library symlink lib/libask_compiler.so.0 lib/libask_compiler.so
+[6/8] Linking CXX executable ask-compiler-test
+[7/8] Linking CXX executable ask-primitives-test
+[8/8] Linking CXX executable ask-host-blas-test

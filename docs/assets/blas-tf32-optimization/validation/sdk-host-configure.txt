@@ -1,0 +1,11 @@
+Preset CMake variables:
+
+  ASK_TARGET_BACKENDS="host"
+  BUILD_TESTING="ON"
+  CMAKE_BUILD_TYPE="Release"
+
+-- ASK target backends: host; LLVM/MLIR 23.1.4
+-- ASK interfaces: native Compiler, Runtime and Core; no Python build dependency
+-- Configuring done (3.5s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/asuka/ask/build/core
