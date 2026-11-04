@@ -1,0 +1,17 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,matmul_data,matmul_precision,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cpu,elementwise,small,fp32,row_major,32,64,0,1,dyadic,ieee,torch_eager,62.65,19.408,3.2280502885408078,222.80502885408077,3,3
+cpu,elementwise,large,fp32,row_major,512,256,0,1,dyadic,ieee,torch_eager,136.174,243.026,0.5603268786055813,-43.96731213944187,3,3
+cpu,reduction_chain,small,fp32,row_major,32,64,8,1,dyadic,ieee,torch_eager,161.911,76.592,2.1139414038019635,111.39414038019635,3,3
+cpu,reduction_chain,large,fp32,row_major,512,256,8,1,dyadic,ieee,torch_eager,509.212,672.423,0.757279272124838,-24.272072787516198,3,3
+cpu,fork_join,small,fp32,row_major,32,64,0,4,dyadic,ieee,torch_eager,130.762,50.2,2.604820717131474,160.48207171314738,3,3
+cpu,fork_join,large,fp32,row_major,512,256,0,4,dyadic,ieee,torch_eager,386.881,546.124,0.7084123752114904,-29.158762478850964,3,3
+cpu,matmul,small,fp32,row_major,16,16,0,1,dyadic,ieee,torch_eager,44.78,3.445,12.998548621190132,1199.8548621190132,3,3
+cpu,matmul,large,fp32,row_major,128,128,0,1,dyadic,ieee,torch_eager,217.809,72.059,3.0226481078005523,202.26481078005523,3,3
+cuda,elementwise,small,fp32,row_major,32,64,0,1,dyadic,ieee,torch_eager,116.566,157.429,0.7404353708655965,-25.956462913440348,3,3
+cuda,elementwise,large,fp32,row_major,512,256,0,1,dyadic,ieee,torch_eager,124.499,152.843,0.8145548046034166,-18.544519539658346,3,3
+cuda,reduction_chain,small,fp32,row_major,32,64,8,1,dyadic,ieee,torch_eager,220.779,637.098,0.346538523115753,-65.34614768842471,3,3
+cuda,reduction_chain,large,fp32,row_major,512,256,8,1,dyadic,ieee,torch_eager,218.389,662.402,0.329692543198843,-67.0307456801157,3,3
+cuda,fork_join,small,fp32,row_major,32,64,0,4,dyadic,ieee,torch_eager,185.002,370.411,0.4994506102680536,-50.05493897319464,3,3
+cuda,fork_join,large,fp32,row_major,512,256,0,4,dyadic,ieee,torch_eager,193.162,409.768,0.47139356904394686,-52.86064309560532,3,3
+cuda,matmul,small,fp32,row_major,16,16,0,1,dyadic,ieee,torch_eager,104.749,72.083,1.45317203778977,45.31720377897701,3,3
+cuda,matmul,large,fp32,row_major,128,128,0,1,dyadic,ieee,torch_eager,106.82,77.252,1.3827473722363175,38.274737223631746,3,3

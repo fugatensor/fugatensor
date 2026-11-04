@@ -1,0 +1,5 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,matmul_data,matmul_precision,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cuda,matmul,n16,fp32,row_major,16,16,0,1,general,ieee,torch_eager,93.394,70.967,1.3160201220285486,31.60201220285486,3,3
+cuda,matmul,n128,fp32,row_major,128,128,0,1,general,ieee,torch_eager,95.68,78.177,1.223889379229185,22.388937922918494,3,3
+cuda,matmul,n512,fp32,row_major,512,512,0,1,general,ieee,torch_eager,111.243,94.834,1.1730286606069553,17.302866060695532,3,3
+cuda,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ieee,torch_eager,203.722,210.171,0.9693154621712796,-3.068453782872038,3,3
