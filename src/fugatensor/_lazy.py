@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import _native
 from .ir import Module, project_outputs, prune, specialize
 from .ir.transforms import _clone_operation
 from .tensor import Tensor
@@ -155,110 +156,8 @@ def _project(module, indices):
     return _Slice(numerical, tuple(indices), inputs, frozenset(definitions), numerical._structural_key())
 
 
-def _carrier(roots):
-    """Find storage for constant-only ABI inputs without evaluating dead code."""
-    preferred = roots[0].shape, roots[0].dtype
-    fallback = None
-    stack, seen = list(reversed(roots)), set()
-    while stack:
-        source = _source(stack.pop())
-        if id(source) in seen:
-            continue
-        seen.add(id(source))
-        if source._storage is not None:
-            if (source.shape, source.dtype) == preferred:
-                return source
-            if fallback is None:
-                fallback = source
-        else:
-            stack.extend(reversed(source._pending.expression.inputs))
-    if fallback is None:
-        raise ValueError('a constant-only deferred graph needs a materialized input carrier')
-    return fallback
-
-
-def _collect(roots):
-    # First propagate requested result ports to a fixed point. A shared
-    # expression may gain another requested output after its first visit.
-    demands, slices = {}, {}
-    stack = list(reversed(roots))
-    while stack:
-        source = _source(stack.pop())
-        if source._storage is not None:
-            continue
-        result = source._pending
-        expression = result.expression
-        required = demands.setdefault(expression, set())
-        if result.index in required:
-            continue
-        required.add(result.index)
-        selected = _template(expression.module).project(tuple(sorted(required)))
-        slices[expression] = selected
-        stack.extend(expression.inputs[index] for index in reversed(selected.inputs))
-
-    # Order only the selected numerical dependencies. Explicit stacks keep
-    # long Python loops independent of Python's recursion limit.
-    leaves, expressions = [], []
-    seen_leaves, seen_expressions = set(), set()
-    stack = [(False, tensor) for tensor in reversed(roots)]
-    while stack:
-        finish, item = stack.pop()
-        if finish:
-            if item not in seen_expressions:
-                expressions.append(item)
-                seen_expressions.add(item)
-            continue
-        tensor = _source(item)
-        if tensor._storage is not None:
-            if id(tensor) not in seen_leaves:
-                leaves.append(tensor)
-                seen_leaves.add(id(tensor))
-            continue
-        expression = tensor._pending.expression
-        if expression not in seen_expressions:
-            stack.append((True, expression))
-            stack.extend((False, expression.inputs[index]) for index in reversed(slices[expression].inputs))
-    if not leaves:
-        leaves.append(_carrier(roots))
-    return leaves, expressions, slices
-
-
-def _dependencies(expressions, slices):
-    dependencies = {}
-    for expression in expressions:
-        selected = slices[expression]
-        template = _template(expression.module)
-        for definition, version in template.live_dependencies(selected, expression.dependencies):
-            if definition in dependencies and dependencies[definition] != version:
-                raise RuntimeError('a function definition changed after this Tensor was constructed')
-            dependencies[definition] = version
-    if any(definition._definition_key() != version for definition, version in dependencies.items()):
-        raise RuntimeError('a function definition changed after this Tensor was constructed')
-    return tuple(dependencies.items())
-
-
-def _structure_key(roots, collected, dependencies):
-    """Flat topology with canonical leaf indices; values and addresses are not keys."""
+def _compose(roots, engine, collected):
     leaves, expressions, slices = collected
-    leaf_indices = {id(value): index for index, value in enumerate(leaves)}
-    expression_indices = {value: index for index, value in enumerate(expressions)}
-
-    def binding(tensor):
-        tensor = _source(tensor)
-        if tensor._storage is not None:
-            return 'input', leaf_indices[id(tensor)]
-        pending = tensor._pending
-        return 'result', expression_indices[pending.expression], pending.index
-
-    nodes = tuple((slices[expression].key,
-                   tuple(binding(expression.inputs[index]) for index in slices[expression].inputs))
-                  for expression in expressions)
-    return (tuple((value.shape, value.dtype) for value in leaves), nodes,
-            tuple(binding(value) for value in roots), frozenset(dependencies))
-
-
-def _compose(roots, engine, collected=None):
-    leaves, expressions, slices = _collect(roots) if collected is None else collected
     context = TraceContext([(value.shape, value.dtype) for value in leaves], engine=engine)
     values = {id(value): arg.value for value, arg in zip(leaves, context.inputs)}
     results = {}
@@ -297,13 +196,10 @@ def materialize(engine, tensors):
             roots.append(source)
             seen.add(id(source))
     if roots:
-        collected = _collect(roots)
-        inputs, expressions, slices = collected
-        dependencies = _dependencies(expressions, slices)
-        key = _structure_key(roots, collected, dependencies)
+        inputs, expressions, slices, key = _native.collect_pending(roots, Alias)
         program = engine._graph_cache.get(key)
         if program is None:
-            context = _compose(roots, engine, collected)
+            context = _compose(roots, engine, (inputs, expressions, slices))
             fuga_text = context.module.to_text()
             program = Program(engine._compile(context), fuga_text)
             engine._graph_cache[key] = program

@@ -11,7 +11,8 @@ flowchart TD
     AD --> Derived["可继续组合的导数 Tensor"]
     Derived --> Boundary
     Pending --> Boundary["读取数据 / 标量条件 / ft.evaluate"]
-    Boundary --> Cache["查询不可变模板与结构缓存"]
+    Boundary --> Collect["C++ 收集输出需求、依赖与结构键"]
+    Collect --> Cache["查询不可变模板与结构缓存"]
     Cache -->|"未命中"| FugaIR["合并所需依赖为 Fuga IR"]
     FugaIR <-->|"可达性、活跃性与反向边界"| NativeCPP["C++ 图分析"]
     FugaIR -->|"静态化简与剪枝"| Lower["降级桥接与溯源"]
@@ -52,6 +53,8 @@ Python `if` / `while` 读取条件 Tensor 的真值后选择路径，后续运�
 `fugatensor.ir.Module` 是含嵌套 `Region` 的 SSA 对象图，类型和 SSA 值与设备分开保存。
 
 C++ 扩展 `fugatensor._native`（`cpp/graph.cpp`）计算输入可达集、输出依赖、带副作用节点的保活范围及反向遍历顺序。`ir/transforms.py` 用这些结果实现 `analyze_function`、`prune` 和 `project_outputs`，供求导与执行引擎共用。分析期间释放 GIL，各次调用使用独立状态。
+
+`cpp/lazy.cpp` 在一次原生调用中完成待计算 Tensor 的输出需求传播、拓扑遍历、定义依赖校验和结构键生成。它在 Engine 锁与 GIL 内读取 Python 元信息，使用调用内快照；Tensor 与表达式来源继续由 Python 持有。
 
 工程细节：[原生图分析与 C++ 边界](原生图分析与C++边界.md) · [Fuga IR 对象模型与验证](../ir/对象模型与验证.md)
 

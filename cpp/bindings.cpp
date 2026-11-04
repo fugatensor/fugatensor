@@ -11,6 +11,7 @@ namespace nb = nanobind;
 using namespace nb::literals;
 void bindCompiler(nb::module_ &module);
 void bindAskRuntime(nb::module_ &module);
+void bindLazy(nb::module_ &module);
 
 namespace {
 std::size_t integer(PyObject *value, const std::string &name) {
@@ -88,6 +89,7 @@ NB_MODULE(_native, module) {
   module.doc() = "Fuga's SSA analysis and thin ASK native execution bridge";
   bindCompiler(module);
   bindAskRuntime(module);
+  bindLazy(module);
   module.attr("__version__") = FUGA_VERSION;
   module.attr("graph_api_version") = 1;
   module.def("analyze", &analyze, "input_count"_a, "operands"_a, "result_counts"_a,
