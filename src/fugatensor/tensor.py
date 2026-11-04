@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from . import _native
 from .dtypes import DType
 from .devices import device as Device, resolve_device
 from .ir import ScalarType, TensorType
@@ -56,40 +57,22 @@ def _nested(values, shape):
     return build(shape)
 
 
-class Tensor:
+class Tensor(_native.TensorHandle):
     """A deferred expression or buffer, with explicit shape and element type.
 
     Arithmetic records expressions for the engine's JIT. Creating or printing
     a Tensor does not copy its values back from a device.
     """
-    __slots__ = ("_engine", "_storage", "_shape", "_dtype", "_pending", "_origin", "__weakref__")
+    __slots__ = ()
 
     def __init__(self, engine, storage):
-        self._engine = engine
-        self._storage = storage
-        self._shape = tuple(storage.shape)
-        self._dtype = DType(storage.dtype)
-        self._pending = self._origin = None
-
-    @classmethod
-    def _from_pending(cls, engine, shape, dtype, pending):
-        from ._lazy import Result
-        result = cls.__new__(cls)
-        result._engine, result._storage = engine, None
-        result._shape, result._dtype = tuple(shape), DType(dtype)
-        result._pending = pending
-        # Provenance survives materialization; a detached alias has no origin.
-        result._origin = pending if isinstance(pending, Result) else None
-        return result
+        super().__init__(engine, storage)
 
     def detach(self):
         """Return a numerical alias that stops differentiation through this value."""
         require_not_tracing()
         self.engine._check_tensor(self)
-        if self._storage is None:
-            from ._lazy import Alias
-            return Tensor._from_pending(self.engine, self.shape, self.dtype, Alias(self))
-        return Tensor(self.engine, self._storage)
+        return _native.detach_tensor(self, Tensor)
 
     @property
     def engine(self):
@@ -132,7 +115,8 @@ class Tensor:
         return memoryview(self.storage.to_host_bytes())
 
     def astype(self, dtype: DType | str) -> Tensor:
-        return self._engine.elementwise("cast", (self,), dtype=normalize_dtype(dtype))
+        from .ops import cast
+        return cast(self, normalize_dtype(dtype))
 
     def reshape(self, *shape) -> Tensor:
         """Return a deferred tensor with the same elements and a new shape."""
@@ -143,8 +127,9 @@ class Tensor:
     def _binary(self, operation, other, *, reverse=False):
         if not isinstance(other, Tensor) and type(other) not in (bool, int, float):
             return NotImplemented
+        from .ops import add, multiply
         arguments = (other, self) if reverse else (self, other)
-        return self._engine.elementwise(operation, arguments)
+        return (add if operation == 'add' else multiply)(*arguments)
 
     def __add__(self, other):
         return self._binary("add", other)

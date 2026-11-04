@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import threading
 import unittest
 
+from fugatensor import _native
 from fugatensor.ir import ExternalSpec, Module, ScalarType, TensorType, Value
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tensor import Tensor, normalize_data, normalize_dtype
@@ -30,7 +32,8 @@ class ShapeAndTracingTests(unittest.TestCase):
                 normalize_data([], bad_shape)
 
         engine = SimpleNamespace(device="cpu", to_flat=lambda t: t.storage.values,
-                                 _check_tensor=lambda t: None)
+                                 _check_tensor=lambda t: None, _check_open=lambda: None,
+                                 _closed=False, _lock=threading.RLock(), _arena=_native.RuntimeArena())
         for shape, vals, expected in (((2, 2), [1, 2, 3, 4], [[1, 2], [3, 4]]), ((2, 0), [], [[], []]), ((), [7], 7)):
             t = Tensor(engine, SimpleNamespace(shape=shape, dtype="i32", values=vals))
             self.assertEqual(t.tolist(), expected)
@@ -46,7 +49,9 @@ class ShapeAndTracingTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(err, msg):
                 x * rhs
-        eager_t = Tensor(SimpleNamespace(device="cpu"), SimpleNamespace(shape=(2,), dtype="f32"))
+        eager_t = Tensor(SimpleNamespace(device="cpu", _closed=False, _check_open=lambda: None,
+                                        _lock=threading.RLock(), _arena=_native.RuntimeArena()),
+                         SimpleNamespace(shape=(2,), dtype="f32"))
         with self.assertRaisesRegex(TypeError, "captures"):
             x + eager_t
         with self.assertRaisesRegex(TypeError, "scalar"):
@@ -99,7 +104,7 @@ class LoweringBoundaryTests(unittest.TestCase):
                 x, y = ctx.inputs
                 out = ((x.astype("f32") + y.astype("f32")) * 2).astype(dtype)
                 fuga_mod = ctx.finish((out, x))
-                self.assertIsInstance(x.value, Value)
+                self.assertIsInstance(next(iter(fuga_mod.functions[0].inputs.values())), Value)
                 prepared = self.compiler.prepare(lower_to_ask(fuga_mod))
                 self.assertEqual(prepared.diagnostics["phase"], "prepared")
                 self.assertIn(f"tensor<2x3x{dtype}>", prepared.ir)

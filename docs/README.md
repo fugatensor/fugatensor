@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | [架构总览](architecture/README.md) | FugaTensor 与 ASK 的职责划分、端到端调用流程与子系统入口 | 全局架构 |
 | [张量模型与追踪机制](architecture/张量模型与追踪机制.md) | CPU/CUDA 张量存储与 buffer 接口、不可变模板与结构缓存、按需 JIT、隔离追踪与 0-D 标量条件 | `tensor.py`、`ops.py`、`_lazy.py`、`_jit.py`、`tracing.py` |
-| [原生图分析与 C++ 边界](architecture/原生图分析与C++边界.md) | Python 与 C++ 扩展的分工、SSA 分析、待计算图收集与结构键、所有权和并发 | `cpp/graph.h`、`cpp/graph.cpp`、`cpp/lazy.cpp`、`cpp/bindings.cpp`、`ir/transforms.py`、`_lazy.py` |
+| [原生图分析与 C++ 边界](architecture/原生图分析与C++边界.md) | 原生节点池、追踪与原语绑定、SSA 分析、结构键、所有权和并发 | `cpp/graph.*`、`cpp/lazy.*`、`cpp/trace.cpp`、`cpp/primitive.cpp`、`ir/transforms.py`、`_lazy.py` |
 | [自动微分与自定义算子](architecture/自动微分与自定义算子.md) | `ft.grad` 纯 IR 变换、表达式来源、`ft.fun` 纯 VJP、高阶求导与规则校验 | `autograd.py`、`function.py`、`ir/differentiate.py`、`ir/jvp.py` |
 | [ASK 桥接与多后端执行](architecture/ASK桥接与多后端执行.md) | `Engine` 生命周期、无用输入端口裁剪、CPU `HostBackend`、原生 Graph 提交、自有 CUDA 与独立 Triton 调度、编译缓存与配置 | `engine.py`、`backends/`、`cpp/compiler.cpp`、`cpp/ask_runtime.cpp`、`_ask/`、`triton.py`、`_triton_worker.py`、`_config.py`、`tools/bootstrap.py` |
 | [权重格式与导出](architecture/权重格式与导出.md) | 版本化 PyTree 权重目录、manifest/数组身份、原子导出、完整性校验与架构扩展边界 | `weights.py`、`schemas/weights-manifest-v1.schema.json` |

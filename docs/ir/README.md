@@ -2,7 +2,7 @@
 
 目录导航：[文档目录](../README.md) · 接口用法：[IR 与降级 API](../API/IR与降级.md) · 系统架构：[架构总览](../architecture/README.md) · 底层引擎：[ASK IR 与数值语义](../../../ask/docs/ASK-IR与数值语义.md)
 
-Fuga IR（`src/fugatensor/ir/`）用类型、SSA 值、操作和嵌套区域表示张量程序，组图、分析和求导都直接操作这些内存对象。
+Fuga IR（`src/fugatensor/ir/`）用类型、SSA 值、操作和嵌套区域表示张量程序。Tensor 的待计算图与隔离追踪节点保存在原生 arena，编译未命中或追踪结束时导出这些 IR 对象，供分析、求导和降级使用。
 
 <a id="ir-design"></a>
 
@@ -15,7 +15,7 @@ Fuga IR 在降级到 [ASK 静态计算图](../../../ask/docs/ASK-IR与数值语�
 - 设备信息：类型和 SSA 值保存形状与 dtype，外部 Triton 算子的具体 GPU 架构在降级时绑定。
 
 ```text
-Tensor 自动组图 (_lazy.py) / 自定义函数隔离追踪 (tracing.py)
+Tensor 原生节点池 (cpp/lazy.cpp) / 隔离追踪节点池 (cpp/trace.cpp)
   -> Fuga IR Module (设备无关、含 Region 与 fuga.call)
   -> 框架级变换：C++ 活跃性分析与剪枝 (transforms.py) / JVP & VJP 求导 (jvp.py, differentiate.py)
   -> 降级桥接 (lowering.py)：静态 if 选择、有界 for 展开、架构绑定与 fuga-to-ask.json 溯源

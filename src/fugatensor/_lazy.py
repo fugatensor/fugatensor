@@ -4,28 +4,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import _native
-from .ir import Module, project_outputs, prune, specialize
+from .ir import Module, TensorType, project_outputs, prune, specialize
 from .ir.transforms import _clone_operation
 from .tensor import Tensor
-from .tracing import TraceContext
 
 
-@dataclass(frozen=True, eq=False)
-class Expression:
-    module: Module
-    inputs: tuple
-    dependencies: tuple
-
-
-@dataclass(frozen=True)
-class Result:
-    expression: Expression
-    index: int
-
-
-@dataclass(frozen=True)
-class Alias:
-    source: Tensor
+Expression = _native.Expression
+Result = _native.Result
+Alias = _native.Alias
 
 
 @dataclass(frozen=True)
@@ -51,9 +37,7 @@ def defer_module(module, inputs, *, engine, dependencies=()):
 
 
 def _source(tensor):
-    while tensor._storage is None and isinstance(tensor._pending, Alias):
-        tensor = tensor._pending.source
-    return tensor
+    return _native.source_tensor(tensor)
 
 
 @dataclass(frozen=True)
@@ -75,15 +59,13 @@ class _Template:
 
     def bind(self, inputs, engine, dependencies):
         """Instantiate a sealed template after its input signature has matched."""
-        expression = Expression(self.module, inputs, dependencies)
-        return tuple(Tensor._from_pending(engine, type_.shape, type_.dtype,
-                                          Result(expression, index))
-                     for index, type_ in enumerate(self.output_types))
+        return _native.bind_pending(engine, Tensor, self, inputs, dependencies)
 
     def project(self, indices):
-        if indices not in self.slices:
-            self.slices[indices] = _project(self.module, indices)
-        return self.slices[indices]
+        selected = self.slices.get(indices)
+        if selected is None:
+            selected = self.slices.setdefault(indices, _project(self.module, indices))
+        return selected
 
     def live_dependencies(self, selected, dependencies):
         key = selected.indices, dependencies
@@ -156,16 +138,19 @@ def _project(module, indices):
     return _Slice(numerical, tuple(indices), inputs, frozenset(definitions), numerical._structural_key())
 
 
-def _compose(roots, engine, collected):
+def _compose(roots, collected):
     leaves, expressions, slices = collected
-    context = TraceContext([(value.shape, value.dtype) for value in leaves], engine=engine)
-    values = {id(value): arg.value for value, arg in zip(leaves, context.inputs)}
+    module = Module()
+    graph = module.graph('fuga_main', inputs={
+        f'arg{index}': TensorType(value.shape, value.dtype)
+        for index, value in enumerate(leaves)})
+    values = {value._identity: arg for value, arg in zip(leaves, graph.inputs.values())}
     results = {}
 
     def value_for(tensor):
         source = _source(tensor)
         if source._storage is not None:
-            return values[id(source)]
+            return values[source._identity]
         pending = source._pending
         return results[pending.expression][pending.index]
 
@@ -178,41 +163,32 @@ def _compose(roots, engine, collected):
             if operation.opcode == 'return':
                 results[expression] = dict(zip(selected.indices, (mapping[value] for value in operation.operands)))
                 break
-            copied = _clone_operation(context.graph, operation,
+            copied = _clone_operation(graph, operation,
                                       tuple(mapping[value] for value in operation.operands))
             mapping.update(zip(operation.results, copied.results))
-    context.finish(tuple(context.wrap(value_for(value)) for value in roots))
-    return context
+    graph.return_(*(value_for(value) for value in roots))
+    return module.verify()
 
 
 def materialize(engine, tensors):
     tensors = tuple(tensors)
     for value in tensors:
         engine._check_tensor(value)
-    roots, seen = [], set()
-    for value in tensors:
-        source = _source(value)
-        if source._storage is None and id(source) not in seen:
-            roots.append(source)
-            seen.add(id(source))
+    roots = _native.pending_roots(tensors)
     if roots:
-        inputs, expressions, slices, key = _native.collect_pending(roots, Alias)
+        inputs, key = _native.collect_pending(roots)
         program = engine._graph_cache.get(key)
         if program is None:
-            context = _compose(roots, engine, (inputs, expressions, slices))
-            fuga_text = context.module.to_text()
-            program = Program(engine._compile(context), fuga_text)
+            module = _compose(roots, _native.describe_pending(roots))
+            fuga_text = module.to_text()
+            program = Program(engine._compile(module), fuga_text)
             engine._graph_cache[key] = program
         else:
             engine._stats['cache_hits'] += 1
         outputs = engine._execute(program.executable, inputs)
-        if len(outputs) != len(roots):
-            raise RuntimeError('ASK returned an unexpected number of graph results')
         # Publish only after the whole execution has succeeded. Histories stay
         # attached to the original handles, independently of numerical buffers.
-        for root, output in zip(roots, outputs):
-            root._storage = output._storage
-            root._pending = None
+        _native.publish_pending(roots, tuple(output._storage for output in outputs))
         executable = program.executable
         engine.last_ir = engine.last_ask_ir = executable.source
         engine.last_fuga_ir = program.fuga_text
@@ -220,6 +196,5 @@ def materialize(engine, tensors):
         engine.last_execution_plan = executable.execution_plan
     for value in tensors:
         if value._storage is None:
-            value._storage = _source(value)._storage
-            value._pending = None
+            _native.publish_pending((value,), (_source(value)._storage,))
     return tensors

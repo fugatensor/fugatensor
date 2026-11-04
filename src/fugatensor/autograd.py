@@ -81,7 +81,8 @@ def _plan(expression, output_indices, input_indices, engine):
 
 
 def _key(tensor):
-    return tensor._origin if tensor._origin is not None else id(tensor)
+    origin = tensor._origin
+    return origin if origin is not None else tensor._identity
 
 
 def _tensors(value, name):

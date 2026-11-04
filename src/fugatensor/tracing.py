@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import math
+from . import _native
 from .ir import Module, TensorType, Value
+from .ir.core import BlockBuilder, _effects, _freeze
+from .ir.types import as_type
 from .dtypes import DType
 from .devices import device as Device, resolve_device
 
@@ -10,25 +13,17 @@ from .tensor import normalize_dtype, normalize_shape
 from ._state import active_trace
 
 
-class TraceTensor:
+class TraceTensor(_native.TraceHandle):
     """A Fuga SSA value used only while an operation is being traced."""
-    __slots__ = ("context", "value", "__weakref__")
+    __slots__ = ()
 
-    def __init__(self, context: TraceContext, value: Value):
-        if not isinstance(value, Value) or value.owner is not context.graph.block:
+    def __init__(self, context: TraceContext, value):
+        value = context._import(value)
+        if not isinstance(value, _native.TraceValue) or value.arena is not context._arena:
             raise ValueError("traced value must belong to its TraceContext graph")
         if not isinstance(value.type, TensorType):
             raise TypeError("TraceTensor requires a Fuga tensor value")
-        self.context = context
-        self.value = value
-
-    @property
-    def shape(self) -> tuple[int, ...]:
-        return self.value.type.shape
-
-    @property
-    def dtype(self) -> DType:
-        return DType(self.value.type.dtype)
+        super().__init__(context, value.value_id)
 
     @property
     def device(self) -> Device:
@@ -168,22 +163,75 @@ class TraceTensor:
         return f"TraceTensor(shape={self.shape!r}, dtype={self.dtype!r}, value={self.value.name!r})"
 
 
+class _TraceBuilder(BlockBuilder):
+    """Use shared abstract rules, recording their results in the native arena."""
+
+    def __init__(self, context, inputs):
+        self.context = context
+        self.inputs = inputs
+        self.result_types = None
+        self._ids = set()
+
+    def _check_values(self, values):
+        if self.context._arena.terminated:
+            raise ValueError("cannot append operations after a block terminator")
+        if any(not isinstance(value, _native.TraceValue) or value.arena is not self.context._arena
+               for value in values):
+            raise ValueError("operands must be preceding values from this block; pass region captures as block arguments")
+
+    def operation(self, opcode, operands=(), result_types=(), *, attrs=None, regions=(), effects=(),
+                  id=None, origin_id=None):
+        operands = tuple(operands)
+        self._check_values(operands)
+        result_types = tuple(as_type(type_) for type_ in result_types)
+        if not isinstance(opcode, str) or not opcode:
+            raise ValueError("operation opcode must be a nonempty string")
+        if regions:
+            raise ValueError("isolated Tensor traces contain flat operations")
+        if id is not None:
+            if not isinstance(id, str) or not id:
+                raise ValueError("operation id must be a nonempty string")
+            if id in self._ids:
+                raise ValueError(f"duplicate Fuga operation id: {id}")
+            self._ids.add(id)
+        return self.context._arena.append(opcode, operands, result_types, _freeze(attrs or {}),
+                                          _effects(effects), id, origin_id)
+
+    def return_(self, *values):
+        self._check_values(values)
+        self.result_types = tuple(value.type for value in values)
+        self.operation('return', values)
+
+    @property
+    def operations(self):
+        self.context._export()
+        return self.context._target.operations
+
+    @property
+    def module(self):
+        return self.context.module
+
+
 class TraceContext:
     """Own one Fuga graph and infer its result types from the Python return."""
     def __init__(self, input_specs, *, engine=None, name="fuga_main"):
         self.engine = engine
-        self.module = Module()
+        self._arena = _native.TraceArena()
+        self._module = self._target = None
+        self._name = name
+        self._imported = []
+        self._imports = {}
+        self._exported = ()
+        self._emitted = 0
+        self._finished = False
         self.input_specs = tuple((normalize_shape(shape), normalize_dtype(dtype))
                                  for shape, dtype in input_specs)
-        self.graph = self.module.graph(
-            name,
-            inputs={f"arg{index}": TensorType(shape, dtype)
-                    for index, (shape, dtype) in enumerate(self.input_specs)},
-        )
+        self.graph = _TraceBuilder(self, {
+            f"arg{index}": _native.TraceValue(self._arena, self._arena.input(TensorType(shape, dtype)))
+            for index, (shape, dtype) in enumerate(self.input_specs)})
         self.inputs = tuple(TraceTensor(self, value) for value in self.graph.inputs.values())
         self.output_specs = None
         self.output_is_tuple = None
-        self._finished = False
         self.external_count = 0
         parent = active_trace.get()
         self.dependencies = parent.dependencies if parent is not None else {}
@@ -194,17 +242,56 @@ class TraceContext:
         context = cls.__new__(cls)
         parent = active_trace.get()
         context.engine = engine if engine is not None else (parent.engine if parent is not None else None)
-        context.module = graph.module
-        context.graph = graph
+        context._arena = _native.TraceArena()
+        context._module = graph.module
+        context._target = graph
+        context._name = graph.function.name
+        context._imported = []
+        context._imports = {}
+        context._exported = ()
+        context._emitted = 0
+        context._finished = False
+        context.graph = _TraceBuilder(context, {name: context._import(value) for name, value in graph.inputs.items()})
         context.input_specs = tuple((value.type.shape, value.type.dtype)
                                     for value in graph.inputs.values() if isinstance(value.type, TensorType))
-        context.inputs = tuple(TraceTensor(context, value) for value in graph.inputs.values()
+        context.inputs = tuple(TraceTensor(context, value) for value in context.graph.inputs.values()
                                if isinstance(value.type, TensorType))
         context.output_specs = context.output_is_tuple = None
         context._finished = False
         context.external_count = sum(op.opcode == 'external' for op in graph.operations)
         context.dependencies = parent.dependencies if parent is not None else {}
         return context
+
+    def _import(self, value):
+        if isinstance(value, Value):
+            if self._target is None or value.owner is not self._target.block:
+                raise ValueError("traced value must belong to its TraceContext graph")
+            if value not in self._imports:
+                self._imports[value] = _native.TraceValue(self._arena, self._arena.input(value.type))
+                self._imported.append(value)
+            return self._imports[value]
+        return value
+
+    def _export(self):
+        if self._target is None:
+            self._module = Module()
+            self._target = self._module.graph(self._name, inputs={
+                name: value.type for name, value in self.graph.inputs.items()})
+            self._imported = list(self._target.inputs.values())
+        self._exported = self._arena.emit(self._target, tuple(self._imported), self._exported, self._emitted)
+        self._emitted = self._arena.node_count
+
+    def export_values(self, values):
+        """Append a VJP trace to its existing Python IR builder once."""
+        values = tuple(values)
+        self._export()
+        return tuple(self._exported[value.value.value_id] for value in values)
+
+    @property
+    def module(self):
+        if not self._finished or self._module is None:
+            self._export()
+        return self._module
 
     def depend_on(self, definition):
         self.dependencies[definition] = definition._definition_key()

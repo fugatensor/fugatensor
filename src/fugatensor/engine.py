@@ -11,6 +11,7 @@ import threading
 import weakref
 
 from fugatensor._ask import Compiler, ExecutionSession
+from . import _native
 
 from ._state import require_not_tracing
 from ._config import runtime_defaults
@@ -156,8 +157,8 @@ class Engine:
         self._session = None
         self._closed = False
         self._lock = threading.RLock()
-        self._operations = {}
         self._graph_cache = {}
+        self._arena = _native.RuntimeArena()
         self._jit_functions = weakref.WeakSet()
         self._tokens = contextvars.ContextVar(f'fugatensor_context_{id(self)}', default=())
         self._stats = {'compilations': 0, 'executions': 0, 'cache_hits': 0}
@@ -238,25 +239,6 @@ class Engine:
         if tensor.engine is not self:
             raise ValueError('tensor belongs to a different FugaTensor Engine')
 
-    def elementwise(self, operation, operands, *, dtype=None):
-        # Primitive templates create deferred nodes; evaluation fuses the DAG.
-        require_not_tracing()
-        from ._jit import primitive
-        key = (operation, dtype)
-        with self._lock:
-            if key not in self._operations:
-                if operation == 'add':
-                    function = lambda lhs, rhs: lhs + rhs
-                elif operation == 'mul':
-                    function = lambda lhs, rhs: lhs * rhs
-                elif operation == 'cast':
-                    function = lambda value: value.astype(dtype)
-                else:
-                    raise ValueError(f'unsupported operation: {operation}')
-                self._operations[key] = primitive(function)
-            function = self._operations[key]
-        return function(*operands)
-
     def evaluate(self, *tensors):
         """Compile and materialize the requested Tensor graphs together."""
         require_not_tracing()
@@ -280,7 +262,7 @@ class Engine:
             self.last_report = self.last_artifact_dir = None
             self.last_execution_plan = None
 
-    def _compile(self, context):
+    def _compile(self, fuga_module):
         with self._lock:
             self._check_open()
             target = {'backend': 'host'}
@@ -288,7 +270,7 @@ class Engine:
                 major, minor = self.session.capability
                 target = {'backend': 'cuda', 'arch': major * 10 + minor}
             source_map = {}
-            flat = prune(specialize(context.module))
+            flat = prune(specialize(fuga_module))
             # Autograd supplies saved inputs and cotangents. Remove unused
             # physical parameters while retaining the Python call signature.
             from .ir import Module
@@ -339,7 +321,7 @@ class Engine:
                     llc=self.llc, ptxas=self.ptxas, llvm_link=self.llvm_link, libdevice=self.libdevice, cache_dir=self.cache_dir / 'ask', output_dir=directory,
                     **options)
                 executable = _CUDAExecutable(kernel, self.session, directory, source)
-            (executable.artifact_dir / 'fuga.ir').write_text(context.module.to_text(), encoding='utf-8')
+            (executable.artifact_dir / 'fuga.ir').write_text(fuga_module.to_text(), encoding='utf-8')
             (executable.artifact_dir / 'frontend.mlir').write_text(source, encoding='utf-8')
             (executable.artifact_dir / 'fuga-to-ask.json').write_text(
                 json.dumps(source_map, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
@@ -377,7 +359,6 @@ class Engine:
             self._closed = True
             functions = tuple(self._jit_functions)
             self._jit_functions.clear()
-            self._operations.clear()
             self._graph_cache.clear()
             self.last_execution_plan = None
         for function in functions:

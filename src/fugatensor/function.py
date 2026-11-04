@@ -224,7 +224,7 @@ class fun:
                     raise TypeError(f"fun.vjp gradient {index} shape and dtype must match input {type_}")
             if self._definition_key() != definition:
                 raise ValueError("fun.vjp must not mutate function state while tracing")
-            return tuple(value.value for value in values)
+            return vjp_context.export_values(values)
 
         build_vjp.validate_definition = validate_definition
         spec = CallSpec(name=name, forward=module,

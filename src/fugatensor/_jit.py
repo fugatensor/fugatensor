@@ -10,6 +10,7 @@ import weakref
 from types import MethodType
 
 from ._state import active_trace
+from . import _native
 from .dtypes import DType
 from .devices import device as Device
 from .tensor import Tensor
@@ -152,11 +153,38 @@ class _PrimitiveFunction(JITFunction):
                                        if parameter.kind == parameter.KEYWORD_ONLY)
         if any(value is inspect.Parameter.empty for value in self._keyword_defaults):
             raise TypeError('primitive keyword-only arguments require defaults')
+        self._binder = _native.PrimitiveBinder(Tensor, TraceTensor, DType, Device)
 
     def __call__(self, *args, **kwargs):
         if not kwargs and len(args) == self._positional_count:
-            return self._call(args + self._keyword_defaults)
-        return super().__call__(*args, **kwargs)
+            values = args + self._keyword_defaults
+        else:
+            bound = self._signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            values = tuple(bound.arguments.values())
+        if active_trace.get() is not None:
+            return self._call(values)
+        return self._binder.bind(values, self)
+
+    def _trace_primitive(self, values, inputs, engine):
+        context = TraceContext([(value.shape, value.dtype) for value in inputs], engine=engine)
+        context.depend_on(self)
+        replacements = iter(context.inputs)
+        traced = tuple(next(replacements) if isinstance(value, Tensor) else value for value in values)
+        token = active_trace.set(context)
+        try:
+            context.finish(self._invoke(traced))
+        finally:
+            active_trace.reset(token)
+        from ._lazy import _template
+        return _Traced(_template(context.module), context.output_is_tuple, tuple(context.dependencies.items()))
+
+    def _drop_engine(self, engine):
+        self._binder.drop_engine(engine)
+
+    def clear_cache(self):
+        self._binder.clear()
+        self._revision += 1
 
 
 def primitive(function):

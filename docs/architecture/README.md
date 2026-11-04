@@ -6,7 +6,7 @@ FugaTensor 提供 Python 张量接口，在 Fuga IR 上组图、求导，再交�
 
 ```mermaid
 flowchart TD
-    User["普通 Python / Tensor 运算 / ft.fun / ft.triton.kernel"] --> Pending["待计算 Tensor 与表达式来源"]
+    User["普通 Python / Tensor 运算 / ft.fun / ft.triton.kernel"] --> Pending["C++ 待计算图与表达式来源"]
     Pending --> AD["ft.grad：Fuga IR 导数变换"]
     AD --> Derived["可继续组合的导数 Tensor"]
     Derived --> Boundary
@@ -54,7 +54,7 @@ Python `if` / `while` 读取条件 Tensor 的真值后选择路径，后续运�
 
 C++ 扩展 `fugatensor._native`（`cpp/graph.cpp`）计算输入可达集、输出依赖、带副作用节点的保活范围及反向遍历顺序。`ir/transforms.py` 用这些结果实现 `analyze_function`、`prune` 和 `project_outputs`，供求导与执行引擎共用。分析期间释放 GIL，各次调用使用独立状态。
 
-`cpp/lazy.cpp` 在一次原生调用中完成待计算 Tensor 的输出需求传播、拓扑遍历、定义依赖校验和结构键生成。它在 Engine 锁与 GIL 内读取 Python 元信息，使用调用内快照；Tensor 与表达式来源继续由 Python 持有。
+`cpp/lazy.cpp` 用连续节点池保存待计算图和求导来源，Python Tensor 通过原生值编号访问。原语参数绑定由 `cpp/primitive.cpp` 完成；`cpp/trace.cpp` 保存隔离追踪节点，在追踪结束时导出 Fuga IR。求值边界在 C++ 中合并输出需求、绑定已有存储并校验活跃定义；缓存键结合增量指纹与精确连接关系。
 
 工程细节：[原生图分析与 C++ 边界](原生图分析与C++边界.md) · [Fuga IR 对象模型与验证](../ir/对象模型与验证.md)
 
