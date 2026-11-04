@@ -1,6 +1,8 @@
 """User Triton source snapshots, standalone cubin ABI, and ASK GPU scheduling."""
 from __future__ import annotations
 
+import pytest
+
 import builtins
 import importlib.util
 from importlib.metadata import PackageNotFoundError
@@ -12,14 +14,13 @@ from dataclasses import FrozenInstanceError, dataclass
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
-import unittest
 from unittest import mock
 
 from fugatensor._ask.cuda import CUDAError
 import fugatensor as ft
 from fugatensor.lowering import lower_to_ask
 from fugatensor.tracing import TraceContext
-from tests._helpers import TRITON_KERNELS, EngineTestCase, make_ask_compiler, requires_triton
+from tests._helpers import TRITON_KERNELS, make_ask_compiler, requires_triton
 
 AFFINE_SRC = """import triton
 import triton.language as tl
@@ -74,10 +75,11 @@ def expanded(X, Y, Z, N, scale, BLOCK:tl.constexpr, EVEN:tl.constexpr,
 """
 
 
-class TritonRegistrationTests(unittest.TestCase):
+class TestTritonRegistration:
+    @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def setUpClass(cls):
-        cls.compiler = make_ask_compiler()
+    def prepared(cls, request):
+        request.cls.compiler = make_ask_compiler()
 
     def context(self, shape=(2, 5), dtype="f32", device="cuda"):
         return TraceContext([(shape, dtype)], engine=SimpleNamespace(device=device, capability=(8, 6)))
@@ -113,12 +115,12 @@ class TritonRegistrationTests(unittest.TestCase):
                 op = ft.triton.kernel(path, entry="affine", input="in_data", output="out_data",
                                       constants={"N": 10, "BLOCK": 128}, grid=(1,))
             path.write_text(IDENTITY_SRC, encoding="utf-8")
-            self.assertEqual(op.source, crlf_src)
-            self.assertEqual(self.prepare_request(op)["source"], crlf_src)
+            assert (op.source) == (crlf_src)
+            assert (self.prepare_request(op)['source']) == (crlf_src)
 
         # Frozen TensorSpec + copied dicts + all 6 storage pointer signatures.
         def check_spec(spec):
-            with self.assertRaises(FrozenInstanceError):
+            with pytest.raises(FrozenInstanceError):
                 spec.dtype = "i32"
             return {"N": spec.numel, "BLOCK": 128}
 
@@ -127,20 +129,20 @@ class TritonRegistrationTests(unittest.TestCase):
         copied_op = self.registration(constants=consts, options=options)
         consts["N"] = 999
         options["num_warps"] = 4
-        self.assertEqual(self.prepare_request(copied_op)["constants"]["N"], 10)
-        self.assertEqual(self.prepare_request(copied_op)["fixed_options"]["num_warps"], 8)
-        self.assertEqual(self.prepare_request(self.registration(constants=check_spec), self.context((3, 129), "f16"))["grid"], [4, 1, 1])
+        assert (self.prepare_request(copied_op)['constants']['N']) == (10)
+        assert (self.prepare_request(copied_op)['fixed_options']['num_warps']) == (8)
+        assert (self.prepare_request(self.registration(constants=check_spec), self.context((3, 129), 'f16'))['grid']) == ([4, 1, 1])
 
         for dtype, sig in (("bool", "*i1"), ("i32", "*i32"), ("i64", "*i64"), ("f32", "*fp32"), ("f16", "*fp16"), ("bf16", "*bf16")):
             req = self.prepare_request(self.registration(), self.context(dtype=dtype))
-            self.assertEqual(req["signature"], {"in_data": sig, "out_data": sig})
+            assert (req['signature']) == ({'in_data': sig, 'out_data': sig})
 
     def test_pending_kernel_calls_snapshot_changed_callback_configuration(self):
         class CapturedGraph(RuntimeError):
             pass
 
         for wrapped in (False, True):
-            with self.subTest(custom_fun=wrapped), tempfile.TemporaryDirectory() as directory:
+            with tempfile.TemporaryDirectory() as directory:
                 configuration = {"block": 128}
                 op = self.registration(
                     constants=lambda spec: {"N": spec.numel, "BLOCK": configuration["block"]},
@@ -170,11 +172,11 @@ class TritonRegistrationTests(unittest.TestCase):
 
                     with mock.patch.object(engine, "_compile", side_effect=capture):
                         for output in (first, second):
-                            with self.assertRaises(CapturedGraph):
+                            with pytest.raises(CapturedGraph):
                                 output.tolist()
-                    self.assertEqual([request["constants"]["BLOCK"] for request in requests], [128, 256])
-                    self.assertEqual([request["grid"] for request in requests], [[3, 1, 1], [2, 1, 1]])
-                    self.assertEqual(engine.stats["executions"], 0)
+                    assert ([request['constants']['BLOCK'] for request in requests]) == ([128, 256])
+                    assert ([request['grid'] for request in requests]) == ([[3, 1, 1], [2, 1, 1]])
+                    assert (engine.stats['executions']) == (0)
 
     def test_environment_selects_bundled_worker_without_importing_triton(self):
         original_import = builtins.__import__
@@ -186,18 +188,18 @@ class TritonRegistrationTests(unittest.TestCase):
 
         with mock.patch("builtins.__import__", side_effect=guarded):
             environment = ft.triton.environment(python=sys.executable)
-            self.assertEqual(Path(environment.worker).name, "_triton_worker.py")
-            self.assertTrue(Path(environment.worker).is_file())
+            assert (Path(environment.worker).name) == ('_triton_worker.py')
+            assert (Path(environment.worker).is_file())
             with mock.patch.dict(os.environ, {}, clear=True):
                 with mock.patch('importlib.metadata.version', return_value='3.9.0') as version:
-                    self.assertEqual(ft.triton.environment_from_env(use_installed=True), environment)
+                    assert (ft.triton.environment_from_env(use_installed=True)) == (environment)
                     version.assert_called_once_with('triton')
                 with mock.patch('importlib.metadata.version', side_effect=PackageNotFoundError('triton')):
-                    self.assertIsNone(ft.triton.environment_from_env(use_installed=True))
+                    assert (ft.triton.environment_from_env(use_installed=True)) is None
             with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_PYTHON": sys.executable}, clear=True):
-                self.assertEqual(ft.triton.environment_from_env(), environment)
+                assert (ft.triton.environment_from_env()) == (environment)
             with mock.patch.dict(os.environ, {"FUGATENSOR_TRITON_WORKER": "/worker.py"}, clear=True):
-                with self.assertRaisesRegex(ValueError, "FUGATENSOR_TRITON_PYTHON"):
+                with pytest.raises(ValueError, match='FUGATENSOR_TRITON_PYTHON'):
                     ft.triton.environment_from_env()
 
     def test_multiple_inputs_and_explicit_output_metadata(self):
@@ -215,19 +217,19 @@ class TritonRegistrationTests(unittest.TestCase):
         context = TraceContext([((2, 3), 'f16'), ((3, 4), 'bf16')],
                                engine=SimpleNamespace(device='cuda'))
         result = operation(*context.inputs)
-        self.assertEqual((result.shape, result.dtype), ((2, 4), 'f32'))
+        assert ((result.shape, result.dtype)) == (((2, 4), 'f32'))
         prepared = self.compiler.prepare(lower_to_ask(context.finish(result),
                                                       target={'backend': 'cuda', 'arch': 86}))
         request = prepared.external_requests[0]
-        self.assertEqual(request['source_bindings'], {'Q': 'input:0', 'K': 'input:1', 'O': 'output:0'})
-        self.assertEqual(request['signature'], {'Q': '*fp16', 'K': '*bf16', 'O': '*fp32'})
-        self.assertEqual(observed, [((2, 3), (3, 4))])
-        with self.assertRaisesRegex(TypeError, 'expects 2'):
+        assert (request['source_bindings']) == ({'Q': 'input:0', 'K': 'input:1', 'O': 'output:0'})
+        assert (request['signature']) == ({'Q': '*fp16', 'K': '*bf16', 'O': '*fp32'})
+        assert (observed) == ([((2, 3), (3, 4))])
+        with pytest.raises(TypeError, match='expects 2'):
             operation(context.inputs[0])
         for changes in ({'inputs': ('Q', 'Q')}, {'input': 'Q'}, {'inputs': 'Q'}):
             parameters = dict(inputs=('Q', 'K'), output='O', grid=(1,), constants={'M': 2})
             parameters.update(changes)
-            with self.assertRaises((ValueError, TypeError)):
+            with pytest.raises((ValueError, TypeError)):
                 ft.triton.from_source(source, entry='product', **parameters)
 
     def test_deferred_arch_binding_and_invalid_registration_guards(self):
@@ -242,9 +244,9 @@ class TritonRegistrationTests(unittest.TestCase):
         before = mod.to_text()
         for arch in (80, 86):
             req = self.compiler.prepare(lower_to_ask(mod, target={"backend": "cuda", "arch": arch})).external_requests[0]
-            self.assertEqual((req["target"]["arch"], mod.to_text()), (arch, before))
+            assert ((req['target']['arch'], mod.to_text())) == ((arch, before))
 
-        with self.assertRaisesRegex(ValueError, "no implementation"):
+        with pytest.raises(ValueError, match='no implementation'):
             lower_to_ask(mod, target={"backend": "host"})
 
         for bad in (
@@ -256,9 +258,9 @@ class TritonRegistrationTests(unittest.TestCase):
             {"grid": (0,)},
             {"grid": (2**31,)},
         ):
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 self.registration(**bad)
-        with self.assertRaisesRegex(TypeError, "finite JSON"):
+        with pytest.raises(TypeError, match='finite JSON'):
             self.registration(constants={"N": float("nan"), "BLOCK": 128})
 
 
@@ -270,16 +272,16 @@ class TritonRegistrationTests(unittest.TestCase):
                        'ENABLED': True, 'OPTIONAL': None})
         ctx = self.context()
         results = op(ctx.inputs[0])
-        self.assertEqual(tuple(result.dtype for result in results), ('f32', 'i32'))
+        assert (tuple((result.dtype for result in results))) == (('f32', 'i32'))
         module = ctx.finish(results)
         prepared = self.compiler.prepare(lower_to_ask(module, target={'backend': 'cuda', 'arch': 86}))
         req = prepared.external_requests[0]
-        self.assertEqual(req['source_bindings'], {'X': 'input:0', 'Y': 'output:0', 'Z': 'output:1', 'N': 10, 'scale': 2.5})
-        self.assertEqual(req['signature']['scale'], 'fp32')
-        self.assertEqual(req['constants']['TYPE'], {'__triton_dtype__': 'float32'})
-        self.assertIs(req['constants']['ENABLED'], True)
-        self.assertIsNone(req['constants']['OPTIONAL'])
-        self.assertEqual(req['port_shapes']['output:1'], [2, 5])
+        assert (req['source_bindings']) == ({'X': 'input:0', 'Y': 'output:0', 'Z': 'output:1', 'N': 10, 'scale': 2.5})
+        assert (req['signature']['scale']) == ('fp32')
+        assert (req['constants']['TYPE']) == ({'__triton_dtype__': 'float32'})
+        assert (req['constants']['ENABLED']) is (True)
+        assert (req['constants']['OPTIONAL']) is None
+        assert (req['port_shapes']['output:1']) == ([2, 5])
 
         texts = []
         for value in ({'a': 1, 'b': 2}, {'a=1, b': 2}, True, 1, 1.0):
@@ -287,7 +289,7 @@ class TritonRegistrationTests(unittest.TestCase):
                 scalars={'N': ('i32', 10), 'scale': ('fp32', 2.5)}, constants={'PAIR': value}, grid=(1,), config=1)
             context = self.context()
             texts.append(context.finish(op(context.inputs[0])).to_text())
-        self.assertEqual(len(set(texts)), len(texts))
+        assert (len(set(texts))) == (len(texts))
 
         source = """import triton
 import triton.language as tl
@@ -300,8 +302,8 @@ def defaults(X, Y, N, scale=2.5, BLOCK:C=128):
         op = ft.triton.from_source(source, entry='defaults', input='X', output='Y', grid=(1,),
                                   scalars={'N': ('i32', 10)})
         request = self.prepare_request(op)
-        self.assertNotIn('BLOCK', request['signature'])
-        self.assertEqual((request['signature']['scale'], request['source_bindings']['scale']), ('fp32', 2.5))
+        assert ('BLOCK') not in (request['signature'])
+        assert ((request['signature']['scale'], request['source_bindings']['scale'])) == (('fp32', 2.5))
 
     def test_public_dtypes_bind_metadata_scalars_and_constexpr(self):
         source = '''import triton
@@ -312,7 +314,7 @@ def types(X, Y, enabled, count, wide, half, bfloat, scale,
     pass
 '''
         def output_dtype(spec):
-            self.assertIs(spec.dtype, ft.fp32)
+            assert (spec.dtype) is (ft.fp32)
             return ft.fp16
 
         operation = ft.triton.from_source(
@@ -322,33 +324,30 @@ def types(X, Y, enabled, count, wide, half, bfloat, scale,
                 "bfloat": (ft.bf16, 2.0), "scale": (ft.fp32, 3.0)},
             constants={"TYPE": ft.fp16, "PACK": (ft.int32, {"value": ft.bf16})})
         context = self.context(dtype=ft.fp32)
-        self.assertIs(context.inputs[0].dtype, ft.fp32)
+        assert (context.inputs[0].dtype) is (ft.fp32)
         output = operation(context.inputs[0])
-        self.assertIs(output.dtype, ft.fp16)
+        assert (output.dtype) is (ft.fp16)
         module = context.finish(output)
         request = self.compiler.prepare(lower_to_ask(
             module, target={"backend": "cuda", "arch": 86})).external_requests[0]
-        self.assertEqual(request["signature"], {"X": "*fp32", "Y": "*fp16", "enabled": "i1",
-            "count": "i32", "wide": "i64", "half": "fp16", "bfloat": "bf16", "scale": "fp32"})
-        self.assertEqual(request["constants"], {"TYPE": {"__triton_dtype__": "float16"},
-            "PACK": [{"__triton_dtype__": "int32"}, {"value": {"__triton_dtype__": "bfloat16"}}]})
+        assert (request['signature']) == ({'X': '*fp32', 'Y': '*fp16', 'enabled': 'i1', 'count': 'i32', 'wide': 'i64', 'half': 'fp16', 'bfloat': 'bf16', 'scale': 'fp32'})
+        assert (request['constants']) == ({'TYPE': {'__triton_dtype__': 'float16'}, 'PACK': [{'__triton_dtype__': 'int32'}, {'value': {'__triton_dtype__': 'bfloat16'}}]})
 
 
 
-class TritonWorkerContractTests(unittest.TestCase):
+class TestTritonWorkerContract:
     def test_compiler_selection_accepts_stable_patches_and_rejects_other_releases(self):
         from fugatensor import _triton_worker as worker
 
         for version in (worker.TRITON_VERSION, worker.TRITON_SERIES + ".99"):
             compiler = SimpleNamespace(__version__=version)
-            with self.subTest(version=version), mock.patch.dict(sys.modules, {"triton": compiler}):
-                self.assertIs(worker.load_triton(), compiler)
+            with mock.patch.dict(sys.modules, {'triton': compiler}):
+                assert (worker.load_triton()) is (compiler)
         for version in ("0.0.0", worker.TRITON_SERIES,
                         worker.TRITON_SERIES + ".0rc1", worker.TRITON_SERIES + ".0.dev1",
                         worker.TRITON_SERIES + ".0+custom"):
-            with self.subTest(version=version), mock.patch.dict(
-                    sys.modules, {"triton": SimpleNamespace(__version__=version)}):
-                with self.assertRaisesRegex(ValueError, "stable triton"):
+            with mock.patch.dict(sys.modules, {'triton': SimpleNamespace(__version__=version)}):
+                with pytest.raises(ValueError, match='stable triton'):
                     worker.load_triton()
 
     def test_binary_export_uses_source_abi_without_reading_compiler_ir(self):
@@ -371,22 +370,23 @@ class TritonWorkerContractTests(unittest.TestCase):
         compiled = SimpleNamespace(name="subtract", metadata=metadata, asm={"cubin": b"binary fixture"})
         with mock.patch.object(worker, "probe", return_value={"producer": {"name": "triton", "version": version}}):
             result = worker.artifact(request, compiled, ["out", "rhs", "lhs"])
-            self.assertEqual(result["producer"]["version"], version)
-            self.assertEqual(result["arguments"], ["output:0", "input:1", "input:0", "null", "null"])
-            self.assertEqual(result["launch"], {"grid": [2, 1, 1], "block": [128, 1, 1], "shared_bytes": 1024})
+            assert (result['producer']['version']) == (version)
+            assert (result['arguments']) == (['output:0', 'input:1', 'input:0', 'null', 'null'])
+            assert (result['launch']) == ({'grid': [2, 1, 1], 'block': [128, 1, 1], 'shared_bytes': 1024})
             with mock.patch.object(metadata, "triton_version", worker.TRITON_VERSION):
-                with self.assertRaisesRegex(ValueError, "version metadata"):
+                with pytest.raises(ValueError, match='version metadata'):
                     worker.artifact(request, compiled, ["out", "rhs", "lhs"])
             for name, value in (("global_scratch_size", 8), ("profile_scratch_size", 8),
                                 ("tmem_size", 32), ("num_ctas", 2), ("launch_cooperative_grid", True),
                                 ("launch_pdl", True), ("tensordesc_meta", [1]), ("instrumentation_mode", "test")):
-                with self.subTest(resource=name), mock.patch.object(metadata, name, value):
-                    with self.assertRaisesRegex(ValueError, "unsupported"):
+                with mock.patch.object(metadata, name, value):
+                    with pytest.raises(ValueError, match='unsupported'):
                         worker.artifact(request, compiled, ["out", "rhs", "lhs"])
 
 
 @requires_triton
-class TritonGPUExecutionTests(EngineTestCase):
+@pytest.mark.usefixtures("engine_context")
+class TestTritonGPUExecution:
     def test_reshape_preserves_external_tensor_metadata(self):
         source = '''
 import triton
@@ -403,31 +403,31 @@ def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
             constants=lambda spec: {'N': spec.numel, 'BLOCK': 128}, grid=(1,))
         x = ft.tensor([0, 1, 2, 3, 4, 5])
         y = operation((x + 1).reshape(2, 3)).reshape(3, 2) + 1
-        self.assertEqual(y.tolist(), [[4, 5], [6, 7], [8, 9]])
-        self.assertEqual([step['kind'] for step in self.engine.last_execution_plan['steps']],
-                         ['owned', 'external', 'owned'])
-        self.assertNotIn('execution_plan', self.engine.last_report)
+        assert (y.tolist()) == ([[4, 5], [6, 7], [8, 9]])
+        assert ([step['kind'] for step in self.engine.last_execution_plan['steps']]) == (['owned', 'external', 'owned'])
+        assert ('execution_plan') not in (self.engine.last_report)
         self.engine.clear_cache()
-        self.assertIsNone(self.engine.last_execution_plan)
+        assert (self.engine.last_execution_plan) is None
 
     device = "cuda"
     enable_triton = True
 
+    @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.scale_path = TRITON_KERNELS
-        cls.scale = ft.triton.kernel(
-            cls.scale_path, entry="scale_kernel", input="inp", output="out",
+    def prepared(cls, request):
+        pass
+        request.cls.scale_path = TRITON_KERNELS
+        request.cls.scale = ft.triton.kernel(
+            request.cls.scale_path, entry="scale_kernel", input="inp", output="out",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
             grid=lambda spec: ((spec.numel + 127) // 128, 1, 1), options={"num_warps": 4},
         )
-        cls.identity = ft.triton.from_source(
+        request.cls.identity = ft.triton.from_source(
             IDENTITY_SRC, entry="identity_kernel", input="inp", output="out",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
             grid=lambda spec: ((spec.numel + 127) // 128, 1, 1), options={"num_warps": 4},
         )
-        cls.polynomial = ft.triton.from_source(
+        request.cls.polynomial = ft.triton.from_source(
             POLYNOMIAL_SRC, entry="polynomial", input="data", output="result",
             constants=lambda spec: {"N": spec.numel, "BLOCK": 128},
             grid=lambda spec: ((spec.numel + 127) // 128, 1, 1), options={"num_warps": 4},
@@ -463,25 +463,24 @@ def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
             for flag in ('0', '1'):
                 environment['TRITON_DEFAULT_FP_FUSION'] = flag
                 identities.append(run('--probe', '--request', path))
-            self.assertNotEqual(identities[0]['producer'], identities[1]['producer'])
-            self.assertEqual([item['producer']['environment']['TRITON_DEFAULT_FP_FUSION']
-                              for item in identities], ['false', 'true'])
+            assert (identities[0]['producer']) != (identities[1]['producer'])
+            assert ([item['producer']['environment']['TRITON_DEFAULT_FP_FUSION'] for item in identities]) == (['false', 'true'])
             if 'TRITON_DEFAULT_FP_FUSION' in os.environ:
                 environment['TRITON_DEFAULT_FP_FUSION'] = os.environ['TRITON_DEFAULT_FP_FUSION']
             else:
                 environment.pop('TRITON_DEFAULT_FP_FUSION')
             run('--request', path, '--output', output)
             old = json.loads(output.read_text())
-            self.assertEqual(old['producer'], first['producer'])
+            assert (old['producer']) == (first['producer'])
             helper.write_text('VALUE = 4\n', encoding='utf-8')
             os.utime(helper, ns=(original.st_atime_ns, original.st_mtime_ns))
-            self.assertEqual(helper.stat().st_size, original.st_size)
+            assert (helper.stat().st_size) == (original.st_size)
             second = run('--probe', '--request', path)
             run('--request', path, '--output', output)
             new = json.loads(output.read_text())
-            self.assertNotEqual(first, second)
-            self.assertEqual(new['producer'], second['producer'])
-            self.assertIn('import:fuga_import_leaf', second['producer']['dependencies'])
+            assert (first) != (second)
+            assert (new['producer']) == (second['producer'])
+            assert ('import:fuga_import_leaf') in (second['producer']['dependencies'])
             from fugatensor._ask.adapters import normalize_artifact
             from fugatensor._ask.cuda import install_external
             from fugatensor._ask.gpu import CUDAKernel
@@ -491,7 +490,7 @@ def shaped(X, Y, N: tl.constexpr, ROWS: tl.constexpr, BLOCK: tl.constexpr):
                 normalized = normalize_artifact(artifact, request)
                 executable = CUDAKernel(normalized, install_external(normalized, root / version), {}, {}).prepare(session)
                 executable.submit(x, y).wait()
-                self.assertEqual(y.to_host(), [gain * value + 1 for value in range(10)])
+                assert (y.to_host()) == ([gain * value + 1 for value in range(10)])
 
     def test_programmatic_jit_keeps_stored_source_and_default_scalar(self):
         import triton
@@ -511,8 +510,8 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
             path.unlink()
             operation = ft.triton.from_jit(compiled, input='X', output='Y', grid=(1,),
                                           scalars=lambda spec: {'N': ('i32', spec.numel)})
-            self.assertIn('noinline=True', operation.source)
-            self.assertEqual(operation(ft.tensor([1., 2., 3.])).tolist(), [2.5, 5., 7.5])
+            assert ('noinline=True') in (operation.source)
+            assert (operation(ft.tensor([1.0, 2.0, 3.0])).tolist()) == ([2.5, 5.0, 7.5])
 
     def test_existing_jit_dependencies_scalars_and_multiple_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -527,23 +526,22 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
                 outputs={'Y': {}, 'Z': {'dtype': ft.int32}}, grid=(1,), config=1,
                 scalars=lambda spec: {'N': (ft.int32, spec.numel), 'scale': (ft.fp32, scale['value'])},
                 constants={'TYPE': ft.fp32, 'PAIR': (2, 3)})
-            self.assertNotIn('object()', operation.source)
+            assert ('object()') not in (operation.source)
             module.BIAS = None  # Registered source no longer reads the original module.
             path.unlink()
             x = ft.tensor([0., 1., 2., 3.])
             y, z = operation(x)
-            self.assertIs(y.dtype, ft.fp32)
-            self.assertIs(z.dtype, ft.int32)
+            assert (y.dtype) is (ft.fp32)
+            assert (z.dtype) is (ft.int32)
             scale['value'] = 4.0
             other, _ = operation(x)
             before = self.engine.session.stats['launches']
             result = ft.evaluate(y + 1, z, other)
-            self.assertEqual([value.tolist() for value in result],
-                             [[9.75, 12.25, 14.75, 17.25], [6, 7, 8, 9], [14., 18., 22., 26.]])
+            assert ([value.tolist() for value in result]) == ([[9.75, 12.25, 14.75, 17.25], [6, 7, 8, 9], [14.0, 18.0, 22.0, 26.0]])
             # Two external nodes + one owned add; unused second output remains
             # allocated for the second kernel's physical ABI.
-            self.assertEqual(self.engine.session.stats['launches'] - before, 3)
-            self.assertEqual(self.engine.last_execution_plan['steps'][0]['kind'], 'external')
+            assert (self.engine.session.stats['launches'] - before) == (3)
+            assert (self.engine.last_execution_plan['steps'][0]['kind']) == ('external')
 
     def test_scheduled_forward_across_precisions_algorithms_and_custom_backward(self):
         scale, identity, polynomial = self.scale, self.identity, self.polynomial
@@ -552,40 +550,38 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
             return scale(x + 1) + 3
 
         for dtype in ("i32", "i64", "f32", "f16", "bf16"):
-            with self.subTest(dtype=dtype):
-                if dtype == "bf16" and not self.supports_bf16:
-                    with self.assertRaisesRegex(CUDAError, "bf16"):
-                        mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype)).tolist()
-                    continue
-                before = self.engine.stats["executions"]
-                launches = self.engine.session.stats["launches"]
-                out = mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype))
-                self.assertEqual(self.engine.stats["executions"], before)
-                self.assertEqual((out.tolist(), out.dtype), ([[7, 9], [11, 13]], dtype))
-                self.assertEqual(self.engine.stats["executions"], before + 1)
-                self.assertEqual(self.engine.session.stats["launches"], launches + 3)
-                self.assertEqual(mixed(ft.tensor([[5, 6], [7, 8]], dtype=dtype)).tolist(), [[15, 17], [19, 21]])
-                self.assertEqual(self.engine.last_report["phase"], "compiled_plan")
-                self.assertEqual([step["kind"] for step in self.engine.last_execution_plan["steps"]],
-                                 ["owned", "external", "owned"])
-                self.assertEqual(len(list((Path(self.engine.last_artifact_dir) / "package").rglob("kernel.cubin"))), 3)
+            if dtype == "bf16" and not self.supports_bf16:
+                with pytest.raises(CUDAError, match='bf16'):
+                    mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype)).tolist()
+                continue
+            before = self.engine.stats["executions"]
+            launches = self.engine.session.stats["launches"]
+            out = mixed(ft.tensor([[1, 2], [3, 4]], dtype=dtype))
+            assert (self.engine.stats['executions']) == (before)
+            assert ((out.tolist(), out.dtype)) == (([[7, 9], [11, 13]], dtype))
+            assert (self.engine.stats['executions']) == (before + 1)
+            assert (self.engine.session.stats['launches']) == (launches + 3)
+            assert (mixed(ft.tensor([[5, 6], [7, 8]], dtype=dtype)).tolist()) == ([[15, 17], [19, 21]])
+            assert (self.engine.last_report['phase']) == ('compiled_plan')
+            assert ([step['kind'] for step in self.engine.last_execution_plan['steps']]) == (['owned', 'external', 'owned'])
+            assert (len(list((Path(self.engine.last_artifact_dir) / 'package').rglob('kernel.cubin')))) == (3)
 
         # Bool kernel, mixed-precision casts, and custom polynomial kernel.
         def bool_id(x):
             return identity(x)
 
-        self.assertEqual(bool_id(ft.tensor([False, True, False], dtype="bool")).tolist(), [False, True, False])
+        assert (bool_id(ft.tensor([False, True, False], dtype='bool')).tolist()) == ([False, True, False])
 
         def poly_graph(x):
             return polynomial(x + 1) + 3
 
-        self.assertEqual(poly_graph(ft.tensor([1, 2, 3])).tolist(), [8, 13, 20])
+        assert (poly_graph(ft.tensor([1, 2, 3])).tolist()) == ([8, 13, 20])
 
         # Raw Triton on derivative paths fails preflight; ft.fun supplies an explicit VJP.
         rx = ft.tensor(3.0)
         rout = mixed(rx)
         with mock.patch.object(self.engine, "_compile", side_effect=AssertionError("compiled before validation")):
-            with self.assertRaisesRegex(ValueError, "external.*(VJP|reverse|backward)|derivative.*external"):
+            with pytest.raises(ValueError, match='external.*(VJP|reverse|backward)|derivative.*external'):
                 ft.grad(rout, rx)
 
         class UserScale(ft.fun):
@@ -601,21 +597,21 @@ def plain(X, Y, N, scale=2.5, BLOCK:C=128):
 
         dx = ft.tensor([1.0, 2.0, 3.0])
         dout = diff_mixed(dx)
-        self.assertEqual(dout.tolist(), [7.0, 9.0, 11.0])
+        assert (dout.tolist()) == ([7.0, 9.0, 11.0])
         derivative = ft.grad(dout, dx, seed=ft.tensor([1.0, 2.0, -1.0]))
-        self.assertEqual(derivative.tolist(), [2.0, 4.0, -2.0])
+        assert (derivative.tolist()) == ([2.0, 4.0, -2.0])
 
     def test_multiple_external_nodes_and_different_storage_outputs(self):
         x = ft.tensor([1, 2, 3], dtype='f32')
         left = self.scale(x + 1)
         right = self.scale(left + 3)
         outputs = ft.evaluate(right, right.astype('f16'), x)
-        self.assertEqual(outputs[0].tolist(), [14, 18, 22])
-        self.assertEqual(outputs[1].tolist(), [14, 18, 22])
-        self.assertIs(outputs[2], x)
+        assert (outputs[0].tolist()) == ([14, 18, 22])
+        assert (outputs[1].tolist()) == ([14, 18, 22])
+        assert (outputs[2]) is (x)
         plan = self.engine.last_execution_plan
-        self.assertGreaterEqual(len(plan['steps']), 2)
-        self.assertEqual(sum(step['kind'] == 'external' for step in plan['steps']), 2)
+        assert (len(plan['steps'])) >= (2)
+        assert (sum((step['kind'] == 'external' for step in plan['steps']))) == (2)
 
     def test_pointer_order_and_external_only_execution_without_ask_codegen_tools(self):
         source = """import triton
@@ -633,17 +629,12 @@ def subtract(out, N: tl.constexpr, rhs, lhs, BLOCK: tl.constexpr):
         # Omit ASK codegen tools: the external worker returns finished machine code.
         with ft.Engine(device="cuda", compilers=self.engine.compilers,
                        cache_dir=self.cache_dir / "external-only") as engine:
-            self.assertIsNone(engine.last_execution_plan)
+            assert (engine.last_execution_plan) is None
             engine.llc = engine.ptxas = None
             x = ft.tensor([10, 20, 30], dtype="i32")
             y = ft.tensor([1, 3, 5], dtype="i32")
             before = engine.session.stats["launches"]
-            self.assertEqual(subtract(x, y).tolist(), [9, 17, 25])
-            self.assertEqual(engine.session.stats["launches"], before + 1)
-            self.assertEqual([step["kind"] for step in engine.last_execution_plan["steps"]], ["external"])
-        self.assertIsNone(engine.last_execution_plan)
-
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert (subtract(x, y).tolist()) == ([9, 17, 25])
+            assert (engine.session.stats['launches']) == (before + 1)
+            assert ([step['kind'] for step in engine.last_execution_plan['steps']]) == (['external'])
+        assert (engine.last_execution_plan) is None

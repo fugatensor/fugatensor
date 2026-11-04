@@ -1,20 +1,20 @@
 """Portable executable worker protocol, rejection paths and cache identity."""
 from __future__ import annotations
 
+import pytest
+
 import base64
 import json
 from pathlib import Path
 import sys
 import tempfile
 from types import SimpleNamespace
-import unittest
 
 from fugatensor._ask import Compiler, CompilerEnvironment, CompilerError
 from fugatensor._ask.adapters import export_kernel, normalize_artifact, worker_command, worker_identity
 from fugatensor._ask.cuda import CUDAError
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[3] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def request():
@@ -35,15 +35,14 @@ def response():
             "required_element_types": ["f32", "i32", "f16"]}
 
 
-class AdapterContractTests(unittest.TestCase):
+class TestAdapterContract:
     def test_binary_ports_are_derived_from_graph_and_physical_order(self):
         artifact = normalize_artifact(response(), request())
-        self.assertEqual([p["logical_port"] for p in artifact["port_map"]],
-                         ["input:1", "input:0", "output:0"])
-        self.assertEqual([p["shape"] for p in artifact["port_map"]], [[2], [8, 4], [8]])
-        self.assertEqual([p["storage_bytes"] for p in artifact["port_map"]], [4, 4, 2])
-        self.assertEqual(artifact["invocation"]["shared_bytes"], 1024)
-        self.assertEqual(artifact["invocation"]["arguments"][1]["binding"], "null")
+        assert ([p['logical_port'] for p in artifact['port_map']]) == (['input:1', 'input:0', 'output:0'])
+        assert ([p['shape'] for p in artifact['port_map']]) == ([[2], [8, 4], [8]])
+        assert ([p['storage_bytes'] for p in artifact['port_map']]) == ([4, 4, 2])
+        assert (artifact['invocation']['shared_bytes']) == (1024)
+        assert (artifact['invocation']['arguments'][1]['binding']) == ('null')
 
     def test_wrong_target_missing_ports_duplicate_bindings_and_launch_are_rejected(self):
         variants = []
@@ -56,7 +55,7 @@ class AdapterContractTests(unittest.TestCase):
         bad = response(); bad["format"] = "llvm-ir"; variants.append(bad)
         bad = response(); bad["unexpected"] = {}; variants.append(bad)
         for artifact in variants:
-            with self.subTest(artifact=artifact), self.assertRaises((CompilerError, CUDAError)):
+            with pytest.raises((CompilerError, CUDAError)):
                 normalize_artifact(artifact, request())
 
     def test_mixed_scalar_abi_preserves_values_and_only_maps_tensor_ports(self):
@@ -67,20 +66,18 @@ class AdapterContractTests(unittest.TestCase):
         req["source_bindings"].update({name: value for name, (_, value) in values.items()})
         reply["arguments"][1:1] = [{"type": dtype, "value": value} for dtype, value in values.values()]
         artifact = normalize_artifact(reply, req)
-        self.assertEqual([p["argument"] for p in artifact["port_map"]], [0, 6, 7])
-        self.assertEqual(artifact["invocation"]["arguments"][1],
-                         {"argument": 1, "kind": "scalar", "type": "u64", "value": 2**64 - 1})
-        self.assertEqual(len(artifact["port_map"]), 3)
+        assert ([p['argument'] for p in artifact['port_map']]) == ([0, 6, 7])
+        assert (artifact['invocation']['arguments'][1]) == ({'argument': 1, 'kind': 'scalar', 'type': 'u64', 'value': 2 ** 64 - 1})
+        assert (len(artifact['port_map'])) == (3)
         # Matching must retain signed zero, type, and repeated scalar count.
         for index, replacement in ((1, {"type": "i64", "value": -1}),
                                    (2, {"type": "fp32", "value": 0.0}),
                                    (3, {"type": "i1", "value": 1}),
                                    (4, "null")):
-            with self.subTest(index=index):
-                bad = json.loads(json.dumps(reply))
-                bad["arguments"][index] = replacement
-                with self.assertRaises((CompilerError, CUDAError)):
-                    normalize_artifact(bad, req)
+            bad = json.loads(json.dumps(reply))
+            bad["arguments"][index] = replacement
+            with pytest.raises((CompilerError, CUDAError)):
+                normalize_artifact(bad, req)
 
     def test_explicit_worker_needs_no_registry_and_failures_are_errors(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -99,19 +96,18 @@ else:
             env = CompilerEnvironment(python=sys.executable, worker=worker)
             command = worker_command(env)
             identity = worker_identity(command, timeout=10)
-            self.assertEqual(identity["probe"]["producer"]["name"], "fixture")
+            assert (identity['probe']['producer']['name']) == ('fixture')
             artifact = export_kernel(command, request(), timeout=10)
-            self.assertEqual(artifact["entry"], "mangled_entry")
+            assert (artifact['entry']) == ('mangled_entry')
             worker.write_text("import sys\nprint('compiler crashed',file=sys.stderr)\nsys.exit(2)\n")
-            with self.assertRaisesRegex(CompilerError, "compiler crashed"):
+            with pytest.raises(CompilerError, match='compiler crashed'):
                 export_kernel(command, request(), timeout=10)
 
     def test_generic_compiler_is_accepted_by_the_native_frontend(self):
         source = (ROOT / "tests/ir/pipeline.mlir").read_text().replace('compiler = "triton"', 'compiler = "new_vendor"')
         result = Compiler().partition(source)
-        self.assertEqual(result.external_requests[0]["compiler"], "new_vendor")
-        self.assertEqual([s["kind"] for s in result.execution_plan["steps"]],
-                         ["owned", "external", "owned"])
+        assert (result.external_requests[0]['compiler']) == ('new_vendor')
+        assert ([s['kind'] for s in result.execution_plan['steps']]) == (['owned', 'external', 'owned'])
 
     def test_dependencies_changing_during_export_are_not_cached(self):
         from fugatensor._ask.gpu import _compile_external_graph
@@ -132,21 +128,16 @@ else:
     revision.write_text('changed')
 '''.replace('RESPONSE', repr(response())))
             prepared = SimpleNamespace(external_requests=[{**request(), "compiler": "fixture"}])
-            with self.assertRaisesRegex(CompilerError, "dependencies changed"):
+            with pytest.raises(CompilerError, match='dependencies changed'):
                 _compile_external_graph(SimpleNamespace(timeout=10), prepared,
                     {"fixture": CompilerEnvironment(python=sys.executable, worker=worker)},
                     cache_dir=root / "cache", output_dir=root / "output")
-            self.assertFalse(any((root / "cache" / "external" / "entries").glob("*")))
+            assert not (any((root / 'cache' / 'external' / 'entries').glob('*')))
 
     def test_public_contract_schemas_are_valid_json_objects(self):
         for name in ("execution-plan-v1.schema.json", "external-compiler-request-v2.schema.json",
                      "external-kernel-artifact-v2.schema.json"):
-            with self.subTest(schema=name):
-                value = json.loads((ROOT / "schemas" / name).read_text())
-                self.assertEqual(value["$schema"], "https://json-schema.org/draft/2020-12/schema")
-                self.assertEqual(value["type"], "object")
-                self.assertIn("required", value)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            value = json.loads((ROOT / "schemas" / name).read_text())
+            assert (value['$schema']) == ('https://json-schema.org/draft/2020-12/schema')
+            assert (value['type']) == ('object')
+            assert ('required') in (value)

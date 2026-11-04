@@ -1,5 +1,7 @@
 """Warp-boundary inputs and an IEEE maximum reference independent of ASK."""
 from itertools import combinations, product
+
+from tests.support.covering import pairwise
 import math
 
 from tests.support.tensor_primitives import dtypes, indices, offset, transpose_reference
@@ -11,9 +13,9 @@ LAYOUTS = ((0, 1, 2), (2, 0, 1))
 WIDTHS = (0, 1, 31, 32, 33, 63, 64, 65)
 
 
-def reduction_matrix():
+def reduction_matrix(*, exhaustive=False):
     shapes = tuple((7, 2, width) for width in WIDTHS) + ((0, 2, 33), (7, 0, 33))
-    return product(maximum_dtypes(), shapes, LAYOUTS)
+    return pairwise((maximum_dtypes(), shapes, LAYOUTS), exhaustive=exhaustive)
 
 
 def maximum_dtypes():

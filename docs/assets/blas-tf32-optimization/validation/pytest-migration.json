@@ -1,0 +1,3919 @@
+{
+  "scope": "Fuga Python tests; ASK CTest remains separate",
+  "original": {
+    "tests_git_tree": "ed0ead40781bab26611e6012d44545dd3d9a3d48",
+    "count_basis": "Original declarations and inheritance from the saved source tree; initial pytest integration collection contains the new pure/all parameter expansion, deduplicated for the original instance count.",
+    "declared_test_methods": 250,
+    "frontend_inherited_instances": 211,
+    "backend_and_packaging_instances": 75
+  },
+  "pytest": {
+    "frontend_validation_superset": 583,
+    "frontend_default_cpu": 318,
+    "frontend_default_with_cuda_triton": 578,
+    "frontend_exhaustive_with_cuda_triton": 2706,
+    "backend_and_packaging_with_cuda": 82,
+    "default_integration_selection": "backend and packaging explicitly selected"
+  },
+  "matrix_counts": {
+    "host_matmul": {
+      "factor_product": 1536,
+      "default_factor_rows": 26,
+      "all_two_factor_value_pairs": 204,
+      "directed_f32_cancellation": 6,
+      "directed_f16_order": 3,
+      "directed_nonfinite_tails": 18,
+      "default_total": 53,
+      "exhaustive_total": 1563
+    },
+    "attention": {
+      "default": 8,
+      "exhaustive": 24,
+      "validated_precompression_superset": 14
+    },
+    "operations_dtype_shape": {
+      "default": 666,
+      "exhaustive": 2350
+    },
+    "tensor_matmul_cpu": {
+      "default": 51,
+      "exhaustive": 160
+    },
+    "tensor_matmul_cuda": {
+      "default": 67,
+      "exhaustive": 240
+    },
+    "cpu_workspace": {
+      "default": 27,
+      "exhaustive": 192
+    },
+    "cpu_mixed_dtype_capture": {
+      "default": 50,
+      "exhaustive": 50
+    },
+    "cuda_amax": {
+      "default_inputs": 50,
+      "exhaustive_inputs": 100,
+      "default_valid_outputs": 580,
+      "exhaustive_valid_outputs": 1160,
+      "default_empty_domain_rejections": 60,
+      "exhaustive_empty_domain_rejections": 120,
+      "default_nested": 10,
+      "exhaustive_nested": 20
+    }
+  },
+  "coverage_limits": [
+    "Two-factor coverage does not establish all three-factor or higher interactions.",
+    "Matmul empty M/N/K, zero batch and all transpose flags are added for every dtype.",
+    "dtype/capture lifetime interactions, full reduction axes, NaN/Inf/signed zero, integer high bits, repeated outputs, materialization, definition invalidation, collisions, concurrency and owner release retain directed assertions.",
+    "CPU f32 no longer promises separate multiplication/addition rounding or K order; OpenBLAS uses a scale-aware f32 error bound. CPU f16 ordered f32 accumulation remains checked. CUDA f32 TF32 input rounding is included in the bound."
+  ],
+  "validation": {
+    "collection": "All original 250 declarations expand to retained or explicitly mapped pytest contracts.",
+    "runtime": "583 frontend tests passed in 975.18 seconds, plus the additional passed attention-selection assertion. All final 578 nodes are in this verified union; exhaustive combinations were collected, not numerically executed.",
+    "frontend_command": ".venv/bin/python -m pytest --triton -q --maxfail=3",
+    "frontend_passed": 583,
+    "frontend_skipped": 0,
+    "frontend_seconds": 975.18,
+    "additional_selection_command": ".venv/bin/python -m pytest tests/test_case_selection.py -q",
+    "additional_selection_passed": 2,
+    "backend_command": ".venv/bin/python -m pytest tests/backend --cuda -q --maxfail=3",
+    "backend_passed": 80,
+    "backend_skipped": 0,
+    "backend_seconds": 17.73,
+    "runtime_update_scope": "The 583-node frontend run preceded the final ASK repeated-output readonly fix. The final SDK runtime is covered by all 80 backend tests, including both readonly/writable alias permutations.",
+    "packaging_passed": 2,
+    "packaging_seconds": 21.33,
+    "packaging_wheel_sha256": "b556624fb031ec7c8600ca533fe5f3215351a691f0f88e5fe65663569f12321c"
+  },
+  "contract_map": [
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_direct_ptx_and_cubin_without_ask_codegen",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_direct_ptx_and_cubin_without_ask_codegen"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_module_parameter_abi_is_checked_before_launch",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_external_module_parameter_abi_is_checked_before_launch"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_only_worker_compile_needs_no_ask_codegen",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_external_only_worker_compile_needs_no_ask_codegen"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_plans_keep_owned_regions_and_relocate_both_formats",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_mixed_plans_keep_owned_regions_and_relocate_both_formats"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_scalar_abi_preserves_bits_and_checks_layout",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_mixed_scalar_abi_preserves_bits_and_checks_layout"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_branch_dependency_matrix",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_native_branch_dependency_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_graph_inflight_slots_and_dropped_handles",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_native_graph_inflight_slots_and_dropped_handles"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_program_graph_replay_and_resource_reuse",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::TestCUDAExecutionPlanHardware::test_native_program_graph_replay_and_resource_reuse"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_owned_precisions_shapes_casts_and_cache_hits",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_native.py::TestNativeCUDAHardware::test_owned_precisions_shapes_casts_and_cache_hits"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_raw_abi_v2_shared_memory_and_resident_session_lifecycle",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_native.py::TestNativeCUDAHardware::test_raw_abi_v2_shared_memory_and_resident_session_lifecycle"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_binary_ports_are_derived_from_graph_and_physical_order",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_binary_ports_are_derived_from_graph_and_physical_order"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_dependencies_changing_during_export_are_not_cached",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_dependencies_changing_during_export_are_not_cached"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_explicit_worker_needs_no_registry_and_failures_are_errors",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_explicit_worker_needs_no_registry_and_failures_are_errors"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_generic_compiler_is_accepted_by_the_native_frontend",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_generic_compiler_is_accepted_by_the_native_frontend"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_mixed_scalar_abi_preserves_values_and_only_maps_tensor_ports",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_mixed_scalar_abi_preserves_values_and_only_maps_tensor_ports"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_public_contract_schemas_are_valid_json_objects",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_public_contract_schemas_are_valid_json_objects"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_wrong_target_missing_ports_duplicate_bindings_and_launch_are_rejected",
+      "pytest": [
+        "tests/backend/test_adapter_contract.py::TestAdapterContract::test_wrong_target_missing_ports_duplicate_bindings_and_launch_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_codegen_commands_tamper_checks_and_host_buffer_encoding",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAContractAndRouting::test_codegen_commands_tamper_checks_and_host_buffer_encoding"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_conditional_libdevice_linking_and_dependency_cache",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAContractAndRouting::test_conditional_libdevice_linking_and_dependency_cache"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_cache_tracks_loaded_compiler_library_contents",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAContractAndRouting::test_owned_cache_tracks_loaded_compiler_library_contents"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_graph_routing",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAContractAndRouting::test_owned_graph_routing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_all_precisions_ports_empty_and_64bit_indexing",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAGraphLowering::test_all_precisions_ports_empty_and_64bit_indexing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_bf16_arch_and_flag_rejections",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestCUDAGraphLowering::test_bf16_arch_and_flag_rejections"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_direct_formats_prepare_and_verify_without_compiler_tools",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestExternalExecutable::test_direct_formats_prepare_and_verify_without_compiler_tools"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_external_contract_payload_and_receipt_rejections",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestExternalExecutable::test_external_contract_payload_and_receipt_rejections"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_scalar_encodings_and_mixed_prepared_arguments",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestExternalExecutable::test_scalar_encodings_and_mixed_prepared_arguments"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_cuda_compilation.py::PreparedExecutableContractTests::test_single_and_multi_port_hot_path_validation",
+      "pytest": [
+        "tests/backend/test_cuda_compilation.py::TestPreparedExecutableContract::test_single_and_multi_port_hot_path_validation",
+        "tests/backend/gpu/test_gpu_ports.py::test_prepared_entrypoints_reject_invalid_ports_before_native_submission"
+      ],
+      "collected_parameters": 3,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_all_ports_checked_before_any_launch",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_prepared_entrypoints_reject_invalid_ports_before_native_submission"
+      ],
+      "collected_parameters": 2,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_external_formats_relocate_and_reject_tampered_packages",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_external_formats_relocate_and_reject_tampered_packages"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_library_package_and_static_contract",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_library_package_and_static_contract"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_native_failure_propagates_without_python_dispatch_fallback",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_native_failure_propagates_without_python_dispatch_fallback"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_one_native_plan_submission_without_python_temporaries_or_hot_io",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_one_native_plan_submission_without_python_temporaries_or_hot_io"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_output_aliases_and_zero_step_identity",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_output_aliases_and_zero_step_identity",
+        "tests/backend/gpu/test_gpu_ports.py::test_computed_repeated_outputs_share_one_tensor"
+      ],
+      "collected_parameters": 4,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_package_relocation_digests_and_path_confinement",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_package_relocation_digests_and_path_confinement"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_program_event_keeps_external_python_owner_alive",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_submission_retains_port_snapshot_when_caller_lists_change_during_launch"
+      ],
+      "collected_parameters": 4,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_schema_ssa_dependency_and_abi_rejections",
+      "pytest": [
+        "tests/backend/test_execution_plan.py::TestExecutionPlan::test_schema_ssa_dependency_and_abi_rejections"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_submission_retains_port_snapshot_when_caller_lists_change_during_launch",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_submission_retains_port_snapshot_when_caller_lists_change_during_launch"
+      ],
+      "collected_parameters": 4,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_multi_output_loop_fusion_and_group_validation",
+      "pytest": [
+        "tests/backend/test_host_compiler.py::TestHostCodegenAndFusion::test_multi_output_loop_fusion_and_group_validation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shapes_scalars_empty_tensors_and_f32_non_contraction",
+      "pytest": [
+        "tests/backend/test_host_compiler.py::TestHostCodegenAndFusion::test_shapes_scalars_empty_tensors_and_f32_non_contraction"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shared_pointwise_graph_and_full_cast_matrix",
+      "pytest": [
+        "tests/backend/test_host_compiler.py::TestHostCodegenAndFusion::test_shared_pointwise_graph_and_full_cast_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_constant_and_cast_folding_across_all_types",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestGraphOptimization::test_constant_and_cast_folding_across_all_types"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_float_non_algebraic_rounding_and_dce_markers",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestGraphOptimization::test_float_non_algebraic_rounding_and_dce_markers"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_folded_constants_match_host_execution",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestGraphOptimization::test_folded_constants_match_host_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_llir_check_and_external_codegen_boundary",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestIRVerification::test_llir_check_and_external_codegen_boundary"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_negative_ir_cases_emit_expected_diagnostics",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestIRVerification::test_negative_ir_cases_emit_expected_diagnostics"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_positive_fixtures_are_idempotent",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestIRVerification::test_positive_fixtures_are_idempotent"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_ir_and_opt.py::LLIROptimizationAndBoundaryExecutionTests::test_llir_simplification_ptx_survival_and_metadata_scrubbing",
+      "pytest": [
+        "tests/backend/test_ir_and_opt.py::TestLLIROptimizationAndBoundaryExecution::test_llir_simplification_ptx_survival_and_metadata_scrubbing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_numerics.py::MatrixPlannerTests::test_matrix_deduplication_aliases_and_topology_sharing",
+      "pytest": [
+        "tests/backend/test_numerics.py::TestMatrixPlanner::test_matrix_deduplication_aliases_and_topology_sharing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_numerics.py::PrecisionReferenceTests::test_rne_subnormals_sticky_bits_and_overflow",
+      "pytest": [
+        "tests/backend/test_numerics.py::TestPrecisionReference::test_rne_subnormals_sticky_bits_and_overflow"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_numerics.py::PrecisionReferenceTests::test_special_floats_fma_boundary_and_saturating_casts",
+      "pytest": [
+        "tests/backend/test_numerics.py::TestPrecisionReference::test_special_floats_fma_boundary_and_saturating_casts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_cli_and_binding_have_the_same_contract_and_reject_dynamic_inputs",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_cli_and_binding_have_the_same_contract_and_reject_dynamic_inputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_external_boundaries_preserve_owned_regions_and_provenance",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_external_boundaries_preserve_owned_regions_and_provenance"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_fanout_preserves_public_outputs",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_fanout_preserves_public_outputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_multiport_shape_change_and_duplicate_external_inputs",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_multiport_shape_change_and_duplicate_external_inputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_owned_graph_and_identity_outputs_preserve_aliases",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_owned_graph_and_identity_outputs_preserve_aliases"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_partition.py::PartitionTests::test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip",
+      "pytest": [
+        "tests/backend/test_partition.py::TestPartition::test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_executable_cache_hits_and_tool_fingerprint_invalidation",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestIRCacheAndExecutableCache::test_executable_cache_hits_and_tool_fingerprint_invalidation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_ir_cache_persistence_canonical_keys_corruption_and_concurrency",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestIRCacheAndExecutableCache::test_ir_cache_persistence_canonical_keys_corruption_and_concurrency"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_rejects_changes_while_reading",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestIRCacheAndExecutableCache::test_tool_fingerprint_rejects_changes_while_reading"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_reuses_reads_and_detects_restored_mtime",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestIRCacheAndExecutableCache::test_tool_fingerprint_reuses_reads_and_detects_restored_mtime"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_dtype_shape_layout_matrix",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestRuntimeOwnership::test_cuda_array_dtype_shape_layout_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_interface_v2_v3_and_invalid_descriptors",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestRuntimeOwnership::test_cuda_array_interface_v2_v3_and_invalid_descriptors"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_entrypoints_reject_invalid_ports_before_native_submission",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_prepared_entrypoints_reject_invalid_ports_before_native_submission"
+      ],
+      "collected_parameters": 2,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_run_preserves_aliases_and_retains_external_owner_until_completion",
+      "pytest": [
+        "tests/backend/gpu/test_gpu_ports.py::test_prepared_run_preserves_aliases_and_retains_external_owner_until_completion"
+      ],
+      "collected_parameters": 2,
+      "change": "real CUDA bridge"
+    },
+    {
+      "original": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_session_stream_refresh_owner_retention_and_cross_session_guards",
+      "pytest": [
+        "tests/backend/test_runtime_and_cache.py::TestRuntimeOwnership::test_session_stream_refresh_owner_retention_and_cross_session_guards"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_float_constants_and_direct_rne_codecs",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestBuilderAndCodec::test_float_constants_and_direct_rne_codecs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_graph_scoping_escaping_and_markers",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestBuilderAndCodec::test_graph_scoping_escaping_and_markers"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_types_constants_and_explicit_casts",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestBuilderAndCodec::test_types_constants_and_explicit_casts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_driver_protocol_and_error_handling",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestClientProtocol::test_cli_driver_protocol_and_error_handling"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_result_envelopes_reject_missing_or_malformed_contracts",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestClientProtocol::test_cli_result_envelopes_reject_missing_or_malformed_contracts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::ClientProtocolTests::test_native_result_contract_does_not_depend_on_diagnostic_fields",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestClientProtocol::test_native_result_contract_does_not_depend_on_diagnostic_fields"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_cli_prepare_shape_refinement_and_casts",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestNativeCompilerAndBinding::test_cli_prepare_shape_refinement_and_casts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_in_process_bindings_and_cli_parity",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestNativeCompilerAndBinding::test_in_process_bindings_and_cli_parity"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_native_codegen_without_companion_and_cli_parity",
+      "pytest": [
+        "tests/backend/test_sdk.py::TestNativeCompilerAndBinding::test_native_codegen_without_companion_and_cli_parity"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/packaging/test_installation.py::WheelInstallationTests::test_installation_matrix",
+      "pytest": [
+        "tests/packaging/test_installation.py::TestWheelInstallation::test_installation_matrix"
+      ],
+      "collected_parameters": 2,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_cold_primitives_share_one_engine",
+      "pytest": [
+        "tests/test_arena_ownership.py::TestArenaOwnership::test_concurrent_cold_primitives_share_one_engine"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_projection_publishes_one_slice",
+      "pytest": [
+        "tests/test_arena_ownership.py::TestArenaOwnership::test_concurrent_projection_publishes_one_slice"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_discarded_custom_graphs_release_definitions_with_engine_alive",
+      "pytest": [
+        "tests/test_arena_ownership.py::TestArenaOwnership::test_discarded_custom_graphs_release_definitions_with_engine_alive"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_attention.py::AttentionCUDAExecutionTests::test_generated_forward_backward_matrix",
+      "pytest": [
+        "tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix"
+      ],
+      "collected_parameters": 8,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_attention.py::AttentionCUDAExecutionTests::test_higher_derivatives_fail_before_compile",
+      "pytest": [
+        "tests/test_attention.py::TestAttentionCUDAExecution::test_higher_derivatives_fail_before_compile"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_attention.py::AttentionCUDAExecutionTests::test_independent_engines_on_same_device_are_rejected",
+      "pytest": [
+        "tests/test_attention.py::TestAttentionCUDAExecution::test_independent_engines_on_same_device_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_attention.py::AttentionContractTests::test_public_api_traces_without_importing_triton",
+      "pytest": [
+        "tests/test_attention.py::TestAttentionContract::test_public_api_traces_without_importing_triton"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_attention.py::AttentionContractTests::test_public_contract_rejects_invalid_inputs_before_kernel_registration",
+      "pytest": [
+        "tests/test_attention.py::TestAttentionContract::test_public_contract_rejects_invalid_inputs_before_kernel_registration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_custom_fun_multioutput_gradients_and_repeated_transform",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_custom_fun_multioutput_gradients_and_repeated_transform"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_dtype_objects_are_static_fun_arguments_and_configuration",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_dtype_objects_are_static_fun_arguments_and_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_failed_gradient_execution_preserves_other_results_and_can_retry",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_failed_gradient_execution_preserves_other_results_and_can_retry"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_finite_difference_multiport_and_mixed_precision",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_finite_difference_multiport_and_mixed_precision"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_forward_and_two_derivative_orders_share_one_execution",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_forward_and_two_derivative_orders_share_one_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_reshape_gradient_and_higher_order_preserve_input_shape",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_reshape_gradient_and_higher_order_preserve_input_shape"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::CUDAAutodiffTests::test_stopped_paths_inside_fun_forward_and_vjp_compose",
+      "pytest": [
+        "tests/test_autodiff.py::TestCUDAAutodiff::test_stopped_paths_inside_fun_forward_and_vjp_compose"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_automatic_fun_rules_seed_guards_and_deep_chain",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_automatic_fun_rules_seed_guards_and_deep_chain"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_custom_fun_multioutput_gradients_and_repeated_transform",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_custom_fun_multioutput_gradients_and_repeated_transform"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_dtype_objects_are_static_fun_arguments_and_configuration",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_dtype_objects_are_static_fun_arguments_and_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_failed_gradient_execution_preserves_other_results_and_can_retry",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_failed_gradient_execution_preserves_other_results_and_can_retry"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_finite_difference_multiport_and_mixed_precision",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_finite_difference_multiport_and_mixed_precision"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_forward_and_two_derivative_orders_share_one_execution",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_forward_and_two_derivative_orders_share_one_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_reshape_gradient_and_higher_order_preserve_input_shape",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_reshape_gradient_and_higher_order_preserve_input_shape"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_stopped_opaque_fun_needs_no_external_derivative_or_execution",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_stopped_opaque_fun_needs_no_external_derivative_or_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_stopped_paths_inside_fun_forward_and_vjp_compose",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_stopped_paths_inside_fun_forward_and_vjp_compose"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_autodiff.py::HostAutodiffTests::test_unused_nested_fun_definition_does_not_invalidate_selected_gradients",
+      "pytest": [
+        "tests/test_autodiff.py::TestHostAutodiff::test_unused_nested_fun_definition_does_not_invalidate_selected_gradients"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_independent_references_on_small_exact_inputs",
+      "pytest": [
+        "tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_independent_references_on_small_exact_inputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_only_relevant_axes_expand_each_workload",
+      "pytest": [
+        "tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_only_relevant_axes_expand_each_workload"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_percentile_preserves_units_and_interpolates_small_samples",
+      "pytest": [
+        "tests/test_benchmark_torch.py::TestBenchmarkResult::test_percentile_preserves_units_and_interpolates_small_samples"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_ratio_direction_round_aggregation_and_failure_exclusion",
+      "pytest": [
+        "tests/test_benchmark_torch.py::TestBenchmarkResult::test_ratio_direction_round_aggregation_and_failure_exclusion"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_wrong_values_and_output_contracts_are_rejected",
+      "pytest": [
+        "tests/test_benchmark_torch.py::TestBenchmarkResult::test_wrong_values_and_output_contracts_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_all_installs_optional_dependencies_through_pip",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_all_installs_optional_dependencies_through_pip"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_cuda_tool_version_matches_the_built_sdk_without_revision_headers",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_cuda_tool_version_matches_the_built_sdk_without_revision_headers"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_engine_config_uses_fuga_worker_and_writes_atomically",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_engine_config_uses_fuga_worker_and_writes_atomically"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_fuga_build_failure_does_not_write_configuration",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_fuga_build_failure_does_not_write_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_missing_and_old_build_tools_are_detected",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_missing_and_old_build_tools_are_detected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_missing_saved_worker_requires_explicit_configuration",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_missing_saved_worker_requires_explicit_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_missing_sdk_stops_before_creating_environment",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_missing_sdk_stops_before_creating_environment"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_sdk_cli_and_cmake_metadata_versions_must_match",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_sdk_cli_and_cmake_metadata_versions_must_match"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_sdk_prefix_is_required_and_old_package_options_are_rejected",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_sdk_prefix_is_required_and_old_package_options_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::BootstrapTests::test_worker_python_symlink_is_not_resolved_into_base_environment",
+      "pytest": [
+        "tests/test_config.py::TestBootstrap::test_worker_python_symlink_is_not_resolved_into_base_environment"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_buffer_and_weight_factories_share_selected_engine",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_buffer_and_weight_factories_share_selected_engine"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_devices_are_static_fun_arguments_and_configuration",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_devices_are_static_fun_arguments_and_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_direct_tensor_calls_reuse_engine_and_support_autograd",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_direct_tensor_calls_reuse_engine_and_support_autograd"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_explicit_engines_and_devices_override_selection",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_explicit_engines_and_devices_override_selection"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_process_exit_closes_default_engine",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_process_exit_closes_default_engine"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_selection_is_lazy_and_context_local",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_selection_is_lazy_and_context_local"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DefaultDeviceTests::test_synchronize_selects_engine_without_materializing_graph",
+      "pytest": [
+        "tests/test_config.py::TestDefaultDevice::test_synchronize_selects_engine_without_materializing_graph"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DeviceDescriptionTests::test_invalid_device_descriptions_are_rejected",
+      "pytest": [
+        "tests/test_config.py::TestDeviceDescription::test_invalid_device_descriptions_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::DeviceDescriptionTests::test_optional_index_identity_and_immutability",
+      "pytest": [
+        "tests/test_config.py::TestDeviceDescription::test_optional_index_identity_and_immutability"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::EngineConfigTests::test_environment_and_explicit_options_override_saved_values",
+      "pytest": [
+        "tests/test_config.py::TestEngineConfig::test_environment_and_explicit_options_override_saved_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::EngineConfigTests::test_explicit_or_env_ask_opt_isolates_from_saved_workers",
+      "pytest": [
+        "tests/test_config.py::TestEngineConfig::test_explicit_or_env_ask_opt_isolates_from_saved_workers"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::EngineConfigTests::test_installed_triton_is_optional_and_yields_to_configured_workers",
+      "pytest": [
+        "tests/test_config.py::TestEngineConfig::test_installed_triton_is_optional_and_yields_to_configured_workers"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::EngineConfigTests::test_invalid_configuration_reports_clear_error",
+      "pytest": [
+        "tests/test_config.py::TestEngineConfig::test_invalid_configuration_reports_clear_error"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_config.py::EngineConfigTests::test_saved_paths_need_no_environment_exports_or_gpu_probe",
+      "pytest": [
+        "tests/test_config.py::TestEngineConfig::test_saved_paths_need_no_environment_exports_or_gpu_probe"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::CUDAControlFlowTests::test_computed_predicate_does_not_flush_unrelated_pending_tensor",
+      "pytest": [
+        "tests/test_control_flow.py::TestCUDAControlFlow::test_computed_predicate_does_not_flush_unrelated_pending_tensor"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::CUDAControlFlowTests::test_grad_across_branches_loops_and_rejection_guards",
+      "pytest": [
+        "tests/test_control_flow.py::TestCUDAControlFlow::test_grad_across_branches_loops_and_rejection_guards"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::CUDAControlFlowTests::test_scalar_branch_reads_only_condition_and_caches_selected_graphs",
+      "pytest": [
+        "tests/test_control_flow.py::TestCUDAControlFlow::test_scalar_branch_reads_only_condition_and_caches_selected_graphs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::CUDAControlFlowTests::test_while_loop_ordinary_helpers_and_distinct_fun_closures",
+      "pytest": [
+        "tests/test_control_flow.py::TestCUDAControlFlow::test_while_loop_ordinary_helpers_and_distinct_fun_closures"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::HostControlFlowTests::test_computed_predicate_does_not_flush_unrelated_pending_tensor",
+      "pytest": [
+        "tests/test_control_flow.py::TestHostControlFlow::test_computed_predicate_does_not_flush_unrelated_pending_tensor"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::HostControlFlowTests::test_grad_across_branches_loops_and_rejection_guards",
+      "pytest": [
+        "tests/test_control_flow.py::TestHostControlFlow::test_grad_across_branches_loops_and_rejection_guards"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::HostControlFlowTests::test_scalar_branch_reads_only_condition_and_caches_selected_graphs",
+      "pytest": [
+        "tests/test_control_flow.py::TestHostControlFlow::test_scalar_branch_reads_only_condition_and_caches_selected_graphs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_control_flow.py::HostControlFlowTests::test_while_loop_ordinary_helpers_and_distinct_fun_closures",
+      "pytest": [
+        "tests/test_control_flow.py::TestHostControlFlow::test_while_loop_ordinary_helpers_and_distinct_fun_closures"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_dtype_shape_axes_layout_and_fusion_matrix",
+      "pytest": [
+        "tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix"
+      ],
+      "collected_parameters": 50,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_nested_max_and_expanded_intermediate_matrix",
+      "pytest": [
+        "tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix"
+      ],
+      "collected_parameters": 10,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_higher_order.py::CUDAHigherOrderTests::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation",
+      "pytest": [
+        "tests/test_higher_order.py::TestCUDAHigherOrder::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_higher_order.py::CUDAHigherOrderTests::test_quartic_three_orders_control_flow_and_seed_participation",
+      "pytest": [
+        "tests/test_higher_order.py::TestCUDAHigherOrder::test_quartic_three_orders_control_flow_and_seed_participation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_higher_order.py::HostHigherOrderTests::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation",
+      "pytest": [
+        "tests/test_higher_order.py::TestHostHigherOrder::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_higher_order.py::HostHigherOrderTests::test_quartic_three_orders_control_flow_and_seed_participation",
+      "pytest": [
+        "tests/test_higher_order.py::TestHostHigherOrder::test_quartic_three_orders_control_flow_and_seed_participation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_higher_order.py::OpaqueExternalHigherOrderTests::test_custom_vjp_composes_and_active_opaque_derivative_is_rejected",
+      "pytest": [
+        "tests/test_higher_order.py::TestOpaqueExternalHigherOrder::test_custom_vjp_composes_and_active_opaque_derivative_is_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_host_matmul.py::HostMatmulTests::test_f32_product_rounding_and_k_order",
+      "pytest": [
+        "tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation"
+      ],
+      "collected_parameters": 6,
+      "change": "new matmul precision contract"
+    },
+    {
+      "original": "tests/test_host_matmul.py::HostMatmulTests::test_nonfinite_values_across_row_and_column_tails",
+      "pytest": [
+        "tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails"
+      ],
+      "collected_parameters": 18,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_host_matmul.py::HostMatmulTests::test_tile_layout_dtype_and_shared_output_matrix",
+      "pytest": [
+        "tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix"
+      ],
+      "collected_parameters": 26,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::FugaIRCoreTests::test_constants_own_rne_precision_and_reject_unrounded_literals",
+      "pytest": [
+        "tests/test_ir.py::TestFugaIRCore::test_constants_own_rne_precision_and_reject_unrounded_literals"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::FugaIRCoreTests::test_origins_verifier_dominance_regions_and_external_specs",
+      "pytest": [
+        "tests/test_ir.py::TestFugaIRCore::test_origins_verifier_dominance_regions_and_external_specs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::FugaIRCoreTests::test_public_dtype_objects_normalize_to_canonical_ir_types",
+      "pytest": [
+        "tests/test_ir.py::TestFugaIRCore::test_public_dtype_objects_normalize_to_canonical_ir_types"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::FugaIRCoreTests::test_reshape_typing_lowering_and_composable_derivatives",
+      "pytest": [
+        "tests/test_ir.py::TestFugaIRCore::test_reshape_typing_lowering_and_composable_derivatives"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::FugaIRCoreTests::test_types_nodes_immutability_and_ssa_naming",
+      "pytest": [
+        "tests/test_ir.py::TestFugaIRCore::test_types_nodes_immutability_and_ssa_naming"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_primitive_abstract_evaluation_and_rule_dispatch",
+      "pytest": [
+        "tests/test_ir.py::TestPrimitiveRuleAndSpecialization::test_primitive_abstract_evaluation_and_rule_dispatch"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_static_if_for_max_unroll_prune_and_dynamic_rejection",
+      "pytest": [
+        "tests/test_ir.py::TestPrimitiveRuleAndSpecialization::test_static_if_for_max_unroll_prune_and_dynamic_rejection"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_mixed_inputs_tuples_missing_rules_and_definition_invalidation",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_mixed_inputs_tuples_missing_rules_and_definition_invalidation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_plain_method_signatures_visible_outputs_and_custom_rule_selection",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_plain_method_signatures_visible_outputs_and_custom_rule_selection"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_jvp_vjp_composition_executes_identically_in_both_orders",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_jvp_vjp_composition_executes_identically_in_both_orders"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_stop_gradient_blocks_opaque_rules_in_both_ad_directions",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_stop_gradient_blocks_opaque_rules_in_both_ad_directions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_and_jvp_external_effects_splat_and_argnum_guards",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_vjp_and_jvp_external_effects_splat_and_argnum_guards"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops",
+      "pytest": [
+        "tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_all_precisions_shapes_casts_and_independent_outputs",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_all_precisions_shapes_casts_and_independent_outputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_cache_hit_skips_projection_composition_and_ir_printing",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_cache_hit_skips_projection_composition_and_ir_printing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_compile_and_execution_failure_do_not_materialize_or_fall_back",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_compile_and_execution_failure_do_not_materialize_or_fall_back"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_cuda_alias_and_external_shape_delegation",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_cuda_alias_and_external_shape_delegation"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_general_template_binding_retains_python_parameter_rules",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_general_template_binding_retains_python_parameter_rules"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_joint_materialization_and_shared_values",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_joint_materialization_and_shared_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_lazy_fusion_cache_hits_and_artifacts",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_lazy_fusion_cache_hits_and_artifacts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_public_buffer_import_and_export",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_public_buffer_import_and_export"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_public_dtype_objects_survive_deferred_execution",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_public_dtype_objects_survive_deferred_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_python_functions_captures_constants_and_engine_lifecycle",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_python_functions_captures_constants_and_engine_lifecycle"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_reshape_is_lazy_fuses_and_preserves_values",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_reshape_is_lazy_fuses_and_preserves_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostJITTests::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions",
+      "pytest": [
+        "tests/test_jit.py::TestHostJIT::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostStorageTests::test_contiguous_buffers_preserve_bits_and_ownership",
+      "pytest": [
+        "tests/test_jit.py::TestHostStorage::test_contiguous_buffers_preserve_bits_and_ownership"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::HostStorageTests::test_storage_roundtrips_and_bounds",
+      "pytest": [
+        "tests/test_jit.py::TestHostStorage::test_storage_roundtrips_and_bounds"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_all_precisions_shapes_casts_and_independent_outputs",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_all_precisions_shapes_casts_and_independent_outputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_ask_ir_and_executable_caches_survive_engine_clear_cache",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_ask_ir_and_executable_caches_survive_engine_clear_cache"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_cache_hit_skips_projection_composition_and_ir_printing",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_cache_hit_skips_projection_composition_and_ir_printing"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_cached_jit_replays_graph_through_native_bridge",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_cached_jit_replays_graph_through_native_bridge"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_compile_and_execution_failure_do_not_materialize_or_fall_back",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_compile_and_execution_failure_do_not_materialize_or_fall_back"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_device_objects_factories_and_cross_device_errors",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_device_objects_factories_and_cross_device_errors"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_general_template_binding_retains_python_parameter_rules",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_general_template_binding_retains_python_parameter_rules"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_joint_materialization_and_shared_values",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_joint_materialization_and_shared_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_lazy_fusion_cache_hits_and_artifacts",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_lazy_fusion_cache_hits_and_artifacts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_public_buffer_import_and_export",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_public_buffer_import_and_export"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_public_dtype_objects_survive_deferred_execution",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_public_dtype_objects_survive_deferred_execution"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_reshape_is_lazy_fuses_and_preserves_values",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_reshape_is_lazy_fuses_and_preserves_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::OwnedCUDAJITTests::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions",
+      "pytest": [
+        "tests/test_jit.py::TestOwnedCUDAJIT::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::TensorCreationTests::test_factory_gradients_and_rejected_sizes",
+      "pytest": [
+        "tests/test_jit.py::TestTensorCreation::test_factory_gradients_and_rejected_sizes"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::TensorCreationTests::test_shape_helpers_validate_inference_and_integer_dimensions",
+      "pytest": [
+        "tests/test_jit.py::TestTensorCreation::test_shape_helpers_validate_inference_and_integer_dimensions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_jit.py::TensorCreationTests::test_size_factories_create_buffers_without_compiling",
+      "pytest": [
+        "tests/test_jit.py::TestTensorCreation::test_size_factories_create_buffers_without_compiling"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_constant_carrier_with_pending_alias_and_changed_shape",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_constant_carrier_with_pending_alias_and_changed_shape"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_deep_alias_and_expression_chains",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_deep_alias_and_expression_chains"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_materialized_intermediate_keeps_derivative_provenance",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_materialized_intermediate_keeps_derivative_provenance"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_order_changes_bindings",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_output_order_changes_bindings"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_subset_alias_input_binding_and_cache_matrix",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_output_subset_alias_input_binding_and_cache_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lazy_schedule.py::LazyScheduleTests::test_repeated_fun_result_and_input_return",
+      "pytest": [
+        "tests/test_lazy_schedule.py::TestLazySchedule::test_repeated_fun_result_and_input_return"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lowering.py::LoweringBoundaryTests::test_explicit_external_shape_and_dynamic_control_flow_rejection",
+      "pytest": [
+        "tests/test_lowering.py::TestLoweringBoundary::test_explicit_external_shape_and_dynamic_control_flow_rejection"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lowering.py::LoweringBoundaryTests::test_mixed_precision_and_bool_lowering_verify_in_ask",
+      "pytest": [
+        "tests/test_lowering.py::TestLoweringBoundary::test_mixed_precision_and_bool_lowering_verify_in_ask"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lowering.py::LoweringBoundaryTests::test_source_map_ids_unrolled_origins_and_atomic_failure",
+      "pytest": [
+        "tests/test_lowering.py::TestLoweringBoundary::test_source_map_ids_unrolled_origins_and_atomic_failure"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lowering.py::ShapeAndTracingTests::test_shape_normalization_and_tolist_reconstruction",
+      "pytest": [
+        "tests/test_lowering.py::TestShapeAndTracing::test_shape_normalization_and_tolist_reconstruction"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_lowering.py::ShapeAndTracingTests::test_trace_context_isolation_and_device_neutral_fuga_ir",
+      "pytest": [
+        "tests/test_lowering.py::TestShapeAndTracing::test_trace_context_isolation_and_device_neutral_fuga_ir"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_closed_engine_and_pending_handles_are_collectible",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_closed_engine_and_pending_handles_are_collectible"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_equal_fingerprints_require_exact_graph_identity",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_equal_fingerprints_require_exact_graph_identity"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_graph_identity_and_materialization_matrix",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_graph_identity_and_materialization_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_materializing_an_existing_parent_changes_the_numerical_frontier",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_materializing_an_existing_parent_changes_the_numerical_frontier"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_native_edges_preserve_gradients_after_wrappers_are_released",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_native_edges_preserve_gradients_after_wrappers_are_released"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_arena.py::NativeArenaTests::test_node_slots_reuse_while_older_outputs_keep_their_history",
+      "pytest": [
+        "tests/test_native_arena.py::TestNativeArena::test_node_slots_reuse_while_older_outputs_keep_their_history"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_constants_and_unselected_outputs_need_no_reverse_rules",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_constants_and_unselected_outputs_need_no_reverse_rules"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_effectful_results_need_normal_output_path_for_reverse",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_effectful_results_need_normal_output_path_for_reverse"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_effects_keep_their_dependencies_without_creating_reverse_paths",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_effects_keep_their_dependencies_without_creating_reverse_paths"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_empty_selected_inputs_produces_ordinary_dce",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_empty_selected_inputs_produces_ordinary_dce"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_identity_and_empty_graphs_have_no_operation_schedule",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_identity_and_empty_graphs_have_no_operation_schedule"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_inactive_coefficient_is_live_without_its_reverse_rule",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_inactive_coefficient_is_live_without_its_reverse_rule"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_invalid_counts_and_effect_shapes_are_rejected",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_invalid_counts_and_effect_shapes_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_invalid_python_types_do_not_coerce_silently",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_invalid_python_types_do_not_coerce_silently"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_invalid_ssa_references_are_rejected",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_invalid_ssa_references_are_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_keyword_arguments_and_tuple_input",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_keyword_arguments_and_tuple_input"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_loaded_module_is_required_native_extension",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_loaded_module_is_required_native_extension"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_multiresult_call_is_one_opaque_reverse_boundary",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_multiresult_call_is_one_opaque_reverse_boundary"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_parallel_requests_do_not_share_analysis_state",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_parallel_requests_do_not_share_analysis_state"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_native_graph.py::NativeGraphTests::test_reconverging_paths_visit_shared_operation_once",
+      "pytest": [
+        "tests/test_native_graph.py::TestNativeGraph::test_reconverging_paths_visit_shared_operation_once"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ops_matrix.py::CUDAOperationMatrixTests::test_generated_operation_compositions",
+      "pytest": [
+        "tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions"
+      ],
+      "collected_parameters": 66,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_ops_matrix.py::HostOperationMatrixTests::test_generated_operation_compositions",
+      "pytest": [
+        "tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions"
+      ],
+      "collected_parameters": 54,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_automatic_broadcast_matches_explicit_dimensions",
+      "pytest": [
+        "tests/test_primitive_binding.py::TestPrimitiveBinding::test_automatic_broadcast_matches_explicit_dimensions"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_equivalent_reduction_parameters_reuse_numerical_program",
+      "pytest": [
+        "tests/test_primitive_binding.py::TestPrimitiveBinding::test_equivalent_reduction_parameters_reuse_numerical_program"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_invalid_parameters_after_warm_binding_keep_error_contracts",
+      "pytest": [
+        "tests/test_primitive_binding.py::TestPrimitiveBinding::test_invalid_parameters_after_warm_binding_keep_error_contracts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix"
+      ],
+      "collected_parameters": 67,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_bf16_computation_is_rejected",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_bf16_computation_is_rejected"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_mixed_dtype_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_materialized_mixed_dtype_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_workspace_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_materialized_workspace_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix"
+      ],
+      "collected_parameters": 51,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_generated_invalid_contracts",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestTensorPrimitiveContract::test_generated_invalid_contracts"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_type_rules_and_derivative_closure",
+      "pytest": [
+        "tests/test_tensor_primitives.py::TestTensorPrimitiveContract::test_type_rules_and_derivative_closure"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_storage.py::CUDATensorStorageTests::test_bf16_raw_buffer_preserves_bits_and_copy_contract",
+      "pytest": [
+        "tests/test_tensor_storage.py::TestCUDATensorStorage::test_bf16_raw_buffer_preserves_bits_and_copy_contract"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_storage.py::CUDATensorStorageTests::test_cuda_creation_uses_device_storage_and_bf16_arithmetic",
+      "pytest": [
+        "tests/test_tensor_storage.py::TestCUDATensorStorage::test_cuda_creation_uses_device_storage_and_bf16_arithmetic"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_tensor_storage.py::HostTensorStorageTests::test_cpu_creation_matrix_and_bf16_rejection",
+      "pytest": [
+        "tests/test_tensor_storage.py::TestHostTensorStorage::test_cpu_creation_matrix_and_bf16_rejection"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_existing_jit_dependencies_scalars_and_multiple_outputs",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_existing_jit_dependencies_scalars_and_multiple_outputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_multiple_external_nodes_and_different_storage_outputs",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_multiple_external_nodes_and_different_storage_outputs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_pointer_order_and_external_only_execution_without_ask_codegen_tools",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_pointer_order_and_external_only_execution_without_ask_codegen_tools"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_programmatic_jit_keeps_stored_source_and_default_scalar",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_programmatic_jit_keeps_stored_source_and_default_scalar"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_reshape_preserves_external_tensor_metadata",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_reshape_preserves_external_tensor_metadata"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_scheduled_forward_across_precisions_algorithms_and_custom_backward",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_scheduled_forward_across_precisions_algorithms_and_custom_backward"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonGPUExecutionTests::test_worker_tracks_transitive_imports_without_stale_bytecode",
+      "pytest": [
+        "tests/test_triton.py::TestTritonGPUExecution::test_worker_tracks_transitive_imports_without_stale_bytecode"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_deferred_arch_binding_and_invalid_registration_guards",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_deferred_arch_binding_and_invalid_registration_guards"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_environment_selects_bundled_worker_without_importing_triton",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_environment_selects_bundled_worker_without_importing_triton"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_multiple_inputs_and_explicit_output_metadata",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_multiple_inputs_and_explicit_output_metadata"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_pending_kernel_calls_snapshot_changed_callback_configuration",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_pending_kernel_calls_snapshot_changed_callback_configuration"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_public_dtypes_bind_metadata_scalars_and_constexpr",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_public_dtypes_bind_metadata_scalars_and_constexpr"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_scalar_multioutput_and_recursive_constants_survive_lowering",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_scalar_multioutput_and_recursive_constants_survive_lowering"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonRegistrationTests::test_verbatim_snapshot_without_importing_triton_and_frozen_metadata",
+      "pytest": [
+        "tests/test_triton.py::TestTritonRegistration::test_verbatim_snapshot_without_importing_triton_and_frozen_metadata"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonWorkerContractTests::test_binary_export_uses_source_abi_without_reading_compiler_ir",
+      "pytest": [
+        "tests/test_triton.py::TestTritonWorkerContract::test_binary_export_uses_source_abi_without_reading_compiler_ir"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_triton.py::TritonWorkerContractTests::test_compiler_selection_accepts_stable_patches_and_rejects_other_releases",
+      "pytest": [
+        "tests/test_triton.py::TestTritonWorkerContract::test_compiler_selection_accepts_stable_patches_and_rejects_other_releases"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::CUDAWeightExportTests::test_gpu_tensors_roundtrip_through_host_blobs",
+      "pytest": [
+        "tests/test_weights.py::TestCUDAWeightExport::test_gpu_tensors_roundtrip_through_host_blobs"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_content_addressed_dedup_and_overwrite_guard",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_content_addressed_dedup_and_overwrite_guard"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_loaded_weights_are_differentiable_in_explicit_engine",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_loaded_weights_are_differentiable_in_explicit_engine"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_optional_extensions_and_minimal_manifest_are_forward_compatible",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_optional_extensions_and_minimal_manifest_are_forward_compatible"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_published_manifest_schema_describes_the_format",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_published_manifest_schema_describes_the_format"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_rejects_integrity_escape_and_version_tampering",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_rejects_integrity_escape_and_version_tampering"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    },
+    {
+      "original": "tests/test_weights.py::WeightExportTests::test_roundtrip_cpu_dtypes_nested_tree_and_metadata",
+      "pytest": [
+        "tests/test_weights.py::TestWeightExport::test_roundtrip_cpu_dtypes_nested_tree_and_metadata"
+      ],
+      "collected_parameters": 1,
+      "change": "native pytest assertions and fixtures"
+    }
+  ],
+  "declaration_expansion": [
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_program_graph_replay_and_resource_reuse",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_program_graph_replay_and_resource_reuse"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_graph_inflight_slots_and_dropped_handles",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_graph_inflight_slots_and_dropped_handles"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_branch_dependency_matrix",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_native_branch_dependency_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_direct_ptx_and_cubin_without_ask_codegen",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_direct_ptx_and_cubin_without_ask_codegen"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_only_worker_compile_needs_no_ask_codegen",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_only_worker_compile_needs_no_ask_codegen"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_scalar_abi_preserves_bits_and_checks_layout",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_scalar_abi_preserves_bits_and_checks_layout"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_module_parameter_abi_is_checked_before_launch",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_external_module_parameter_abi_is_checked_before_launch"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_plans_keep_owned_regions_and_relocate_both_formats",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_execution_plan.py::CUDAExecutionPlanHardwareTests::test_mixed_plans_keep_owned_regions_and_relocate_both_formats"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_owned_precisions_shapes_casts_and_cache_hits",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_owned_precisions_shapes_casts_and_cache_hits"
+      ]
+    },
+    {
+      "declaration": "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_raw_abi_v2_shared_memory_and_resident_session_lifecycle",
+      "collected_instances": [
+        "tests/backend/gpu/test_gpu_native.py::NativeCUDAHardwareTests::test_raw_abi_v2_shared_memory_and_resident_session_lifecycle"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_binary_ports_are_derived_from_graph_and_physical_order",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_binary_ports_are_derived_from_graph_and_physical_order"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_wrong_target_missing_ports_duplicate_bindings_and_launch_are_rejected",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_wrong_target_missing_ports_duplicate_bindings_and_launch_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_mixed_scalar_abi_preserves_values_and_only_maps_tensor_ports",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_mixed_scalar_abi_preserves_values_and_only_maps_tensor_ports"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_explicit_worker_needs_no_registry_and_failures_are_errors",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_explicit_worker_needs_no_registry_and_failures_are_errors"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_generic_compiler_is_accepted_by_the_native_frontend",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_generic_compiler_is_accepted_by_the_native_frontend"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_dependencies_changing_during_export_are_not_cached",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_dependencies_changing_during_export_are_not_cached"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_adapter_contract.py::AdapterContractTests::test_public_contract_schemas_are_valid_json_objects",
+      "collected_instances": [
+        "tests/backend/test_adapter_contract.py::AdapterContractTests::test_public_contract_schemas_are_valid_json_objects"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_all_precisions_ports_empty_and_64bit_indexing",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_all_precisions_ports_empty_and_64bit_indexing"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_bf16_arch_and_flag_rejections",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAGraphLoweringTests::test_bf16_arch_and_flag_rejections"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_codegen_commands_tamper_checks_and_host_buffer_encoding",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_codegen_commands_tamper_checks_and_host_buffer_encoding"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_conditional_libdevice_linking_and_dependency_cache",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_conditional_libdevice_linking_and_dependency_cache"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_graph_routing",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_graph_routing"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_cache_tracks_loaded_compiler_library_contents",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::CUDAContractAndRoutingTests::test_owned_cache_tracks_loaded_compiler_library_contents"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::PreparedExecutableContractTests::test_single_and_multi_port_hot_path_validation",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::PreparedExecutableContractTests::test_single_and_multi_port_hot_path_validation"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_scalar_encodings_and_mixed_prepared_arguments",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_scalar_encodings_and_mixed_prepared_arguments"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_direct_formats_prepare_and_verify_without_compiler_tools",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_direct_formats_prepare_and_verify_without_compiler_tools"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_external_contract_payload_and_receipt_rejections",
+      "collected_instances": [
+        "tests/backend/test_cuda_compilation.py::ExternalExecutableTests::test_external_contract_payload_and_receipt_rejections"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_library_package_and_static_contract",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_library_package_and_static_contract"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_schema_ssa_dependency_and_abi_rejections",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_schema_ssa_dependency_and_abi_rejections"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_package_relocation_digests_and_path_confinement",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_package_relocation_digests_and_path_confinement"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_all_ports_checked_before_any_launch",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_all_ports_checked_before_any_launch"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_one_native_plan_submission_without_python_temporaries_or_hot_io",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_one_native_plan_submission_without_python_temporaries_or_hot_io"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_native_failure_propagates_without_python_dispatch_fallback",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_native_failure_propagates_without_python_dispatch_fallback"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_program_event_keeps_external_python_owner_alive",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_program_event_keeps_external_python_owner_alive"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_submission_retains_port_snapshot_when_caller_lists_change_during_launch",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_submission_retains_port_snapshot_when_caller_lists_change_during_launch"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_output_aliases_and_zero_step_identity",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_output_aliases_and_zero_step_identity"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_external_formats_relocate_and_reject_tampered_packages",
+      "collected_instances": [
+        "tests/backend/test_execution_plan.py::ExecutionPlanTests::test_external_formats_relocate_and_reject_tampered_packages"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shapes_scalars_empty_tensors_and_f32_non_contraction",
+      "collected_instances": [
+        "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shapes_scalars_empty_tensors_and_f32_non_contraction"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shared_pointwise_graph_and_full_cast_matrix",
+      "collected_instances": [
+        "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_shared_pointwise_graph_and_full_cast_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_multi_output_loop_fusion_and_group_validation",
+      "collected_instances": [
+        "tests/backend/test_host_compiler.py::HostCodegenAndFusionTests::test_multi_output_loop_fusion_and_group_validation"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_positive_fixtures_are_idempotent",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_positive_fixtures_are_idempotent"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_negative_ir_cases_emit_expected_diagnostics",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_negative_ir_cases_emit_expected_diagnostics"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_llir_check_and_external_codegen_boundary",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::IRVerificationTests::test_llir_check_and_external_codegen_boundary"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_constant_and_cast_folding_across_all_types",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_constant_and_cast_folding_across_all_types"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_float_non_algebraic_rounding_and_dce_markers",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_float_non_algebraic_rounding_and_dce_markers"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_folded_constants_match_host_execution",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::GraphOptimizationTests::test_folded_constants_match_host_execution"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_ir_and_opt.py::LLIROptimizationAndBoundaryExecutionTests::test_llir_simplification_ptx_survival_and_metadata_scrubbing",
+      "collected_instances": [
+        "tests/backend/test_ir_and_opt.py::LLIROptimizationAndBoundaryExecutionTests::test_llir_simplification_ptx_survival_and_metadata_scrubbing"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_numerics.py::PrecisionReferenceTests::test_rne_subnormals_sticky_bits_and_overflow",
+      "collected_instances": [
+        "tests/backend/test_numerics.py::PrecisionReferenceTests::test_rne_subnormals_sticky_bits_and_overflow"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_numerics.py::PrecisionReferenceTests::test_special_floats_fma_boundary_and_saturating_casts",
+      "collected_instances": [
+        "tests/backend/test_numerics.py::PrecisionReferenceTests::test_special_floats_fma_boundary_and_saturating_casts"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_numerics.py::MatrixPlannerTests::test_matrix_deduplication_aliases_and_topology_sharing",
+      "collected_instances": [
+        "tests/backend/test_numerics.py::MatrixPlannerTests::test_matrix_deduplication_aliases_and_topology_sharing"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_owned_graph_and_identity_outputs_preserve_aliases",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_owned_graph_and_identity_outputs_preserve_aliases"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_external_boundaries_preserve_owned_regions_and_provenance",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_external_boundaries_preserve_owned_regions_and_provenance"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_fanout_preserves_public_outputs",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_fanout_preserves_public_outputs"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_multiport_shape_change_and_duplicate_external_inputs",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_multiport_shape_change_and_duplicate_external_inputs"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_partition.py::PartitionTests::test_cli_and_binding_have_the_same_contract_and_reject_dynamic_inputs",
+      "collected_instances": [
+        "tests/backend/test_partition.py::PartitionTests::test_cli_and_binding_have_the_same_contract_and_reject_dynamic_inputs"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_run_preserves_aliases_and_retains_external_owner_until_completion",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_run_preserves_aliases_and_retains_external_owner_until_completion"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_entrypoints_reject_invalid_ports_before_native_submission",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_prepared_entrypoints_reject_invalid_ports_before_native_submission"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_dtype_shape_layout_matrix",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_dtype_shape_layout_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_interface_v2_v3_and_invalid_descriptors",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_cuda_array_interface_v2_v3_and_invalid_descriptors"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_session_stream_refresh_owner_retention_and_cross_session_guards",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::RuntimeOwnershipTests::test_session_stream_refresh_owner_retention_and_cross_session_guards"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_reuses_reads_and_detects_restored_mtime",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_reuses_reads_and_detects_restored_mtime"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_rejects_changes_while_reading",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_tool_fingerprint_rejects_changes_while_reading"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_ir_cache_persistence_canonical_keys_corruption_and_concurrency",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_ir_cache_persistence_canonical_keys_corruption_and_concurrency"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_executable_cache_hits_and_tool_fingerprint_invalidation",
+      "collected_instances": [
+        "tests/backend/test_runtime_and_cache.py::IRCacheAndExecutableCacheTests::test_executable_cache_hits_and_tool_fingerprint_invalidation"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_types_constants_and_explicit_casts",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::BuilderAndCodecTests::test_types_constants_and_explicit_casts"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_float_constants_and_direct_rne_codecs",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::BuilderAndCodecTests::test_float_constants_and_direct_rne_codecs"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::BuilderAndCodecTests::test_graph_scoping_escaping_and_markers",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::BuilderAndCodecTests::test_graph_scoping_escaping_and_markers"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_result_envelopes_reject_missing_or_malformed_contracts",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_result_envelopes_reject_missing_or_malformed_contracts"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::ClientProtocolTests::test_native_result_contract_does_not_depend_on_diagnostic_fields",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::ClientProtocolTests::test_native_result_contract_does_not_depend_on_diagnostic_fields"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_driver_protocol_and_error_handling",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::ClientProtocolTests::test_cli_driver_protocol_and_error_handling"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_cli_prepare_shape_refinement_and_casts",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_cli_prepare_shape_refinement_and_casts"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_native_codegen_without_companion_and_cli_parity",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_native_codegen_without_companion_and_cli_parity"
+      ]
+    },
+    {
+      "declaration": "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_in_process_bindings_and_cli_parity",
+      "collected_instances": [
+        "tests/backend/test_sdk.py::NativeCompilerAndBindingTests::test_in_process_bindings_and_cli_parity"
+      ]
+    },
+    {
+      "declaration": "tests/packaging/test_installation.py::WheelInstallationTests::test_installation_matrix",
+      "collected_instances": [
+        "tests/packaging/test_installation.py::WheelInstallationTests::test_installation_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_projection_publishes_one_slice",
+      "collected_instances": [
+        "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_projection_publishes_one_slice"
+      ]
+    },
+    {
+      "declaration": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_cold_primitives_share_one_engine",
+      "collected_instances": [
+        "tests/test_arena_ownership.py::ArenaOwnershipTests::test_concurrent_cold_primitives_share_one_engine"
+      ]
+    },
+    {
+      "declaration": "tests/test_arena_ownership.py::ArenaOwnershipTests::test_discarded_custom_graphs_release_definitions_with_engine_alive",
+      "collected_instances": [
+        "tests/test_arena_ownership.py::ArenaOwnershipTests::test_discarded_custom_graphs_release_definitions_with_engine_alive"
+      ]
+    },
+    {
+      "declaration": "tests/test_attention.py::AttentionContractTests::test_public_contract_rejects_invalid_inputs_before_kernel_registration",
+      "collected_instances": [
+        "tests/test_attention.py::AttentionContractTests::test_public_contract_rejects_invalid_inputs_before_kernel_registration"
+      ]
+    },
+    {
+      "declaration": "tests/test_attention.py::AttentionContractTests::test_public_api_traces_without_importing_triton",
+      "collected_instances": [
+        "tests/test_attention.py::AttentionContractTests::test_public_api_traces_without_importing_triton"
+      ]
+    },
+    {
+      "declaration": "tests/test_attention.py::AttentionCUDAExecutionTests::test_generated_forward_backward_matrix",
+      "collected_instances": [
+        "tests/test_attention.py::AttentionCUDAExecutionTests::test_generated_forward_backward_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_attention.py::AttentionCUDAExecutionTests::test_independent_engines_on_same_device_are_rejected",
+      "collected_instances": [
+        "tests/test_attention.py::AttentionCUDAExecutionTests::test_independent_engines_on_same_device_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_attention.py::AttentionCUDAExecutionTests::test_higher_derivatives_fail_before_compile",
+      "collected_instances": [
+        "tests/test_attention.py::AttentionCUDAExecutionTests::test_higher_derivatives_fail_before_compile"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_forward_and_two_derivative_orders_share_one_execution",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_forward_and_two_derivative_orders_share_one_execution",
+        "tests/test_autodiff.py::HostAutodiffTests::test_forward_and_two_derivative_orders_share_one_execution"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_stopped_paths_inside_fun_forward_and_vjp_compose",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_stopped_paths_inside_fun_forward_and_vjp_compose",
+        "tests/test_autodiff.py::HostAutodiffTests::test_stopped_paths_inside_fun_forward_and_vjp_compose"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths",
+        "tests/test_autodiff.py::HostAutodiffTests::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_reshape_gradient_and_higher_order_preserve_input_shape",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_reshape_gradient_and_higher_order_preserve_input_shape",
+        "tests/test_autodiff.py::HostAutodiffTests::test_reshape_gradient_and_higher_order_preserve_input_shape"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_dtype_objects_are_static_fun_arguments_and_configuration",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_dtype_objects_are_static_fun_arguments_and_configuration",
+        "tests/test_autodiff.py::HostAutodiffTests::test_dtype_objects_are_static_fun_arguments_and_configuration"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_finite_difference_multiport_and_mixed_precision",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_finite_difference_multiport_and_mixed_precision",
+        "tests/test_autodiff.py::HostAutodiffTests::test_finite_difference_multiport_and_mixed_precision"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_custom_fun_multioutput_gradients_and_repeated_transform",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_custom_fun_multioutput_gradients_and_repeated_transform",
+        "tests/test_autodiff.py::HostAutodiffTests::test_custom_fun_multioutput_gradients_and_repeated_transform"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path",
+        "tests/test_autodiff.py::HostAutodiffTests::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call",
+        "tests/test_autodiff.py::HostAutodiffTests::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::SharedAutodiffMixin::test_failed_gradient_execution_preserves_other_results_and_can_retry",
+      "collected_instances": [
+        "tests/test_autodiff.py::CUDAAutodiffTests::test_failed_gradient_execution_preserves_other_results_and_can_retry",
+        "tests/test_autodiff.py::HostAutodiffTests::test_failed_gradient_execution_preserves_other_results_and_can_retry"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::HostAutodiffTests::test_unused_nested_fun_definition_does_not_invalidate_selected_gradients",
+      "collected_instances": [
+        "tests/test_autodiff.py::HostAutodiffTests::test_unused_nested_fun_definition_does_not_invalidate_selected_gradients"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::HostAutodiffTests::test_stopped_opaque_fun_needs_no_external_derivative_or_execution",
+      "collected_instances": [
+        "tests/test_autodiff.py::HostAutodiffTests::test_stopped_opaque_fun_needs_no_external_derivative_or_execution"
+      ]
+    },
+    {
+      "declaration": "tests/test_autodiff.py::HostAutodiffTests::test_automatic_fun_rules_seed_guards_and_deep_chain",
+      "collected_instances": [
+        "tests/test_autodiff.py::HostAutodiffTests::test_automatic_fun_rules_seed_guards_and_deep_chain"
+      ]
+    },
+    {
+      "declaration": "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_only_relevant_axes_expand_each_workload",
+      "collected_instances": [
+        "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_only_relevant_axes_expand_each_workload"
+      ]
+    },
+    {
+      "declaration": "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_independent_references_on_small_exact_inputs",
+      "collected_instances": [
+        "tests/test_benchmark_torch.py::BenchmarkMatrixTests::test_independent_references_on_small_exact_inputs"
+      ]
+    },
+    {
+      "declaration": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_wrong_values_and_output_contracts_are_rejected",
+      "collected_instances": [
+        "tests/test_benchmark_torch.py::BenchmarkResultTests::test_wrong_values_and_output_contracts_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_ratio_direction_round_aggregation_and_failure_exclusion",
+      "collected_instances": [
+        "tests/test_benchmark_torch.py::BenchmarkResultTests::test_ratio_direction_round_aggregation_and_failure_exclusion"
+      ]
+    },
+    {
+      "declaration": "tests/test_benchmark_torch.py::BenchmarkResultTests::test_percentile_preserves_units_and_interpolates_small_samples",
+      "collected_instances": [
+        "tests/test_benchmark_torch.py::BenchmarkResultTests::test_percentile_preserves_units_and_interpolates_small_samples"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::EngineConfigTests::test_saved_paths_need_no_environment_exports_or_gpu_probe",
+      "collected_instances": [
+        "tests/test_config.py::EngineConfigTests::test_saved_paths_need_no_environment_exports_or_gpu_probe"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::EngineConfigTests::test_environment_and_explicit_options_override_saved_values",
+      "collected_instances": [
+        "tests/test_config.py::EngineConfigTests::test_environment_and_explicit_options_override_saved_values"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::EngineConfigTests::test_installed_triton_is_optional_and_yields_to_configured_workers",
+      "collected_instances": [
+        "tests/test_config.py::EngineConfigTests::test_installed_triton_is_optional_and_yields_to_configured_workers"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::EngineConfigTests::test_explicit_or_env_ask_opt_isolates_from_saved_workers",
+      "collected_instances": [
+        "tests/test_config.py::EngineConfigTests::test_explicit_or_env_ask_opt_isolates_from_saved_workers"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::EngineConfigTests::test_invalid_configuration_reports_clear_error",
+      "collected_instances": [
+        "tests/test_config.py::EngineConfigTests::test_invalid_configuration_reports_clear_error"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DeviceDescriptionTests::test_optional_index_identity_and_immutability",
+      "collected_instances": [
+        "tests/test_config.py::DeviceDescriptionTests::test_optional_index_identity_and_immutability"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DeviceDescriptionTests::test_invalid_device_descriptions_are_rejected",
+      "collected_instances": [
+        "tests/test_config.py::DeviceDescriptionTests::test_invalid_device_descriptions_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_direct_tensor_calls_reuse_engine_and_support_autograd",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_direct_tensor_calls_reuse_engine_and_support_autograd"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_selection_is_lazy_and_context_local",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_selection_is_lazy_and_context_local"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_explicit_engines_and_devices_override_selection",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_explicit_engines_and_devices_override_selection"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_devices_are_static_fun_arguments_and_configuration",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_devices_are_static_fun_arguments_and_configuration"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_buffer_and_weight_factories_share_selected_engine",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_buffer_and_weight_factories_share_selected_engine"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_synchronize_selects_engine_without_materializing_graph",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_synchronize_selects_engine_without_materializing_graph"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::DefaultDeviceTests::test_process_exit_closes_default_engine",
+      "collected_instances": [
+        "tests/test_config.py::DefaultDeviceTests::test_process_exit_closes_default_engine"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_all_installs_optional_dependencies_through_pip",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_all_installs_optional_dependencies_through_pip"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_missing_sdk_stops_before_creating_environment",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_missing_sdk_stops_before_creating_environment"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_sdk_prefix_is_required_and_old_package_options_are_rejected",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_sdk_prefix_is_required_and_old_package_options_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_fuga_build_failure_does_not_write_configuration",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_fuga_build_failure_does_not_write_configuration"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_sdk_cli_and_cmake_metadata_versions_must_match",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_sdk_cli_and_cmake_metadata_versions_must_match"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_missing_saved_worker_requires_explicit_configuration",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_missing_saved_worker_requires_explicit_configuration"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_cuda_tool_version_matches_the_built_sdk_without_revision_headers",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_cuda_tool_version_matches_the_built_sdk_without_revision_headers"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_missing_and_old_build_tools_are_detected",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_missing_and_old_build_tools_are_detected"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_worker_python_symlink_is_not_resolved_into_base_environment",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_worker_python_symlink_is_not_resolved_into_base_environment"
+      ]
+    },
+    {
+      "declaration": "tests/test_config.py::BootstrapTests::test_engine_config_uses_fuga_worker_and_writes_atomically",
+      "collected_instances": [
+        "tests/test_config.py::BootstrapTests::test_engine_config_uses_fuga_worker_and_writes_atomically"
+      ]
+    },
+    {
+      "declaration": "tests/test_control_flow.py::ControlFlowGraphsMixin::test_scalar_branch_reads_only_condition_and_caches_selected_graphs",
+      "collected_instances": [
+        "tests/test_control_flow.py::CUDAControlFlowTests::test_scalar_branch_reads_only_condition_and_caches_selected_graphs",
+        "tests/test_control_flow.py::HostControlFlowTests::test_scalar_branch_reads_only_condition_and_caches_selected_graphs"
+      ]
+    },
+    {
+      "declaration": "tests/test_control_flow.py::ControlFlowGraphsMixin::test_computed_predicate_does_not_flush_unrelated_pending_tensor",
+      "collected_instances": [
+        "tests/test_control_flow.py::CUDAControlFlowTests::test_computed_predicate_does_not_flush_unrelated_pending_tensor",
+        "tests/test_control_flow.py::HostControlFlowTests::test_computed_predicate_does_not_flush_unrelated_pending_tensor"
+      ]
+    },
+    {
+      "declaration": "tests/test_control_flow.py::ControlFlowGraphsMixin::test_while_loop_ordinary_helpers_and_distinct_fun_closures",
+      "collected_instances": [
+        "tests/test_control_flow.py::CUDAControlFlowTests::test_while_loop_ordinary_helpers_and_distinct_fun_closures",
+        "tests/test_control_flow.py::HostControlFlowTests::test_while_loop_ordinary_helpers_and_distinct_fun_closures"
+      ]
+    },
+    {
+      "declaration": "tests/test_control_flow.py::ControlFlowGraphsMixin::test_grad_across_branches_loops_and_rejection_guards",
+      "collected_instances": [
+        "tests/test_control_flow.py::CUDAControlFlowTests::test_grad_across_branches_loops_and_rejection_guards",
+        "tests/test_control_flow.py::HostControlFlowTests::test_grad_across_branches_loops_and_rejection_guards"
+      ]
+    },
+    {
+      "declaration": "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_dtype_shape_axes_layout_and_fusion_matrix",
+      "collected_instances": [
+        "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_dtype_shape_axes_layout_and_fusion_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_nested_max_and_expanded_intermediate_matrix",
+      "collected_instances": [
+        "tests/test_cuda_reduction_max.py::CUDAMaximumTests::test_nested_max_and_expanded_intermediate_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_higher_order.py::SharedHigherOrderMixin::test_quartic_three_orders_control_flow_and_seed_participation",
+      "collected_instances": [
+        "tests/test_higher_order.py::CUDAHigherOrderTests::test_quartic_three_orders_control_flow_and_seed_participation",
+        "tests/test_higher_order.py::HostHigherOrderTests::test_quartic_three_orders_control_flow_and_seed_participation"
+      ]
+    },
+    {
+      "declaration": "tests/test_higher_order.py::SharedHigherOrderMixin::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation",
+      "collected_instances": [
+        "tests/test_higher_order.py::CUDAHigherOrderTests::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation",
+        "tests/test_higher_order.py::HostHigherOrderTests::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation"
+      ]
+    },
+    {
+      "declaration": "tests/test_higher_order.py::OpaqueExternalHigherOrderTests::test_custom_vjp_composes_and_active_opaque_derivative_is_rejected",
+      "collected_instances": [
+        "tests/test_higher_order.py::OpaqueExternalHigherOrderTests::test_custom_vjp_composes_and_active_opaque_derivative_is_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_host_matmul.py::HostMatmulTests::test_tile_layout_dtype_and_shared_output_matrix",
+      "collected_instances": [
+        "tests/test_host_matmul.py::HostMatmulTests::test_tile_layout_dtype_and_shared_output_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_host_matmul.py::HostMatmulTests::test_f32_product_rounding_and_k_order",
+      "collected_instances": [
+        "tests/test_host_matmul.py::HostMatmulTests::test_f32_product_rounding_and_k_order"
+      ]
+    },
+    {
+      "declaration": "tests/test_host_matmul.py::HostMatmulTests::test_nonfinite_values_across_row_and_column_tails",
+      "collected_instances": [
+        "tests/test_host_matmul.py::HostMatmulTests::test_nonfinite_values_across_row_and_column_tails"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::FugaIRCoreTests::test_reshape_typing_lowering_and_composable_derivatives",
+      "collected_instances": [
+        "tests/test_ir.py::FugaIRCoreTests::test_reshape_typing_lowering_and_composable_derivatives"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::FugaIRCoreTests::test_public_dtype_objects_normalize_to_canonical_ir_types",
+      "collected_instances": [
+        "tests/test_ir.py::FugaIRCoreTests::test_public_dtype_objects_normalize_to_canonical_ir_types"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::FugaIRCoreTests::test_types_nodes_immutability_and_ssa_naming",
+      "collected_instances": [
+        "tests/test_ir.py::FugaIRCoreTests::test_types_nodes_immutability_and_ssa_naming"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::FugaIRCoreTests::test_constants_own_rne_precision_and_reject_unrounded_literals",
+      "collected_instances": [
+        "tests/test_ir.py::FugaIRCoreTests::test_constants_own_rne_precision_and_reject_unrounded_literals"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::FugaIRCoreTests::test_origins_verifier_dominance_regions_and_external_specs",
+      "collected_instances": [
+        "tests/test_ir.py::FugaIRCoreTests::test_origins_verifier_dominance_regions_and_external_specs"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_primitive_abstract_evaluation_and_rule_dispatch",
+      "collected_instances": [
+        "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_primitive_abstract_evaluation_and_rule_dispatch"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_static_if_for_max_unroll_prune_and_dynamic_rejection",
+      "collected_instances": [
+        "tests/test_ir.py::PrimitiveRuleAndSpecializationTests::test_static_if_for_max_unroll_prune_and_dynamic_rejection"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_stop_gradient_blocks_opaque_rules_in_both_ad_directions",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_stop_gradient_blocks_opaque_rules_in_both_ad_directions"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_and_jvp_external_effects_splat_and_argnum_guards",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_vjp_and_jvp_external_effects_splat_and_argnum_guards"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_jvp_vjp_composition_executes_identically_in_both_orders",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::ReverseAndForwardIRTests::test_jvp_vjp_composition_executes_identically_in_both_orders"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_plain_method_signatures_visible_outputs_and_custom_rule_selection",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_plain_method_signatures_visible_outputs_and_custom_rule_selection"
+      ]
+    },
+    {
+      "declaration": "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_mixed_inputs_tuples_missing_rules_and_definition_invalidation",
+      "collected_instances": [
+        "tests/test_ir_autodiff.py::CustomFunctionIRContractTests::test_mixed_inputs_tuples_missing_rules_and_definition_invalidation"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::HostStorageTests::test_contiguous_buffers_preserve_bits_and_ownership",
+      "collected_instances": [
+        "tests/test_jit.py::HostStorageTests::test_contiguous_buffers_preserve_bits_and_ownership"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::HostStorageTests::test_storage_roundtrips_and_bounds",
+      "collected_instances": [
+        "tests/test_jit.py::HostStorageTests::test_storage_roundtrips_and_bounds"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::TensorCreationTests::test_size_factories_create_buffers_without_compiling",
+      "collected_instances": [
+        "tests/test_jit.py::TensorCreationTests::test_size_factories_create_buffers_without_compiling"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::TensorCreationTests::test_factory_gradients_and_rejected_sizes",
+      "collected_instances": [
+        "tests/test_jit.py::TensorCreationTests::test_factory_gradients_and_rejected_sizes"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::TensorCreationTests::test_shape_helpers_validate_inference_and_integer_dimensions",
+      "collected_instances": [
+        "tests/test_jit.py::TensorCreationTests::test_shape_helpers_validate_inference_and_integer_dimensions"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_general_template_binding_retains_python_parameter_rules",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_general_template_binding_retains_python_parameter_rules",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_general_template_binding_retains_python_parameter_rules"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_reshape_is_lazy_fuses_and_preserves_values",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_reshape_is_lazy_fuses_and_preserves_values",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_reshape_is_lazy_fuses_and_preserves_values"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_public_dtype_objects_survive_deferred_execution",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_public_dtype_objects_survive_deferred_execution",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_public_dtype_objects_survive_deferred_execution"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_public_buffer_import_and_export",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_public_buffer_import_and_export",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_public_buffer_import_and_export"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_cache_hit_skips_projection_composition_and_ir_printing",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_cache_hit_skips_projection_composition_and_ir_printing",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_cache_hit_skips_projection_composition_and_ir_printing"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_lazy_fusion_cache_hits_and_artifacts",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_lazy_fusion_cache_hits_and_artifacts",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_lazy_fusion_cache_hits_and_artifacts"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_joint_materialization_and_shared_values",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_joint_materialization_and_shared_values",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_joint_materialization_and_shared_values"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_compile_and_execution_failure_do_not_materialize_or_fall_back",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_compile_and_execution_failure_do_not_materialize_or_fall_back",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_compile_and_execution_failure_do_not_materialize_or_fall_back"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::SharedJITExecutionMixin::test_all_precisions_shapes_casts_and_independent_outputs",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_all_precisions_shapes_casts_and_independent_outputs",
+        "tests/test_jit.py::OwnedCUDAJITTests::test_all_precisions_shapes_casts_and_independent_outputs"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::HostJITTests::test_python_functions_captures_constants_and_engine_lifecycle",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_python_functions_captures_constants_and_engine_lifecycle"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::HostJITTests::test_cuda_alias_and_external_shape_delegation",
+      "collected_instances": [
+        "tests/test_jit.py::HostJITTests::test_cuda_alias_and_external_shape_delegation"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::OwnedCUDAJITTests::test_device_objects_factories_and_cross_device_errors",
+      "collected_instances": [
+        "tests/test_jit.py::OwnedCUDAJITTests::test_device_objects_factories_and_cross_device_errors"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::OwnedCUDAJITTests::test_cached_jit_replays_graph_through_native_bridge",
+      "collected_instances": [
+        "tests/test_jit.py::OwnedCUDAJITTests::test_cached_jit_replays_graph_through_native_bridge"
+      ]
+    },
+    {
+      "declaration": "tests/test_jit.py::OwnedCUDAJITTests::test_ask_ir_and_executable_caches_survive_engine_clear_cache",
+      "collected_instances": [
+        "tests/test_jit.py::OwnedCUDAJITTests::test_ask_ir_and_executable_caches_survive_engine_clear_cache"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_subset_alias_input_binding_and_cache_matrix",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_subset_alias_input_binding_and_cache_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_order_changes_bindings",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_output_order_changes_bindings"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_repeated_fun_result_and_input_return",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_repeated_fun_result_and_input_return"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_constant_carrier_with_pending_alias_and_changed_shape",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_constant_carrier_with_pending_alias_and_changed_shape"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_materialized_intermediate_keeps_derivative_provenance",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_materialized_intermediate_keeps_derivative_provenance"
+      ]
+    },
+    {
+      "declaration": "tests/test_lazy_schedule.py::LazyScheduleTests::test_deep_alias_and_expression_chains",
+      "collected_instances": [
+        "tests/test_lazy_schedule.py::LazyScheduleTests::test_deep_alias_and_expression_chains"
+      ]
+    },
+    {
+      "declaration": "tests/test_lowering.py::ShapeAndTracingTests::test_shape_normalization_and_tolist_reconstruction",
+      "collected_instances": [
+        "tests/test_lowering.py::ShapeAndTracingTests::test_shape_normalization_and_tolist_reconstruction"
+      ]
+    },
+    {
+      "declaration": "tests/test_lowering.py::ShapeAndTracingTests::test_trace_context_isolation_and_device_neutral_fuga_ir",
+      "collected_instances": [
+        "tests/test_lowering.py::ShapeAndTracingTests::test_trace_context_isolation_and_device_neutral_fuga_ir"
+      ]
+    },
+    {
+      "declaration": "tests/test_lowering.py::LoweringBoundaryTests::test_mixed_precision_and_bool_lowering_verify_in_ask",
+      "collected_instances": [
+        "tests/test_lowering.py::LoweringBoundaryTests::test_mixed_precision_and_bool_lowering_verify_in_ask"
+      ]
+    },
+    {
+      "declaration": "tests/test_lowering.py::LoweringBoundaryTests::test_source_map_ids_unrolled_origins_and_atomic_failure",
+      "collected_instances": [
+        "tests/test_lowering.py::LoweringBoundaryTests::test_source_map_ids_unrolled_origins_and_atomic_failure"
+      ]
+    },
+    {
+      "declaration": "tests/test_lowering.py::LoweringBoundaryTests::test_explicit_external_shape_and_dynamic_control_flow_rejection",
+      "collected_instances": [
+        "tests/test_lowering.py::LoweringBoundaryTests::test_explicit_external_shape_and_dynamic_control_flow_rejection"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_graph_identity_and_materialization_matrix",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_graph_identity_and_materialization_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_materializing_an_existing_parent_changes_the_numerical_frontier",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_materializing_an_existing_parent_changes_the_numerical_frontier"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_native_edges_preserve_gradients_after_wrappers_are_released",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_native_edges_preserve_gradients_after_wrappers_are_released"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_equal_fingerprints_require_exact_graph_identity",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_equal_fingerprints_require_exact_graph_identity"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_closed_engine_and_pending_handles_are_collectible",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_closed_engine_and_pending_handles_are_collectible"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_arena.py::NativeArenaTests::test_node_slots_reuse_while_older_outputs_keep_their_history",
+      "collected_instances": [
+        "tests/test_native_arena.py::NativeArenaTests::test_node_slots_reuse_while_older_outputs_keep_their_history"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_loaded_module_is_required_native_extension",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_loaded_module_is_required_native_extension"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_inactive_coefficient_is_live_without_its_reverse_rule",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_inactive_coefficient_is_live_without_its_reverse_rule"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_reconverging_paths_visit_shared_operation_once",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_reconverging_paths_visit_shared_operation_once"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_multiresult_call_is_one_opaque_reverse_boundary",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_multiresult_call_is_one_opaque_reverse_boundary"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_effects_keep_their_dependencies_without_creating_reverse_paths",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_effects_keep_their_dependencies_without_creating_reverse_paths"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_effectful_results_need_normal_output_path_for_reverse",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_effectful_results_need_normal_output_path_for_reverse"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_constants_and_unselected_outputs_need_no_reverse_rules",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_constants_and_unselected_outputs_need_no_reverse_rules"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_empty_selected_inputs_produces_ordinary_dce",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_empty_selected_inputs_produces_ordinary_dce"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_identity_and_empty_graphs_have_no_operation_schedule",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_identity_and_empty_graphs_have_no_operation_schedule"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_keyword_arguments_and_tuple_input",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_keyword_arguments_and_tuple_input"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_invalid_ssa_references_are_rejected",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_invalid_ssa_references_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_invalid_counts_and_effect_shapes_are_rejected",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_invalid_counts_and_effect_shapes_are_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_invalid_python_types_do_not_coerce_silently",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_invalid_python_types_do_not_coerce_silently"
+      ]
+    },
+    {
+      "declaration": "tests/test_native_graph.py::NativeGraphTests::test_parallel_requests_do_not_share_analysis_state",
+      "collected_instances": [
+        "tests/test_native_graph.py::NativeGraphTests::test_parallel_requests_do_not_share_analysis_state"
+      ]
+    },
+    {
+      "declaration": "tests/test_ops_matrix.py::SharedOperationMatrix::test_generated_operation_compositions",
+      "collected_instances": [
+        "tests/test_ops_matrix.py::CUDAOperationMatrixTests::test_generated_operation_compositions",
+        "tests/test_ops_matrix.py::HostOperationMatrixTests::test_generated_operation_compositions"
+      ]
+    },
+    {
+      "declaration": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_equivalent_reduction_parameters_reuse_numerical_program",
+      "collected_instances": [
+        "tests/test_primitive_binding.py::PrimitiveBindingTests::test_equivalent_reduction_parameters_reuse_numerical_program"
+      ]
+    },
+    {
+      "declaration": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_automatic_broadcast_matches_explicit_dimensions",
+      "collected_instances": [
+        "tests/test_primitive_binding.py::PrimitiveBindingTests::test_automatic_broadcast_matches_explicit_dimensions"
+      ]
+    },
+    {
+      "declaration": "tests/test_primitive_binding.py::PrimitiveBindingTests::test_invalid_parameters_after_warm_binding_keep_error_contracts",
+      "collected_instances": [
+        "tests/test_primitive_binding.py::PrimitiveBindingTests::test_invalid_parameters_after_warm_binding_keep_error_contracts"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_type_rules_and_derivative_closure",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_type_rules_and_derivative_closure"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_generated_invalid_contracts",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::TensorPrimitiveContractTests::test_generated_invalid_contracts"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::SharedTensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::CUDATensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix",
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_mixed_dtype_matrix",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_mixed_dtype_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_workspace_matrix",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_materialized_workspace_matrix"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_bf16_computation_is_rejected",
+      "collected_instances": [
+        "tests/test_tensor_primitives.py::HostTensorPrimitiveMatrix::test_bf16_computation_is_rejected"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_storage.py::HostTensorStorageTests::test_cpu_creation_matrix_and_bf16_rejection",
+      "collected_instances": [
+        "tests/test_tensor_storage.py::HostTensorStorageTests::test_cpu_creation_matrix_and_bf16_rejection"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_storage.py::CUDATensorStorageTests::test_cuda_creation_uses_device_storage_and_bf16_arithmetic",
+      "collected_instances": [
+        "tests/test_tensor_storage.py::CUDATensorStorageTests::test_cuda_creation_uses_device_storage_and_bf16_arithmetic"
+      ]
+    },
+    {
+      "declaration": "tests/test_tensor_storage.py::CUDATensorStorageTests::test_bf16_raw_buffer_preserves_bits_and_copy_contract",
+      "collected_instances": [
+        "tests/test_tensor_storage.py::CUDATensorStorageTests::test_bf16_raw_buffer_preserves_bits_and_copy_contract"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_verbatim_snapshot_without_importing_triton_and_frozen_metadata",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_verbatim_snapshot_without_importing_triton_and_frozen_metadata"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_pending_kernel_calls_snapshot_changed_callback_configuration",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_pending_kernel_calls_snapshot_changed_callback_configuration"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_environment_selects_bundled_worker_without_importing_triton",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_environment_selects_bundled_worker_without_importing_triton"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_multiple_inputs_and_explicit_output_metadata",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_multiple_inputs_and_explicit_output_metadata"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_deferred_arch_binding_and_invalid_registration_guards",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_deferred_arch_binding_and_invalid_registration_guards"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_scalar_multioutput_and_recursive_constants_survive_lowering",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_scalar_multioutput_and_recursive_constants_survive_lowering"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonRegistrationTests::test_public_dtypes_bind_metadata_scalars_and_constexpr",
+      "collected_instances": [
+        "tests/test_triton.py::TritonRegistrationTests::test_public_dtypes_bind_metadata_scalars_and_constexpr"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonWorkerContractTests::test_compiler_selection_accepts_stable_patches_and_rejects_other_releases",
+      "collected_instances": [
+        "tests/test_triton.py::TritonWorkerContractTests::test_compiler_selection_accepts_stable_patches_and_rejects_other_releases"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonWorkerContractTests::test_binary_export_uses_source_abi_without_reading_compiler_ir",
+      "collected_instances": [
+        "tests/test_triton.py::TritonWorkerContractTests::test_binary_export_uses_source_abi_without_reading_compiler_ir"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_reshape_preserves_external_tensor_metadata",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_reshape_preserves_external_tensor_metadata"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_worker_tracks_transitive_imports_without_stale_bytecode",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_worker_tracks_transitive_imports_without_stale_bytecode"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_programmatic_jit_keeps_stored_source_and_default_scalar",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_programmatic_jit_keeps_stored_source_and_default_scalar"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_existing_jit_dependencies_scalars_and_multiple_outputs",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_existing_jit_dependencies_scalars_and_multiple_outputs"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_scheduled_forward_across_precisions_algorithms_and_custom_backward",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_scheduled_forward_across_precisions_algorithms_and_custom_backward"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_multiple_external_nodes_and_different_storage_outputs",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_multiple_external_nodes_and_different_storage_outputs"
+      ]
+    },
+    {
+      "declaration": "tests/test_triton.py::TritonGPUExecutionTests::test_pointer_order_and_external_only_execution_without_ask_codegen_tools",
+      "collected_instances": [
+        "tests/test_triton.py::TritonGPUExecutionTests::test_pointer_order_and_external_only_execution_without_ask_codegen_tools"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_published_manifest_schema_describes_the_format",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_published_manifest_schema_describes_the_format"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_roundtrip_cpu_dtypes_nested_tree_and_metadata",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_roundtrip_cpu_dtypes_nested_tree_and_metadata"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_content_addressed_dedup_and_overwrite_guard",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_content_addressed_dedup_and_overwrite_guard"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_rejects_integrity_escape_and_version_tampering",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_rejects_integrity_escape_and_version_tampering"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_optional_extensions_and_minimal_manifest_are_forward_compatible",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_optional_extensions_and_minimal_manifest_are_forward_compatible"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::WeightExportTests::test_loaded_weights_are_differentiable_in_explicit_engine",
+      "collected_instances": [
+        "tests/test_weights.py::WeightExportTests::test_loaded_weights_are_differentiable_in_explicit_engine"
+      ]
+    },
+    {
+      "declaration": "tests/test_weights.py::CUDAWeightExportTests::test_gpu_tensors_roundtrip_through_host_blobs",
+      "collected_instances": [
+        "tests/test_weights.py::CUDAWeightExportTests::test_gpu_tensors_roundtrip_through_host_blobs"
+      ]
+    }
+  ]
+}

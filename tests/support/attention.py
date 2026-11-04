@@ -77,3 +77,15 @@ def input_data(shape, *, period, scale):
         return [build(dimensions[1:]) for _ in range(dimensions[0])]
 
     return build(shape)
+
+
+def attention_cases(dtypes, shapes, causal, compositions, *, exhaustive=False):
+    from itertools import product
+    from tests.support.covering import pairwise
+    if exhaustive:
+        return tuple(product(dtypes, shapes, causal, compositions))
+    primary = 'plain' if 'plain' in compositions else compositions[0]
+    rows = [(*row, primary) for row in pairwise((dtypes, shapes, causal))]
+    rows.extend((dtype, shapes[0], causal[-1], composition)
+                for dtype in dtypes for composition in compositions if composition != primary)
+    return tuple(rows)

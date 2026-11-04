@@ -1,6 +1,10 @@
 """Hardware CUDA tests for native ASK CUDA kernels, raw ABI v2 kernels, and resident ExecutionSession."""
 from __future__ import annotations
 
+import pytest
+
+pytestmark = pytest.mark.cuda
+
 from concurrent.futures import ThreadPoolExecutor
 import gc
 from itertools import product
@@ -9,18 +13,16 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
-import unittest
 import weakref
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[4] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fugatensor._ask import Compiler, ExecutionSession, Module, ScalarType, TensorType
 from fugatensor._ask.cuda import CUDAError, compile_cuda, execute
 from fugatensor._ask.gpu import CUDAKernel
-from support.host_runner import ask_opt_path, llc_path, open_cuda_session, ptxas_path
-from support.compilation import scalar_module
-from support.pointwise import (
+from tests.backend.support.host_runner import ask_opt_path, llc_path, open_cuda_session, ptxas_path
+from tests.backend.support.compilation import scalar_module
+from tests.backend.support.pointwise import (
     DTYPES,
     arithmetic_reference,
     build_module,
@@ -69,28 +71,27 @@ define ptx_kernel void @generic_kernel({arguments}) {{
 """
 
 
-class NativeCUDAHardwareTests(unittest.TestCase):
+class TestNativeCUDAHardware:
+    @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def setUpClass(cls):
-        cls.llc = llc_path()
-        cls.ptxas = ptxas_path()
+    def prepared(cls, request):
+        request.cls.llc = llc_path()
+        request.cls.ptxas = ptxas_path()
         try:
-            cls.compiler = Compiler(timeout=120)
+            request.cls.compiler = Compiler(timeout=120)
         except Exception:
-            cls.compiler = Compiler(ask_opt_path(), timeout=120)
+            request.cls.compiler = Compiler(ask_opt_path(), timeout=120)
         probe = open_cuda_session()
-        cls.major, cls.minor = probe.capability
-        cls.arch = cls.major * 10 + cls.minor
-        cls.supports_bf16 = cls.major >= 8
+        request.cls.major, request.cls.minor = probe.capability
+        request.cls.arch = request.cls.major * 10 + request.cls.minor
+        request.cls.supports_bf16 = request.cls.major >= 8
         probe.close()
-        cls._tmp = tempfile.TemporaryDirectory(prefix="ask-gpu-native-")
-        cls.work = Path(cls._tmp.name)
-        cls.cache_dir = cls.work / "cache"
+        request.cls._tmp = tempfile.TemporaryDirectory(prefix="ask-gpu-native-")
+        request.cls.work = Path(request.cls._tmp.name)
+        request.cls.cache_dir = request.cls.work / "cache"
 
-    @classmethod
-    def tearDownClass(cls):
-        if hasattr(cls, "_tmp"):
-            cls._tmp.cleanup()
+        request.addfinalizer(request.cls._tmp.cleanup)
+
 
     def compile_owned(self, label: str, module: Module, *, block_size: int = 128, expected_hit: bool = False):
         kernel = self.compiler.compile_cuda(
@@ -104,8 +105,8 @@ class NativeCUDAHardwareTests(unittest.TestCase):
             ptxas=self.ptxas,
         )
         wanted = "hit" if expected_hit else "miss"
-        self.assertEqual(kernel.cache["status"], wanted, (label, kernel.cache))
-        self.assertEqual(kernel.codegen["executable_cache"]["status"], wanted, (label, kernel.codegen))
+        assert (kernel.cache['status']) == (wanted), (label, kernel.cache)
+        assert (kernel.codegen['executable_cache']['status']) == (wanted), (label, kernel.codegen)
         return kernel
 
     def test_owned_precisions_shapes_casts_and_cache_hits(self):
@@ -124,22 +125,21 @@ class NativeCUDAHardwareTests(unittest.TestCase):
         ]
         with ExecutionSession() as session:
             for dtype, label_suffix, kwargs in shape_cases:
-                with self.subTest(dtype=dtype, case=label_suffix):
-                    mod = build_module(dtype=dtype, external=False, **kwargs)
-                    shape = kwargs.get("shape", (kwargs.get("size"),))
-                    vals = input_values(math.prod(shape), dtype)
-                    exp = expected_values(vals, 1, 2, dtype=dtype, external=False)
-                    cold = self.compile_owned(f"{dtype}-{label_suffix}-cold", mod)
-                    kernel = cold
-                    if label_suffix == "tail" and dtype in ("f32", "i32"):
-                        warm = self.compile_owned(f"{dtype}-{label_suffix}-warm", mod, expected_hit=True)
-                        self.assertEqual(cold.codegen["cubin_sha256"], warm.codegen["cubin_sha256"])
-                        kernel = warm
-                    exe = kernel.prepare(session)
-                    x = session.from_host(vals, shape=shape, dtype=dtype)
-                    y = session.tensor(shape, dtype)
-                    exe.submit(x, y).wait()
-                    self.assertTrue(numerically_equal(y.to_host(), exp, dtype), (dtype, label_suffix))
+                mod = build_module(dtype=dtype, external=False, **kwargs)
+                shape = kwargs.get("shape", (kwargs.get("size"),))
+                vals = input_values(math.prod(shape), dtype)
+                exp = expected_values(vals, 1, 2, dtype=dtype, external=False)
+                cold = self.compile_owned(f"{dtype}-{label_suffix}-cold", mod)
+                kernel = cold
+                if label_suffix == "tail" and dtype in ("f32", "i32"):
+                    warm = self.compile_owned(f"{dtype}-{label_suffix}-warm", mod, expected_hit=True)
+                    assert (cold.codegen['cubin_sha256']) == (warm.codegen['cubin_sha256'])
+                    kernel = warm
+                exe = kernel.prepare(session)
+                x = session.from_host(vals, shape=shape, dtype=dtype)
+                y = session.tensor(shape, dtype)
+                exe.submit(x, y).wait()
+                assert (numerically_equal(y.to_host(), exp, dtype)), (dtype, label_suffix)
 
             # Direct multi-output 6x6 casts.
             for src in dtypes:
@@ -154,7 +154,7 @@ class NativeCUDAHardwareTests(unittest.TestCase):
                 out_t = [session.tensor((65,), dst) for dst in dtypes]
                 exe.submit_many(in_t, out_t).wait()
                 for dst, out_buf, ref in zip(dtypes, out_t, expected):
-                    self.assertTrue(numerically_equal(out_buf.to_host(), ref, dst), (src, dst))
+                    assert (numerically_equal(out_buf.to_host(), ref, dst)), (src, dst)
 
             # Multi-port heterogeneous shapes, scalar argument, and aliasing rejection.
             multi = Module()
@@ -172,23 +172,22 @@ class NativeCUDAHardwareTests(unittest.TestCase):
                    session.from_host([2.5], shape=(), dtype="f32")]
             outs = [session.tensor((33,), "i64"), session.tensor((33,), "f32"), session.tensor((), "i64")]
             exe.submit_many(ins, outs).wait()
-            self.assertEqual(outs[0].to_host(), [arithmetic_reference("add", v, v, "i64") for v in x_vals])
-            self.assertEqual(outs[2].to_host(), [2])
-            with self.assertRaises((CUDAError, ValueError)):
+            assert (outs[0].to_host()) == ([arithmetic_reference('add', v, v, 'i64') for v in x_vals])
+            assert (outs[2].to_host()) == ([2])
+            with pytest.raises((CUDAError, ValueError)):
                 exe.submit_many(ins, [ins[0], outs[1], outs[2]])
 
             for dtype, mode in product(dtypes, ('identity', 'constant')):
-                with self.subTest(public_scalar=dtype, mode=mode):
-                    package = self.compiler.compile_cuda(scalar_module(dtype, mode),
-                        target={'backend': 'cuda', 'arch': self.arch}, cache_dir=self.cache_dir,
-                        output_dir=self.work / f'scalar-{dtype}-{mode}', llc=self.llc, ptxas=self.ptxas)
-                    expected = True if dtype == 'bool' else 7
-                    inputs = [session.from_host([expected], shape=(), dtype=dtype)] if mode == 'identity' else []
-                    outputs = package.prepare(session, graph=True).run(inputs)
-                    self.assertEqual(outputs[0].shape, ())
-                    self.assertEqual(outputs[0].to_host(), [expected])
-                    if mode == 'identity':
-                        self.assertEqual(outputs[0].data_ptr, inputs[0].data_ptr)
+                package = self.compiler.compile_cuda(scalar_module(dtype, mode),
+                    target={'backend': 'cuda', 'arch': self.arch}, cache_dir=self.cache_dir,
+                    output_dir=self.work / f'scalar-{dtype}-{mode}', llc=self.llc, ptxas=self.ptxas)
+                expected = True if dtype == 'bool' else 7
+                inputs = [session.from_host([expected], shape=(), dtype=dtype)] if mode == 'identity' else []
+                outputs = package.prepare(session, graph=True).run(inputs)
+                assert (outputs[0].shape) == (())
+                assert (outputs[0].to_host()) == ([expected])
+                if mode == 'identity':
+                    assert (outputs[0].data_ptr) == (inputs[0].data_ptr)
 
     def test_raw_abi_v2_shared_memory_and_resident_session_lifecycle(self):
         with ExecutionSession() as session:
@@ -219,7 +218,7 @@ class NativeCUDAHardwareTests(unittest.TestCase):
             codegen = compile_cuda(ll_path, artifact, raw_dir / "codegen", llc=self.llc, ptxas=self.ptxas)
             vals = list(range(-48, 48))
             exp = [v + 2 for v in vals]
-            self.assertEqual(execute(artifact, codegen, vals)["output"], exp)
+            assert (execute(artifact, codegen, vals)['output']) == (exp)
 
             package = CUDAKernel(artifact, codegen, {}, {})
             prepared = package.prepare(session)
@@ -232,10 +231,10 @@ class NativeCUDAHardwareTests(unittest.TestCase):
                 ev = prepared.submit(src, dst)
             ev.wait()
             after = session.stats
-            self.assertEqual(after["launches"] - before["launches"], 20)
+            assert (after['launches'] - before['launches']) == (20)
             for key in ("allocations", "module_loads", "host_to_device_copies", "device_to_host_copies"):
-                self.assertEqual(after[key], before[key])
-            self.assertEqual(dst.to_host(), exp)
+                assert (after[key]) == (before[key])
+            assert (dst.to_host()) == (exp)
 
             # External CAI owner retention until GPU completion.
             class ExternalOwner:
@@ -251,10 +250,10 @@ class NativeCUDAHardwareTests(unittest.TestCase):
             pending = prepared.submit(borrowed, dst)
             del owner, borrowed
             gc.collect()
-            self.assertIsNotNone(owner_ref())
+            assert (owner_ref()) is not None
             pending.wait()
             gc.collect()
-            self.assertIsNone(owner_ref())
+            assert (owner_ref()) is None
 
             # Multi-threaded concurrent submit + property reads.
             barrier = threading.Barrier(3)
@@ -269,17 +268,13 @@ class NativeCUDAHardwareTests(unittest.TestCase):
 
             with ThreadPoolExecutor(max_workers=3) as pool:
                 for res in pool.map(worker, range(3)):
-                    self.assertEqual(res, exp)
+                    assert (res) == (exp)
 
             # Oversized dynamic shared memory rejected cleanly without incrementing launch count.
             native_mod = session.load(Path(codegen["cubin"]).read_bytes(), "generic_kernel",
                                       required_types=["i32"], arch=min(self.arch, 80), parameter_types=["pointer"] * 5)
             prev_launches = session.stats["launches"]
-            with self.assertRaisesRegex(CUDAError, "dynamic shared memory"):
+            with pytest.raises(CUDAError, match='dynamic shared memory'):
                 session.submit(native_mod, [None, dst, None, src, None],
                                grid=[2, 2, 2], block=[3, 2, 2], shared_bytes=2**31)
-            self.assertEqual(session.stats["launches"], prev_launches)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert (session.stats['launches']) == (prev_launches)

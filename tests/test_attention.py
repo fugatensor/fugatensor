@@ -1,18 +1,19 @@
 """Public attention API contracts and generated CUDA value/gradient coverage."""
 from __future__ import annotations
 
+import pytest
+
 import builtins
 from itertools import product
 import math
 from types import SimpleNamespace
-import unittest
 from unittest import mock
 
 import fugatensor as ft
 from fugatensor._state import active_trace
 from fugatensor.tracing import TraceContext
-from tests._helpers import EngineTestCase, requires_triton
-from tests.support.attention import flatten, input_data, reference, reference_backward
+from tests._helpers import requires_triton
+from tests.support.attention import flatten, input_data, reference, reference_backward, attention_cases
 from tests.support.selection import select
 
 attention = ft.nn.functional.scaled_dot_product_attention
@@ -26,7 +27,20 @@ SHAPES = {
 COMPOSITIONS = {'plain': (1.0, 1.0), 'scaled': (0.5, 2.0)}
 
 
-class AttentionContractTests(unittest.TestCase):
+def pytest_generate_tests(metafunc):
+    if 'attention_case' not in metafunc.fixturenames:
+        return
+    dtype_names = tuple(name for name in select('FUGATENSOR_TEST_DTYPES', DTYPES, default=('fp16', 'bf16'))
+                        if name in ('fp16', 'bf16'))
+    shape_names = select('FUGATENSOR_TEST_ATTENTION_SHAPES', SHAPES)
+    causal_names = select('FUGATENSOR_TEST_ATTENTION_CAUSAL', ('false', 'true'))
+    compositions = select('FUGATENSOR_TEST_ATTENTION_COMPOSITIONS', COMPOSITIONS)
+    rows = attention_cases(dtype_names, shape_names, causal_names, compositions,
+                           exhaustive=metafunc.config.getoption('--exhaustive'))
+    metafunc.parametrize('attention_case', rows, ids=lambda row: '-'.join(row))
+
+
+class TestAttentionContract:
     def context(self, shapes=None, dtypes=None, *, device='cuda', capability=(8, 0)):
         shapes = shapes or ((1, 1, 3, 32), (1, 1, 5, 32), (1, 1, 5, 64))
         dtypes = dtypes or (ft.fp16,) * 3
@@ -37,9 +51,9 @@ class AttentionContractTests(unittest.TestCase):
         valid = self.context().inputs
         with mock.patch('fugatensor.nn.functional.attention', side_effect=AssertionError('registered invalid input')):
             for value in (None, 1, 'true'):
-                with self.subTest(is_causal=value), self.assertRaisesRegex(TypeError, 'is_causal'):
+                with pytest.raises(TypeError, match='is_causal'):
                     attention(*valid, is_causal=value)
-            with self.assertRaisesRegex(TypeError, 'three Tensor'):
+            with pytest.raises(TypeError, match='three Tensor'):
                 attention(valid[0], valid[1], None)
             changes = (
                 ({'device': 'cpu'}, ValueError, 'CUDA'),
@@ -54,12 +68,12 @@ class AttentionContractTests(unittest.TestCase):
                 ({'shapes': ((1, 1, 3, 32), (1, 1, 0, 32), (1, 1, 0, 64))}, ValueError, 'positive'),
             )
             for configuration, error, message in changes:
-                with self.subTest(configuration=configuration), self.assertRaisesRegex(error, message):
+                with pytest.raises(error, match=message):
                     attention(*self.context(**configuration).inputs)
-            with self.assertRaisesRegex(RuntimeError, 'same device'):
+            with pytest.raises(RuntimeError, match='same device'):
                 attention(valid[0], self.context(device='cuda:1').inputs[1], valid[2])
 
-    def test_public_api_traces_without_importing_triton(self):
+    def test_public_api_traces_without_importing_triton(self, cleanup):
         context = self.context()
         original_import = builtins.__import__
 
@@ -69,43 +83,36 @@ class AttentionContractTests(unittest.TestCase):
             return original_import(name, *args, **kwargs)
 
         token = active_trace.set(context)
-        self.addCleanup(active_trace.reset, token)
+        cleanup.callback(active_trace.reset, token)
         class AttentionBlock(ft.fun):
             def forward(self, query, key, value):
                 return attention(query, key, value, is_causal=True)
 
         with mock.patch('builtins.__import__', side_effect=block_triton):
             output = AttentionBlock()(*context.inputs)
-        self.assertEqual(output.shape, (1, 1, 3, 64))
-        self.assertIs(output.dtype, ft.fp16)
+        assert (output.shape) == ((1, 1, 3, 64))
+        assert (output.dtype) is (ft.fp16)
         context.finish(output).verify()
 
 
 @requires_triton
-class AttentionCUDAExecutionTests(EngineTestCase):
+@pytest.mark.shared_engine
+@pytest.mark.usefixtures("engine_context")
+class TestAttentionCUDAExecution:
     device = 'cuda'
     enable_triton = True
 
     def assert_values(self, actual, expected, *, dtype, backward=False):
-        self.assertEqual(len(actual), len(expected))
+        assert (len(actual)) == (len(expected))
         tolerance = (0.02 if dtype is ft.fp16 else 0.04) if backward else (0.003 if dtype is ft.fp16 else 0.02)
-        self.assertTrue(all(math.isfinite(item) for item in actual))
+        assert (all((math.isfinite(item) for item in actual)))
         for index, (value, target) in enumerate(zip(actual, expected)):
-            self.assertLessEqual(abs(value - target), tolerance + tolerance * abs(target),
-                                 f'element {index}: {value} != {target}')
+            assert (abs(value - target)) <= (tolerance + tolerance * abs(target)), f'element {index}: {value} != {target}'
 
-    def test_generated_forward_backward_matrix(self):
-        dtype_names = select('FUGATENSOR_TEST_DTYPES', DTYPES, default=('fp16', 'bf16'))
-        dtype_names = tuple(name for name in dtype_names if name in ('fp16', 'bf16'))
-        if not dtype_names:
-            self.skipTest('selected dtypes are outside the attention fp16/bf16 contract')
-        shape_names = select('FUGATENSOR_TEST_ATTENTION_SHAPES', SHAPES)
-        causal_names = select('FUGATENSOR_TEST_ATTENTION_CAUSAL', ('false', 'true'))
-        combinations = select('FUGATENSOR_TEST_ATTENTION_COMPOSITIONS', COMPOSITIONS)
-        for dtype_name, shape_name, causal_name, combination in product(dtype_names, shape_names, causal_names, combinations):
-            with self.subTest(dtype=dtype_name, shape=shape_name, causal=causal_name, composition=combination):
-                self.run_case(dtype=DTYPES[dtype_name], dimensions=SHAPES[shape_name],
-                              causal=causal_name == 'true', composition=combination)
+    def test_generated_forward_backward_matrix(self, attention_case):
+        dtype_name, shape_name, causal_name, combination = attention_case
+        self.run_case(dtype=DTYPES[dtype_name], dimensions=SHAPES[shape_name],
+                      causal=causal_name == 'true', composition=combination)
 
     def run_case(self, *, dtype, dimensions, causal, composition):
         batch, heads, m, n, d, dv = dimensions
@@ -120,9 +127,9 @@ class AttentionCUDAExecutionTests(EngineTestCase):
             output = output * output_scale
         actual = flatten(output.tolist())
         forward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
-        self.assertEqual(forward_steps, ['external'] if composition == 'plain' else ['owned', 'external', 'owned'])
-        self.assertEqual(output.shape, (batch, heads, m, dv))
-        self.assertIs(output.dtype, dtype)
+        assert (forward_steps) == (['external'] if composition == 'plain' else ['owned', 'external', 'owned'])
+        assert (output.shape) == ((batch, heads, m, dv))
+        assert (output.dtype) is (dtype)
         values = tuple(flatten(item.tolist()) for item in (shifted, k, v))
         parameters = dict(batch=batch, heads=heads, m=m, n=n, d=d, dv=dv, causal=causal)
         expected = [output_scale * value for value in reference(*values, **parameters)]
@@ -131,24 +138,23 @@ class AttentionCUDAExecutionTests(EngineTestCase):
         gradients = ft.grad(output, inputs, seed=seed)
         ft.evaluate(*gradients)
         backward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
-        self.assertEqual(backward_steps.count('external'), 5)
+        assert (backward_steps.count('external')) == (5)
         expected_gradients = reference_backward(*values,
             [output_scale * value for value in flatten(seed.tolist())], **parameters)
         expected_gradients = ([q_scale * value for value in expected_gradients[0]], *expected_gradients[1:])
         for name, tensor, derivative, expected in zip(('query', 'key', 'value'), inputs, gradients, expected_gradients):
-            with self.subTest(gradient=name):
-                self.assertEqual(derivative.shape, tensor.shape)
-                self.assertIs(derivative.dtype, dtype)
-                actual = flatten(derivative.tolist())
-                self.assert_values(actual, expected, dtype=dtype, backward=True)
-                self.assertLess(max(abs(value - target) for value, target in zip(actual, expected)), 0.02)
+            assert (derivative.shape) == (tensor.shape)
+            assert (derivative.dtype) is (dtype)
+            actual = flatten(derivative.tolist())
+            self.assert_values(actual, expected, dtype=dtype, backward=True)
+            assert (max((abs(value - target) for value, target in zip(actual, expected)))) < (0.02)
 
     def test_independent_engines_on_same_device_are_rejected(self):
         q, k, v = (ft.ones(1, 1, 2, 32, dtype=ft.fp16) for _ in range(3))
         with ft.Engine('cuda', compilers=self.engine.compilers) as other:
             foreign = ft.ones(1, 1, 2, 32, dtype=ft.fp16)
             with mock.patch.object(self.engine, '_compile', side_effect=AssertionError('compiled invalid inputs')):
-                with self.assertRaisesRegex(ValueError, 'Engine|engine'):
+                with pytest.raises(ValueError, match='Engine|engine'):
                     attention(q, foreign, v)
 
     def test_higher_derivatives_fail_before_compile(self):
@@ -157,9 +163,5 @@ class AttentionCUDAExecutionTests(EngineTestCase):
         seed = ft.ones(1, 1, 2, 32, dtype=ft.fp16)
         first = ft.grad(output, q, seed=seed)
         with mock.patch.object(self.engine, '_compile', side_effect=AssertionError('compiled before validation')):
-            with self.assertRaisesRegex(ValueError, 'external|derivative|VJP'):
+            with pytest.raises(ValueError, match='external|derivative|VJP'):
                 ft.grad(first, q, seed=ft.ones_like(first))
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -1,6 +1,8 @@
 """ASK IR verification, ASK IR graph optimization, LLVM IR cleanup."""
 from __future__ import annotations
 
+import pytest
+
 import ctypes
 import json
 import math
@@ -10,13 +12,11 @@ import struct
 import subprocess
 import sys
 import tempfile
-import unittest
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[3] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent))
 
 from fugatensor._ask import Compiler, CompilerError, Module, ScalarType, TensorType
-from support.host_runner import (
+from tests.backend.support.host_runner import (
     STORAGE,
     ask_opt_path,
     compile_llvm_to_cdll,
@@ -25,7 +25,7 @@ from support.host_runner import (
     link_object_to_cdll,
     run_ask_opt,
 )
-from support.pointwise import DTYPES, cast_reference, input_values, numerically_equal, round_reference
+from tests.backend.support.pointwise import DTYPES, cast_reference, input_values, numerically_equal, round_reference
 
 NEGATIVE_IR_CASES = {
     "duplicate-external-binding": (
@@ -124,43 +124,42 @@ def shared_graph() -> Module:
     return module
 
 
-class IRVerificationTests(unittest.TestCase):
+class TestIRVerification:
     def test_positive_fixtures_are_idempotent(self):
         for name in ("pipeline", "refine-and-erase"):
-            with self.subTest(name=name):
-                result = run_ask_opt(ROOT / "tests/ir" / f"{name}.mlir", "--prepare")
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn('"ask.mark"', result.stdout)
-                again = run_ask_opt("-", "--prepare", source=result.stdout)
-                self.assertEqual(again.returncode, 0, again.stderr)
-                self.assertEqual(again.stdout, result.stdout)
+            result = run_ask_opt(ROOT / "tests/ir" / f"{name}.mlir", "--prepare")
+            assert (result.returncode) == (0), result.stderr
+            assert ('"ask.mark"') not in (result.stdout)
+            again = run_ask_opt("-", "--prepare", source=result.stdout)
+            assert (again.returncode) == (0), again.stderr
+            assert (again.stdout) == (result.stdout)
 
     def test_negative_ir_cases_emit_expected_diagnostics(self):
         for name, (mlir, needle) in NEGATIVE_IR_CASES.items():
-            with self.subTest(name=name):
-                result = run_ask_opt("-", "--prepare", source=mlir)
-                self.assertGreater(result.returncode, 0, result.stdout)
-                self.assertIn(needle.lower(), result.stderr.lower(), result.stderr)
+            result = run_ask_opt("-", "--prepare", source=mlir)
+            assert (result.returncode) > (0), result.stdout
+            assert (needle.lower()) in (result.stderr.lower()), result.stderr
 
     def test_llir_check_and_external_codegen_boundary(self):
         ptx_ll = 'target triple = "nvptx64-nvidia-cuda"\ndefine void @f() { call void asm sideeffect "bar.sync 0;", ""() ret void }\n'
         ok = run_ask_opt("-", "--check-llir", source=ptx_ll)
-        self.assertEqual(ok.returncode, 0, ok.stderr)
-        self.assertIn('asm sideeffect "bar.sync 0;"', ok.stdout)
+        assert (ok.returncode) == (0), ok.stderr
+        assert ('asm sideeffect "bar.sync 0;"') in (ok.stdout)
         bad = run_ask_opt("-", "--check-llir", source="define void @f() { ret i32 1 }")
-        self.assertGreater(bad.returncode, 0)
+        assert (bad.returncode) > (0)
 
         ext_lower = run_ask_opt(ROOT / "tests/ir/pipeline.mlir", "--emit-llvm")
-        self.assertGreater(ext_lower.returncode, 0)
-        self.assertIn("external", ext_lower.stderr)
+        assert (ext_lower.returncode) > (0)
+        assert ('external') in (ext_lower.stderr)
 
         caps = json.loads(run_ask_opt("--capabilities").stdout)
-        self.assertTrue(caps["external_execution"])
-        self.assertEqual(caps["external_formats"], ["cubin", "ptx"])
+        assert (caps['external_execution'])
+        assert (caps['external_formats']) == (['cubin', 'ptx'])
 
 
-class GraphOptimizationTests(unittest.TestCase):
-    def setUp(self):
+class TestGraphOptimization:
+    @pytest.fixture(autouse=True)
+    def configured(self, cleanup):
         self.compiler = Compiler(ask_opt_path())
 
     def test_constant_and_cast_folding_across_all_types(self):
@@ -176,10 +175,10 @@ class GraphOptimizationTests(unittest.TestCase):
                                            dtype=target) for v in values))
         optimized = self.compiler.optimize(module)
         prepared_ref = self.compiler.prepare(reference)
-        self.assertNotIn('"ask.cast"', optimized.ir)
-        self.assertEqual(optimized.diagnostics["optimization"]["constant_folds"], len(DTYPES) ** 2 * 12)
+        assert ('"ask.cast"') not in (optimized.ir)
+        assert (optimized.diagnostics['optimization']['constant_folds']) == (len(DTYPES) ** 2 * 12)
         extract = lambda ir: re.findall(r"\bvalue = ([^},]+)", ir)
-        self.assertEqual(extract(optimized.ir), extract(prepared_ref.ir))
+        assert (extract(optimized.ir)) == (extract(prepared_ref.ir))
 
     def test_float_non_algebraic_rounding_and_dce_markers(self):
         for dtype, bits in (("f32", 23), ("f16", 10), ("bf16", 7)):
@@ -188,15 +187,15 @@ class GraphOptimizationTests(unittest.TestCase):
             prod = g.mul(g.constant(1.0 + 2**-bits, dtype=dtype), g.constant(1.0 - 2**-bits, dtype=dtype))
             g.return_(g.add(prod, g.constant(-1.0, dtype=dtype)))
             opt = self.compiler.optimize(mod)
-            self.assertIn(f"value = 0.000000e+00 : {dtype}", opt.ir)
+            assert (f'value = 0.000000e+00 : {dtype}') in (opt.ir)
 
             dyn = Module()
             dg = dyn.graph("id", inputs={"x": ScalarType(dtype)}, results=[ScalarType(dtype), ScalarType(dtype)])
             zero = dg.constant(0.0, dtype=dtype)
             dg.return_(dg.add(dg.inputs["x"], zero), dg.mul(dg.inputs["x"], zero))
             res = self.compiler.optimize(dyn)
-            self.assertIn('"ask.add"', res.ir)
-            self.assertIn('"ask.mul"', res.ir)
+            assert ('"ask.add"') in (res.ir)
+            assert ('"ask.mul"') in (res.ir)
 
         dce_mod = Module()
         tensor = TensorType((10,))
@@ -208,17 +207,17 @@ class GraphOptimizationTests(unittest.TestCase):
         g.return_(x)
         result = self.compiler.optimize(dce_mod, fold_constants=False)
         markers = {m["mark_id"]: m for m in result.diagnostics["markers"]}
-        self.assertEqual(markers["dead_input"]["status"], "eliminated")
-        self.assertEqual(markers["live_value"]["status"], "exact")
+        assert (markers['dead_input']['status']) == ('eliminated')
+        assert (markers['live_value']['status']) == ('exact')
 
         pipeline_src = (ROOT / "tests/ir/pipeline.mlir").read_text(encoding="utf-8")
         ext_opt = self.compiler.optimize(pipeline_src.replace("return %y : tensor<10xi32>", "return %x : tensor<10xi32>"))
-        self.assertIn('"ask.external"', ext_opt.ir)
-        self.assertNotIn('ask.id = "Q"', ext_opt.ir)
+        assert ('"ask.external"') in (ext_opt.ir)
+        assert ('ask.id = "Q"') not in (ext_opt.ir)
 
     def test_folded_constants_match_host_execution(self):
         if not self.compiler.capabilities()["host_codegen"]:
-            self.skipTest("host backend disabled")
+            pytest.fail("host backend is required")
         module = Module()
         float_cases = [
             ("add", 16777216.0, 1.0, 16777216.0),
@@ -233,14 +232,14 @@ class GraphOptimizationTests(unittest.TestCase):
             g.return_(getattr(g, op)(g.splat(g.constant(lhs, dtype="f32"), (2, 2)),
                                      g.splat(g.constant(rhs, dtype="f32"), (2, 2))))
         optimized = self.compiler.optimize(module)
-        self.assertNotIn('"ask.add"', optimized.ir)
-        self.assertNotIn('"ask.mul"', optimized.ir)
+        assert ('"ask.add"') not in (optimized.ir)
+        assert ('"ask.mul"') not in (optimized.ir)
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             for label, src in (("before", module.to_mlir()), ("after", optimized.ir)):
                 obj = work / f"{label}.o"
                 res = run_ask_opt("-", "--emit-object", "-o", obj, source=src)
-                self.assertEqual(res.returncode, 0, res.stderr)
+                assert (res.returncode) == (0), res.stderr
                 lib = link_object_to_cdll(obj, work / f"{label}.so")
                 for idx, (_, _, _, expected) in enumerate(float_cases):
                     fn = getattr(lib, f"fcase{idx}")
@@ -249,17 +248,17 @@ class GraphOptimizationTests(unittest.TestCase):
                     fn(out)
                     for actual in out:
                         if math.isnan(expected):
-                            self.assertTrue(math.isnan(actual))
+                            assert (math.isnan(actual))
                         else:
-                            self.assertEqual(struct.pack("f", actual), struct.pack("f", expected))
+                            assert (struct.pack('f', actual)) == (struct.pack('f', expected))
 
 
-class LLIROptimizationAndBoundaryExecutionTests(unittest.TestCase):
+class TestLLIROptimizationAndBoundaryExecution:
     def optimize_llir(self, source: str):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.json"
             result = run_ask_opt("-", "--optimize-llir", "--report-json", report, source=source)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            assert (result.returncode) == (0), result.stderr
             return result.stdout, json.loads(report.read_text(encoding="utf-8"))["llir_optimization"]
 
     def test_llir_simplification_ptx_survival_and_metadata_scrubbing(self):
@@ -268,8 +267,8 @@ class LLIROptimizationAndBoundaryExecutionTests(unittest.TestCase):
             "  %c = icmp eq i32 %s, 5\n  br i1 %c, label %y, label %n\n"
             "y:\n  %r = mul i32 %s, 4\n  ret i32 %r\nn:\n  ret i32 -1\n}\n"
         )
-        self.assertIn("ret i32 20", ir)
-        self.assertEqual([p["name"] for p in report["passes"]], ["instcombine", "simplifycfg", "adce"])
+        assert ('ret i32 20') in (ir)
+        assert ([p['name'] for p in report['passes']]) == (['instcombine', 'simplifycfg', 'adce'])
 
         nvptx, _ = self.optimize_llir(
             'target triple = "nvptx64-nvidia-cuda"\n'
@@ -279,18 +278,13 @@ class LLIROptimizationAndBoundaryExecutionTests(unittest.TestCase):
             '  store volatile i32 %v, ptr addrspace(1) %out, align 4\n  ret void\n}\n'
             '!nvvm.annotations = !{!0}\n!0 = !{ptr @k, !"kernel", i32 1}\n'
         )
-        self.assertIn('asm sideeffect "bar.sync 0;"', nvptx)
-        self.assertIn("!nvvm.annotations", nvptx)
+        assert ('asm sideeffect "bar.sync 0;"') in (nvptx)
+        assert ('!nvvm.annotations') in (nvptx)
 
         meta_ir, meta_rep = self.optimize_llir(
             'define i32 @api(i32 %x) {\n  %r = add i32 %x, 1, !ask.trace !1, !ask.value_id !1\n  ret i32 %r\n}\n'
             '!ask.shape_snapshot = !{!0}\n!ask.trace = !{!1}\n!0 = !{!"s"}\n!1 = !{!"t"}\n'
         )
-        self.assertIn("!ask.shape_snapshot", meta_ir)
-        self.assertNotIn("!ask.trace", meta_ir)
-        self.assertIn("trace", meta_rep["invalidated_analyses"])
-
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert ('!ask.shape_snapshot') in (meta_ir)
+        assert ('!ask.trace') not in (meta_ir)
+        assert ('trace') in (meta_rep['invalidated_analyses'])

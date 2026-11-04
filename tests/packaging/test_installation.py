@@ -1,13 +1,15 @@
 """Install a built wheel with each extra in a fresh, isolated environment."""
 from __future__ import annotations
 
+import pytest
+import re
+
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import unittest
 import venv
 
 
@@ -43,39 +45,37 @@ print(json.dumps(result))
 '''
 
 
-class WheelInstallationTests(unittest.TestCase):
-    def test_installation_matrix(self):
-        wheel = Path(os.environ['FUGATENSOR_TEST_WHEEL']).resolve(strict=True)
-        gpu = os.environ.get('FUGATENSOR_TEST_TRITON', '0')
+class TestWheelInstallation:
+    @pytest.mark.parametrize('extra', ('pure', 'all'))
+    def test_installation_matrix(self, request, extra):
+        selected = request.config.getoption('--wheel')
+        if not selected:
+            pytest.fail('wheel installation tests require --wheel=/absolute/path.whl')
+        wheel = Path(selected).resolve(strict=True)
+        gpu = '1' if request.config.getoption('--triton') else '0'
         environment = {name: value for name, value in os.environ.items()
                        if not name.startswith('FUGATENSOR_')
                        and name not in ('PYTHONPATH', 'PYTHONHOME', 'ASK_OPT')}
         with tempfile.TemporaryDirectory(prefix='fuga-install-') as directory:
-            for extra in ('pure', 'all'):
-                with self.subTest(extra=extra):
-                    root = Path(directory) / extra
-                    venv.EnvBuilder(with_pip=False).create(root)
-                    python = root / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
-                    pip = [sys.executable, '-m', 'pip', '--python', str(python)]
-                    for command in ([*pip, 'install', f'{wheel}[{extra}]'], [*pip, 'check']):
-                        installed = subprocess.run(command, env=environment, text=True, capture_output=True)
-                        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
-                    observed = subprocess.run([str(python), '-I', '-c', PROBE, extra, gpu],
-                                              cwd=directory, env=environment, text=True, capture_output=True)
-                    self.assertEqual(observed.returncode, 0, observed.stdout + observed.stderr)
-                    result = json.loads(observed.stdout)
-                    self.assertEqual(result['values'], [2.0, 5.0, 10.0])
-                    self.assertEqual(result['gradients'], [2.0, 4.0, 6.0])
-                    self.assertFalse(result['host_imported_triton'])
-                    if extra == 'pure':
-                        self.assertIsNone(result['triton_version'])
-                        self.assertIsNone(result['worker_python'])
-                    else:
-                        self.assertRegex(result['triton_version'], r'^3\.9\.\d+$')
-                        self.assertEqual(result['worker_python'], str(python))
-                        if gpu == '1':
-                            self.assertEqual(result['gpu_values'], [2.0, 4.0, 6.0])
-
-
-if __name__ == '__main__':
-    unittest.main()
+            root = Path(directory) / extra
+            venv.EnvBuilder(with_pip=False).create(root)
+            python = root / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            pip = [sys.executable, '-m', 'pip', '--python', str(python)]
+            for command in ([*pip, 'install', f'{wheel}[{extra}]'], [*pip, 'check']):
+                installed = subprocess.run(command, env=environment, text=True, capture_output=True)
+                assert (installed.returncode) == (0), installed.stdout + installed.stderr
+            observed = subprocess.run([str(python), '-I', '-c', PROBE, extra, gpu],
+                                      cwd=directory, env=environment, text=True, capture_output=True)
+            assert (observed.returncode) == (0), observed.stdout + observed.stderr
+            result = json.loads(observed.stdout)
+            assert (result['values']) == ([2.0, 5.0, 10.0])
+            assert (result['gradients']) == ([2.0, 4.0, 6.0])
+            assert not (result['host_imported_triton'])
+            if extra == 'pure':
+                assert (result['triton_version']) is None
+                assert (result['worker_python']) is None
+            else:
+                assert re.search('^3\\.9\\.\\d+$', result['triton_version'])
+                assert (result['worker_python']) == (str(python))
+                if gpu == '1':
+                    assert (result['gpu_values']) == ([2.0, 4.0, 6.0])

@@ -1,11 +1,12 @@
 """Public operations × compositions × dtypes × shapes × derivative orders."""
 from __future__ import annotations
 
-import unittest
+import pytest
+
 
 import fugatensor as ft
 from fugatensor._ask.cuda import CUDAError
-from tests._helpers import EngineTestCase, requires_cuda
+from tests._helpers import requires_cuda
 from tests.support.ops_matrix import DTYPES, input_values, nested_values, plan_matrix
 
 
@@ -17,19 +18,25 @@ def _sum(values):
     return result
 
 
+def pytest_generate_tests(metafunc):
+    if 'operation_batch' not in metafunc.fixturenames:
+        return
+    batches = []
+    ids = []
+    for name, shape, cases, orders in plan_matrix(exhaustive=metafunc.config.getoption('--exhaustive')):
+        if getattr(metafunc.cls, 'device', 'cpu') == 'cpu' and name == 'bf16':
+            continue
+        # Batching preserves the existing 64-buffer ABI bound and amortizes compilation.
+        for offset in range(0, len(cases), 12):
+            batches.append((name, shape, cases[offset:offset + 12], orders))
+            ids.append(f'{name}-shape{shape}-batch{offset // 12}')
+    metafunc.parametrize('operation_batch', batches, ids=ids)
+
+
 class SharedOperationMatrix:
-    def test_generated_operation_compositions(self):
-        for name, shape, cases, orders in plan_matrix():
-            dtype = DTYPES[name]
-            with self.subTest(dtype=name, shape=shape):
-                if dtype is ft.bf16 and not self.supports_bf16:
-                    with self.assertRaisesRegex((TypeError, CUDAError), 'CPU tensors support only|bf16.*support'):
-                        ft.tensor([1], dtype=dtype)
-                    continue
-                # Four ports per case (two inputs and two gradients), plus
-                # derivative seeds, remain below the CUDA 64-buffer ABI limit.
-                for offset in range(0, len(cases), 12):
-                    self._run_batch(name, shape, cases[offset:offset + 12], orders)
+    def test_generated_operation_compositions(self, operation_batch):
+        name, shape, cases, orders = operation_batch
+        self._run_batch(name, shape, cases, orders)
 
     def _run_batch(self, name, shape, cases, orders):
         dtype = DTYPES[name]
@@ -46,15 +53,14 @@ class SharedOperationMatrix:
             order = len(axes)
             if order in orders:
                 for case, value, reference in zip(cases, current, references):
-                    with self.subTest(dtype=name, operations=case.name, derivative=axes):
-                        expected = [float(reference.evaluate(x, y)) for x, y in zip(xv, yv)]
-                        if value is None:
-                            self.assertEqual(expected, [0] * len(xv))
-                        else:
-                            self.assertIs(value.dtype, dtype)
-                            self.assertEqual(value.shape, shape)
-                            self.assertEqual(value.device, leaves[0][0].device)
-                            self.assertEqual(value.tolist(), nested_values(expected, shape))
+                    expected = [float(reference.evaluate(x, y)) for x, y in zip(xv, yv)]
+                    if value is None:
+                        assert (expected) == ([0] * len(xv))
+                    else:
+                        assert (value.dtype) is (dtype)
+                        assert (value.shape) == (shape)
+                        assert (value.device) == (leaves[0][0].device)
+                        assert (value.tolist()) == (nested_values(expected, shape))
             if order >= max(orders):
                 continue
             total = _sum(current)
@@ -67,14 +73,14 @@ class SharedOperationMatrix:
 
 
 
-class HostOperationMatrixTests(SharedOperationMatrix, EngineTestCase):
+@pytest.mark.shared_engine
+@pytest.mark.usefixtures("engine_context")
+class TestHostOperationMatrix(SharedOperationMatrix):
     device = 'cpu'
 
 
 @requires_cuda
-class CUDAOperationMatrixTests(SharedOperationMatrix, EngineTestCase):
+@pytest.mark.shared_engine
+@pytest.mark.usefixtures("engine_context")
+class TestCUDAOperationMatrix(SharedOperationMatrix):
     device = 'cuda'
-
-
-if __name__ == '__main__':
-    unittest.main()

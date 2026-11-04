@@ -1,6 +1,8 @@
 """Host CPU backend lowering, multi-precision C ABI execution, and multi-output loop fusion."""
 from __future__ import annotations
 
+import pytest
+
 import ctypes
 import json
 import math
@@ -8,13 +10,11 @@ from pathlib import Path
 import struct
 import sys
 import tempfile
-import unittest
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[3] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent))
 
 from fugatensor._ask import Module, ScalarType, TensorType
-from support.host_runner import (
+from tests.backend.support.host_runner import (
     STORAGE,
     link_object_to_cdll,
     make_buffer,
@@ -22,7 +22,7 @@ from support.host_runner import (
     require_cc,
     run_ask_opt,
 )
-from support.pointwise import (
+from tests.backend.support.pointwise import (
     DTYPES,
     build_module,
     cast_reference,
@@ -61,15 +61,16 @@ def shared_loop_graph(shape: tuple[int, ...], *, scalar_output: bool = False,
     return module.to_mlir()
 
 
-class HostCodegenAndFusionTests(unittest.TestCase):
+class TestHostCodegenAndFusion:
+    @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def setUpClass(cls):
+    def prepared(cls, request):
         caps_proc = run_ask_opt("--capabilities")
         if caps_proc.returncode != 0:
             raise RuntimeError(caps_proc.stderr)
-        cls.caps = json.loads(caps_proc.stdout)
-        if not cls.caps["host_codegen"]:
-            raise unittest.SkipTest("host backend disabled in this ASK build")
+        request.cls.caps = json.loads(caps_proc.stdout)
+        if not request.cls.caps["host_codegen"]:
+            raise RuntimeError("host backend disabled in this ASK build")
         require_cc()
 
     def compile_host(self, source: str, work: Path, stem: str, *, optimize: bool = False,
@@ -82,7 +83,7 @@ class HostCodegenAndFusionTests(unittest.TestCase):
         if no_fusion:
             flags.append("--no-fusion")
         res = run_ask_opt(*flags, source=source)
-        self.assertEqual(res.returncode, 0, res.stderr)
+        assert (res.returncode) == (0), res.stderr
         metadata = json.loads(rep.read_text(encoding="utf-8"))
         if not object_file:
             return metadata, out.read_text(encoding="utf-8")
@@ -110,10 +111,10 @@ class HostCodegenAndFusionTests(unittest.TestCase):
                 fn = getattr(lib, f"calc{idx}")
                 fn.argtypes = [ptr, ctypes.c_int32, ptr, ptr, ptr]
                 fn(x, 2147483647, out, ctypes.byref(scalar_out), copy_out)
-                self.assertEqual(list(out)[:count], [i32((v + 2147483647) * 2) for v in data])
-                self.assertEqual(scalar_out.value, -2147483648)
+                assert (list(out)[:count]) == ([i32((v + 2147483647) * 2) for v in data])
+                assert (scalar_out.value) == (-2147483648)
                 if count == 0:
-                    self.assertEqual(out[0], 123)
+                    assert (out[0]) == (123)
 
         fmod = Module()
         ft, fs = TensorType((8,), "f32"), ScalarType("f32")
@@ -123,33 +124,33 @@ class HostCodegenAndFusionTests(unittest.TestCase):
         fg.return_(prod, adj)
         with tempfile.TemporaryDirectory() as directory:
             _, llvm_text = self.compile_host(fmod.to_mlir(), Path(directory), "fll", object_file=False)
-            self.assertNotIn("fmul contract", llvm_text)
-            self.assertNotIn("fadd fast", llvm_text)
+            assert ('fmul contract') not in (llvm_text)
+            assert ('fadd fast') not in (llvm_text)
             meta, flib = self.compile_host(fmod.to_mlir(), Path(directory), "fobj", optimize=True)
-            self.assertEqual(meta["abi"]["functions"][0]["lowering"]["loop_count"], 1)
+            assert (meta['abi']['functions'][0]['lowering']['loop_count']) == (1)
             data = [1.0 + 2**-23, -0.0, float("inf"), float("-inf"), float("nan"), 2**-149, -2**-149, 0.0]
             coeff = 1.0 - 2**-23
             fptr = ctypes.POINTER(ctypes.c_float)
             flib.fcalc.argtypes = [fptr, ctypes.c_float, fptr, fptr]
             x, p_out, r_out = (ctypes.c_float * 8)(*data), (ctypes.c_float * 8)(), (ctypes.c_float * 8)()
             flib.fcalc(x, coeff, p_out, r_out)
-            self.assertEqual(r_out[0], 0.0)
-            self.assertEqual(struct.pack("f", p_out[1]), struct.pack("f", -0.0))
+            assert (r_out[0]) == (0.0)
+            assert (struct.pack('f', p_out[1])) == (struct.pack('f', -0.0))
 
     def test_shared_pointwise_graph_and_full_cast_matrix(self):
         supported = self.caps["host_supported_element_types"]
-        self.assertNotIn("bf16", supported)
-        self.assertNotIn("host_bf16_hardware_supported", self.caps)
+        assert ('bf16') not in (supported)
+        assert ('host_bf16_hardware_supported') not in (self.caps)
         shape, count = (2, 8), 16
         combos = [(d, None) for d in DTYPES] + [(d, "f32") for d in ("f16", "bf16")]
         for dtype, compute in combos:
             mod = build_module(shape=shape, dtype=dtype, external=False, compute_dtype=compute)
-            with self.subTest(dtype=dtype, compute=compute), tempfile.TemporaryDirectory() as directory:
+            with tempfile.TemporaryDirectory() as directory:
                 work = Path(directory)
                 if dtype not in supported:
                     rejected = run_ask_opt("-", "--emit-object", "-o", work / "bad.o", source=mod.to_mlir())
-                    self.assertNotEqual(rejected.returncode, 0)
-                    self.assertIn("Host backend supports only bool/i32/i64/f32/f16", rejected.stderr)
+                    assert (rejected.returncode) != (0)
+                    assert ('Host backend supports only bool/i32/i64/f32/f16') in (rejected.stderr)
                     continue
                 values = input_values(count, dtype)
                 expected = expected_values(values, 1, 2, dtype=dtype, external=False, compute_dtype=compute)
@@ -160,7 +161,7 @@ class HostCodegenAndFusionTests(unittest.TestCase):
                 out_buf = (ctype * count)()
                 lib.pipeline(in_buf, out_buf)
                 actual = read_buffer(out_buf, count, dtype)
-                self.assertTrue(numerically_equal(actual, expected, dtype), (dtype, actual, expected))
+                assert (numerically_equal(actual, expected, dtype)), (dtype, actual, expected)
 
         dtypes = [d for d in DTYPES if d in supported]
         c_count = 24
@@ -189,13 +190,13 @@ class HostCodegenAndFusionTests(unittest.TestCase):
                     fn(in_buf, out_buf)
                     actual = read_buffer(out_buf, c_count, dst)
                     expected = [cast_reference(v, src, dst) for v in data[src]]
-                    self.assertTrue(numerically_equal(actual, expected, dst), (src, dst))
+                    assert (numerically_equal(actual, expected, dst)), (src, dst)
             b_in, b_out, b_sc = (ctypes.c_uint8 * 4)(0, 1, 2, 255), (ctypes.c_uint8 * 4)(), ctypes.c_uint8()
             lib.bool_abi.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint8,
                                      ctypes.POINTER(ctypes.c_uint8), ctypes.POINTER(ctypes.c_uint8)]
             lib.bool_abi(b_in, 255, b_out, ctypes.byref(b_sc))
-            self.assertEqual(list(b_out), [0, 1, 1, 1])
-            self.assertEqual(b_sc.value, 1)
+            assert (list(b_out)) == ([0, 1, 1, 1])
+            assert (b_sc.value) == (1)
 
     def test_multi_output_loop_fusion_and_group_validation(self):
         source = shared_loop_graph((10,))
@@ -205,21 +206,21 @@ class HostCodegenAndFusionTests(unittest.TestCase):
             fused_meta, fused_ir = self.compile_host(source, work, "fused", optimize=True, object_file=False)
             base_low = base_meta["abi"]["functions"][0]["lowering"]
             fused_low = fused_meta["abi"]["functions"][0]["lowering"]
-            self.assertEqual((base_low["loop_count"], fused_low["loop_count"]), (2, 1))
-            self.assertEqual((base_ir.count("load i32"), fused_ir.count("load i32")), (2, 1))
-            self.assertNotIn("add nsw", fused_ir)
+            assert ((base_low['loop_count'], fused_low['loop_count'])) == ((2, 1))
+            assert ((base_ir.count('load i32'), fused_ir.count('load i32'))) == ((2, 1))
+            assert ('add nsw') not in (fused_ir)
 
             dis_meta, _ = self.compile_host(source, work, "dis", optimize=True, object_file=False, no_fusion=True)
-            self.assertEqual(dis_meta["abi"]["functions"][0]["lowering"]["loop_count"], 2)
+            assert (dis_meta['abi']['functions'][0]['lowering']['loop_count']) == (2)
 
             r0_meta, _ = self.compile_host(
                 shared_loop_graph((), scalar_output=True, repeat_output=True),
                 work, "rank0", optimize=True, object_file=False,
             )
-            self.assertEqual(r0_meta["abi"]["functions"][0]["lowering"]["groups"][0]["outputs"], [0, 2, 3])
+            assert (r0_meta['abi']['functions'][0]['lowering']['groups'][0]['outputs']) == ([0, 2, 3])
 
             empty_meta, empty_lib = self.compile_host(shared_loop_graph((0,)), work, "empty", optimize=True)
-            self.assertEqual(empty_meta["abi"]["functions"][0]["lowering"]["loop_count"], 0)
+            assert (empty_meta['abi']['functions'][0]['lowering']['loop_count']) == (0)
             ptr = ctypes.POINTER(ctypes.c_int32)
             empty_lib.calculate.argtypes = [ptr, ctypes.c_int32, ptr, ptr]
             empty_lib.calculate(None, 1, None, None)
@@ -232,15 +233,11 @@ class HostCodegenAndFusionTests(unittest.TestCase):
     return %result : tensor<10xi32>
   }
 }"""
-        self.assertEqual(run_ask_opt("-", "--emit-llvm", source=bad_group_base).returncode, 0)
+        assert (run_ask_opt('-', '--emit-llvm', source=bad_group_base).returncode) == (0)
         for bad in (
             bad_group_base.replace('ask.fusion_group = "g"', 'ask.fusion_group = ""'),
             bad_group_base.replace(', ask.fusion_group = "g"', "", 1),
         ):
             res = run_ask_opt("-", "--emit-llvm", source=bad)
-            self.assertGreater(res.returncode, 0)
-            self.assertIn("fusion_group", res.stderr)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert (res.returncode) > (0)
+            assert ('fusion_group') in (res.stderr)

@@ -1,6 +1,10 @@
 """Physical CUDA tests for direct external PTX/cubin and mixed execution plans."""
 from __future__ import annotations
 
+import pytest
+
+pytestmark = pytest.mark.cuda
+
 import base64
 from array import array
 import json
@@ -10,20 +14,18 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import unittest
 from unittest.mock import patch
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[4] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fugatensor._ask import Compiler, CompilerEnvironment, CUDAProgram, ExecutionSession, Module, TensorType
 from fugatensor._ask.cuda import CUDAError, install_external
 from fugatensor._ask._abi import scalar_bytes
 from fugatensor._ask.gpu import CUDAKernel
 from fugatensor._ask.plan import validate_plan
-from support.host_runner import ask_opt_path, llc_path, open_cuda_session, ptxas_path
-from support.scalar_abi import SAMPLES, scalar_probe
-from test_cuda_compilation import make_external_artifact
+from tests.backend.support.host_runner import ask_opt_path, llc_path, open_cuda_session, ptxas_path
+from tests.backend.support.scalar_abi import SAMPLES, scalar_probe
+from tests.backend.test_cuda_compilation import make_external_artifact
 
 PTX = '''.version 8.0
 .target sm_80
@@ -93,15 +95,16 @@ def external_graph(arch, source, *, branches=False):
     return module
 
 
-class CUDAExecutionPlanHardwareTests(unittest.TestCase):
+class TestCUDAExecutionPlanHardware:
+    @pytest.fixture(scope="class", autouse=True)
     @classmethod
-    def setUpClass(cls):
+    def prepared(cls, request):
         with open_cuda_session() as session:
             major, minor = session.capability
-            cls.arch = 10 * major + minor
-        if cls.arch < 80:
-            raise unittest.SkipTest("external fixture PTX requires sm80 or newer")
-        cls.compiler = Compiler(ask_opt_path(), timeout=180)
+            request.cls.arch = 10 * major + minor
+        if request.cls.arch < 80:
+            raise RuntimeError("external fixture PTX requires sm80 or newer")
+        request.cls.compiler = Compiler(ask_opt_path(), timeout=180)
 
     def payload(self, format_, root, source_text=PTX):
         if format_ == "ptx":
@@ -110,12 +113,12 @@ class CUDAExecutionPlanHardwareTests(unittest.TestCase):
         source.write_text(source_text)
         result = subprocess.run([ptxas_path(), f"--gpu-name=sm_{self.arch}", str(source), "-o", str(binary)],
                                 capture_output=True, text=True, timeout=120)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        assert (result.returncode) == (0), result.stderr
         return base64.b64encode(binary.read_bytes()).decode()
 
     def test_native_program_graph_replay_and_resource_reuse(self):
         for graph in (False, True):
-            with self.subTest(graph=graph), ExecutionSession() as session:
+            with ExecutionSession() as session:
                 native = session._native
                 kernel = native.load(PTX.encode(), "scale2", ["i32"], 80, [0, 0])
                 steps = [{"kernel": kernel, "arguments": [i, i + 1], "inputs": [i], "outputs": [i + 1],
@@ -125,70 +128,70 @@ class CUDAExecutionPlanHardwareTests(unittest.TestCase):
                 x.copy_from_host(array("i", range(10)))
                 outputs, first = program.run([x])
                 first.wait()
-                self.assertEqual(outputs[0].data_ptr, outputs[1].data_ptr)
-                self.assertEqual(outputs[2].data_ptr, x.data_ptr)
+                assert (outputs[0].data_ptr) == (outputs[1].data_ptr)
+                assert (outputs[2].data_ptr) == (x.data_ptr)
                 observed = array("i", [0] * 10)
                 outputs[0].copy_to_host(observed)
-                self.assertEqual(observed.tolist(), [4 * value for value in range(10)])
+                assert (observed.tolist()) == ([4 * value for value in range(10)])
                 before = native.stats
                 replacement = native.allocate(40)
                 replacement.copy_from_host(array("i", range(10, 20)))
                 second_outputs, second = program.run([replacement])
                 second.wait()
                 second_outputs[0].copy_to_host(observed)
-                self.assertEqual(observed.tolist(), [4 * value for value in range(10, 20)])
-                self.assertTrue(first.query(), "recycling a CUevent must not change a previous Event")
+                assert (observed.tolist()) == ([4 * value for value in range(10, 20)])
+                assert (first.query()), 'recycling a CUevent must not change a previous Event'
                 after = native.stats
-                self.assertEqual(after["program_submissions"], 2)
-                self.assertEqual(after["launches"], 4)
-                self.assertEqual(after["event_creations"], before["event_creations"])
-                self.assertGreater(after["event_reuses"], before["event_reuses"])
-                self.assertGreater(after["workspace_reuses"], before["workspace_reuses"])
-                self.assertEqual(after["graph_instantiations"], int(graph))
-                self.assertEqual(after["graph_launches"], 2 * int(graph))
+                assert (after['program_submissions']) == (2)
+                assert (after['launches']) == (4)
+                assert (after['event_creations']) == (before['event_creations'])
+                assert (after['event_reuses']) > (before['event_reuses'])
+                assert (after['workspace_reuses']) > (before['workspace_reuses'])
+                assert (after['graph_instantiations']) == (int(graph))
+                assert (after['graph_launches']) == (2 * int(graph))
                 # Fixed input/output addresses replay without updating nodes.
                 updates = after["graph_node_updates"]
                 program.submit([replacement], second_outputs).wait()
-                self.assertEqual(native.stats["graph_node_updates"], updates)
+                assert (native.stats['graph_node_updates']) == (updates)
                 after = native.stats
                 # Validation of every output precedes any kernel launch.
-                with self.assertRaisesRegex(CUDAError, "overlap"):
+                with pytest.raises(CUDAError, match='overlap'):
                     program.submit([replacement], [replacement, replacement, replacement])
-                with self.assertRaisesRegex(CUDAError, "byte count"):
+                with pytest.raises(CUDAError, match='byte count'):
                     program.submit([replacement], [native.allocate(4), native.allocate(4), replacement])
-                with self.assertRaisesRegex(CUDAError, "same device storage"):
+                with pytest.raises(CUDAError, match='same device storage'):
                     program.submit([replacement], [native.allocate(40), native.allocate(40), replacement])
                 readonly = native.import_buffer(second_outputs[0].data_ptr, 40, True)
-                with self.assertRaisesRegex(CUDAError, "read-only"):
+                with pytest.raises(CUDAError, match='read-only'):
                     program.submit([replacement], [readonly, readonly, replacement])
                 with ExecutionSession() as other:
                     foreign = other._native.allocate(40)
-                    with self.assertRaisesRegex(CUDAError, "different CUDA execution session"):
+                    with pytest.raises(CUDAError, match='different CUDA execution session'):
                         program.submit([foreign], [second_outputs[0], second_outputs[0], foreign])
-                self.assertEqual(native.stats["launches"], after["launches"])
-                with self.assertRaisesRegex(CUDAError, "READ_0_0 FAIL"):
+                assert (native.stats['launches']) == (after['launches'])
+                with pytest.raises(CUDAError, match='READ_0_0 FAIL'):
                     native.prepare_program([40, 40, 40], [0], [2], steps[::-1], graph=graph)
-                with self.assertRaisesRegex(CUDAError, "inputs must be unique"):
+                with pytest.raises(CUDAError, match='inputs must be unique'):
                     native.prepare_program([40, 40, 40], [0, 0], [2], steps, graph=graph)
-                with self.assertRaisesRegex(CUDAError, "at least one output"):
+                with pytest.raises(CUDAError, match='at least one output'):
                     native.prepare_program([40, 40, 40], [0], [], steps, graph=graph)
-                with self.assertRaisesRegex(CUDAError, "undefined buffer"):
+                with pytest.raises(CUDAError, match='undefined buffer'):
                     native.prepare_program([40, 40, 40, 40], [0], [2], steps, graph=graph)
                 # Native empty/identity plans preserve aliases without inventing a kernel.
                 identity = native.prepare_program([40], [0], [0, 0], [], graph=graph)
                 aliases, completion = identity.run([x])
                 completion.wait()
-                self.assertEqual([value.data_ptr for value in aliases], [x.data_ptr, x.data_ptr])
-                self.assertEqual(native.stats["launches"], after["launches"])
+                assert ([value.data_ptr for value in aliases]) == ([x.data_ptr, x.data_ptr])
+                assert (native.stats['launches']) == (after['launches'])
                 # Released storage is pooled, while live outputs keep ownership.
                 temporary = native.allocate(20)
                 pointer = temporary.data_ptr
                 del temporary
                 recycled = native.allocate(20)
-                self.assertEqual(recycled.data_ptr, pointer)
-                with self.assertRaises(BufferError):
+                assert (recycled.data_ptr) == (pointer)
+                with pytest.raises(BufferError):
                     x.copy_from_host(memoryview(array("i", range(20)))[::2])
-                with self.assertRaises(BufferError):
+                with pytest.raises(BufferError):
                     x.copy_to_host(bytes(40))
 
     def test_native_graph_inflight_slots_and_dropped_handles(self):
@@ -213,18 +216,18 @@ delay:
                 value.copy_from_host(array("i", range(index * 10, (index + 1) * 10)))
             first_outputs, first = program.run(inputs[:1])
             second_outputs, second = program.run(inputs[1:])
-            self.assertEqual(native.stats["graph_instantiations"], 2)
+            assert (native.stats['graph_instantiations']) == (2)
             # The session's completion queue owns plans and device arguments.
             del program, inputs, first, second
             native.synchronize()
             observed = array("i", [0] * 10)
             for index, outputs in enumerate((first_outputs, second_outputs)):
                 outputs[0].copy_to_host(observed)
-                self.assertEqual(observed.tolist(), [4 * value for value in range(index * 10, (index + 1) * 10)])
+                assert (observed.tolist()) == ([4 * value for value in range(index * 10, (index + 1) * 10)])
 
     def test_native_branch_dependency_matrix(self):
         for branches, depth, graph in product((2, 4), (2, 4), (False, True)):
-            with self.subTest(branches=branches, depth=depth, graph=graph), ExecutionSession() as session:
+            with ExecutionSession() as session:
                 native = session._native
                 kernel = native.load(PTX.encode(), "scale2", ["i32"], 80, [0, 0])
                 steps, output_ids = [], []
@@ -239,8 +242,8 @@ delay:
                     output_ids.append(source)
                 program = native.prepare_program([40] * (1 + branches * depth), [0], output_ids, steps, graph=graph)
                 slots = min(2, depth - 1) * (branches if graph else 1)
-                self.assertEqual(native.stats["prepared_internal_slots"], slots)
-                self.assertEqual(native.stats["prepared_internal_bytes"], 40 * slots)
+                assert (native.stats['prepared_internal_slots']) == (slots)
+                assert (native.stats['prepared_internal_bytes']) == (40 * slots)
                 held = []
                 for iteration in range(3):
                     x = native.allocate(40)
@@ -252,17 +255,17 @@ delay:
                     held.extend((output, expected) for output in outputs)
                     before = native.stats["graph_node_updates"]
                     program.submit([x], outputs).wait()
-                    self.assertEqual(native.stats["graph_node_updates"], before)
+                    assert (native.stats['graph_node_updates']) == (before)
                 observed = array("i", [0] * 10)
                 for output, expected in held:
                     output.copy_to_host(observed)
-                    self.assertEqual(observed.tolist(), expected)
-                self.assertEqual(native.stats["graph_nodes"], branches * depth * int(graph))
-                self.assertEqual(native.stats["graph_edges"], branches * (depth - 1) * int(graph))
+                    assert (observed.tolist()) == (expected)
+                assert (native.stats['graph_nodes']) == (branches * depth * int(graph))
+                assert (native.stats['graph_edges']) == (branches * (depth - 1) * int(graph))
 
     def test_direct_ptx_and_cubin_without_ask_codegen(self):
         for format_ in ("ptx", "cubin"):
-            with self.subTest(format=format_), tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
+            with tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
                 root = Path(directory)
                 payload = self.payload(format_, root)
                 artifact = make_external_artifact(format_, shape=(10,), payload=payload, arch=self.arch)
@@ -273,23 +276,23 @@ delay:
                     before = session.stats["launches"]
                     executable = kernel.prepare(session)
                     executable.submit(x, y).wait()
-                    self.assertEqual(y.to_host(), [2 * n for n in range(10)])
-                    self.assertEqual(session.stats["launches"] - before, 1)
+                    assert (y.to_host()) == ([2 * n for n in range(10)])
+                    assert (session.stats['launches'] - before) == (1)
                     automatic = executable.run([x])
-                    self.assertEqual(len(automatic), 1)
-                    self.assertEqual(automatic[0].to_host(), [2 * n for n in range(10)])
-                    self.assertNotEqual(automatic[0].data_ptr, x.data_ptr)
-                    self.assertNotEqual(automatic[0].data_ptr, y.data_ptr)
+                    assert (len(automatic)) == (1)
+                    assert (automatic[0].to_host()) == ([2 * n for n in range(10)])
+                    assert (automatic[0].data_ptr) != (x.data_ptr)
+                    assert (automatic[0].data_ptr) != (y.data_ptr)
                     before = session.stats["launches"]
                     for inputs in ([], [object()], [session.tensor((5, 2), "i32")],
                                    [session.tensor((10,), "f32")]):
-                        with self.assertRaises(CUDAError):
+                        with pytest.raises(CUDAError):
                             executable.run(inputs)
-                    self.assertEqual(session.stats["launches"], before)
+                    assert (session.stats['launches']) == (before)
                     hits = session.stats["module_hits"]
                     kernel.prepare(session)
-                    self.assertEqual(session.stats["module_hits"], hits + 1)
-                    self.assertEqual(kernel.run(list(range(10)))["output"], [2 * n for n in range(10)])
+                    assert (session.stats['module_hits']) == (hits + 1)
+                    assert (kernel.run(list(range(10)))['output']) == ([2 * n for n in range(10)])
 
     def test_external_only_worker_compile_needs_no_ask_codegen(self):
         with tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
@@ -311,14 +314,14 @@ delay:
             with patch("fugatensor._ask.gpu._tool", side_effect=AssertionError("unexpected ASK compiler tool")):
                 kernel = self.compiler.compile_cuda(module, cache_dir=root / "cache", output_dir=root / "output",
                     compilers={"fixture": CompilerEnvironment(python=sys.executable, worker=worker)})
-            self.assertIsInstance(kernel, CUDAKernel)
+            assert isinstance(kernel, CUDAKernel)
             x, y = session.from_host(list(range(10)), dtype="i32"), session.tensor((10,), "i32")
             kernel.prepare(session).submit(x, y).wait()
-            self.assertEqual(y.to_host(), [2 * value for value in range(10)])
+            assert (y.to_host()) == ([2 * value for value in range(10)])
 
     def test_mixed_scalar_abi_preserves_bits_and_checks_layout(self):
         for format_, graph in product(('ptx', 'cubin'), (False, True)):
-            with self.subTest(format=format_, graph=graph), tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
+            with tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
                 payload, arguments, output_index, expected = scalar_probe()
                 artifact = make_external_artifact(format_, payload=self.payload(format_, Path(directory), payload),
                                                   shape=(len(expected),), arch=self.arch)
@@ -336,13 +339,13 @@ delay:
                     x = session.from_host([0] * len(expected), dtype='i64')
                     y = session.tensor((len(expected),), 'i64')
                     prepared.submit(x, y).wait()
-                    self.assertEqual(y.to_host(), expected)
+                    assert (y.to_host()) == (expected)
                     held_outputs.append(y)
-                self.assertNotEqual(held_outputs[0].data_ptr, held_outputs[1].data_ptr)
-                self.assertEqual(session.stats['graph_instantiations'], int(graph))
-                self.assertEqual(session.stats['graph_launches'], 2 * int(graph))
+                assert (held_outputs[0].data_ptr) != (held_outputs[1].data_ptr)
+                assert (session.stats['graph_instantiations']) == (int(graph))
+                assert (session.stats['graph_launches']) == (2 * int(graph))
                 arguments[1]['value'] = True
-                self.assertEqual(kernel.run([0] * len(expected))['output'], expected)
+                assert (kernel.run([0] * len(expected))['output']) == (expected)
                 launches = session.stats['launches']
                 parameter_types = [arg['type'] if arg['kind'] == 'scalar' else 'pointer' for arg in arguments]
                 direct = session.load(payload.encode(), 'scale2', required_types=['i64'], arch=self.arch,
@@ -351,17 +354,17 @@ delay:
                 raw.insert(output_index, y)
                 raw.append(None)
                 raw[1] = b'\x01\x00'
-                with self.assertRaisesRegex(CUDAError, 'byte width'):
+                with pytest.raises(CUDAError, match='byte width'):
                     session.submit(direct, raw, grid=[1, 1, 1], block=[1, 1, 1])
                 raw[1] = scalar_bytes(SAMPLES[0][0], SAMPLES[0][1])
                 raw[0] = b'\x00' * 8
-                with self.assertRaisesRegex(CUDAError, 'pointer argument'):
+                with pytest.raises(CUDAError, match='pointer argument'):
                     session.submit(direct, raw, grid=[1, 1, 1], block=[1, 1, 1])
-                self.assertEqual(session.stats['launches'], launches)
+                assert (session.stats['launches']) == (launches)
                 with ExecutionSession() as other:
                     wrong_types = list(parameter_types)
                     wrong_types[1] = 'i16'
-                    with self.assertRaisesRegex(CUDAError, 'layout'):
+                    with pytest.raises(CUDAError, match='layout'):
                         other.load(payload.encode(), 'scale2', required_types=['i64'], arch=self.arch,
                                    parameter_types=wrong_types)
 
@@ -373,14 +376,14 @@ delay:
             artifact = make_external_artifact(payload=payload, shape=(10,), arch=self.arch)
             kernel = CUDAKernel(artifact, install_external(artifact, directory), {}, {})
             launches = session.stats["launches"]
-            with self.assertRaisesRegex(CUDAError, "parameter|ABI|ParamInfo"):
+            with pytest.raises(CUDAError, match='parameter|ABI|ParamInfo'):
                 kernel.prepare(session)
-            self.assertEqual(session.stats["launches"], launches)
+            assert (session.stats['launches']) == (launches)
 
     def test_mixed_plans_keep_owned_regions_and_relocate_both_formats(self):
         for format_ in ("ptx", "cubin"):
             for branches in (False, True):
-                with self.subTest(format=format_, branches=branches), tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
+                with tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
                     root = Path(directory)
                     worker = root / "worker.py"
                     worker.write_text(WORKER)
@@ -389,17 +392,17 @@ delay:
                     plan = validate_plan(self.compiler.partition(module).execution_plan)
                     external_steps = [step for step in plan["steps"] if step["kind"] == "external"]
                     if branches:
-                        self.assertEqual(len(external_steps), 2)
-                        self.assertNotIn(external_steps[0]["id"], external_steps[1]["depends_on"])
+                        assert (len(external_steps)) == (2)
+                        assert (external_steps[0]['id']) not in (external_steps[1]['depends_on'])
                     else:
-                        self.assertEqual([step["kind"] for step in plan["steps"]], ["owned", "external", "owned"])
+                        assert ([step['kind'] for step in plan['steps']]) == (['owned', 'external', 'owned'])
                     def compile(name):
                         return self.compiler.compile_cuda(module, target={"backend": "cuda", "arch": self.arch},
                             compilers={"fixture": CompilerEnvironment(python=sys.executable, worker=worker)},
                             llc=llc_path(), ptxas=ptxas_path(), cache_dir=root / "cache", output_dir=root / name)
                     cold, warm = compile("cold"), compile("warm")
-                    self.assertIsInstance(cold, CUDAProgram)
-                    self.assertTrue(all(kernel.cache["status"] == "hit" for kernel in warm.kernels.values()))
+                    assert isinstance(cold, CUDAProgram)
+                    assert (all((kernel.cache['status'] == 'hit' for kernel in warm.kernels.values())))
                     shutil.move(root / "warm", root / "relocated")
                     shutil.rmtree(root / "cold")
                     shutil.rmtree(root / "cache")
@@ -411,22 +414,18 @@ delay:
                     if branches:
                         first = session.tensor((10,), "i32")
                         executable.submit_many([x], [first, y, y, x]).wait()
-                        self.assertEqual(first.to_host(), [2 * (n + 1) for n in range(10)])
-                        self.assertEqual(y.to_host(), [4 * n + 2 for n in range(10)])
+                        assert (first.to_host()) == ([2 * (n + 1) for n in range(10)])
+                        assert (y.to_host()) == ([4 * n + 2 for n in range(10)])
                     else:
                         executable.submit(x, y).wait()
-                        self.assertEqual(y.to_host(), [2 * n + 5 for n in range(10)])
-                    self.assertEqual(session.stats["launches"] - before, len(plan["steps"]))
+                        assert (y.to_host()) == ([2 * n + 5 for n in range(10)])
+                    assert (session.stats['launches'] - before) == (len(plan['steps']))
                     automatic = executable.run([x])
                     if branches:
-                        self.assertEqual(automatic[0].to_host(), [2 * (n + 1) for n in range(10)])
-                        self.assertEqual(automatic[1].to_host(), [4 * n + 2 for n in range(10)])
-                        self.assertIs(automatic[1], automatic[2])
-                        self.assertIs(automatic[3], x)
+                        assert (automatic[0].to_host()) == ([2 * (n + 1) for n in range(10)])
+                        assert (automatic[1].to_host()) == ([4 * n + 2 for n in range(10)])
+                        assert (automatic[1]) is (automatic[2])
+                        assert (automatic[3]) is (x)
                     else:
-                        self.assertEqual(automatic[0].to_host(), [2 * n + 5 for n in range(10)])
-                    self.assertEqual(session.stats["launches"] - before, 2 * len(plan["steps"]))
-
-
-if __name__ == "__main__":
-    unittest.main()
+                        assert (automatic[0].to_host()) == ([2 * n + 5 for n in range(10)])
+                    assert (session.stats['launches'] - before) == (2 * len(plan['steps']))

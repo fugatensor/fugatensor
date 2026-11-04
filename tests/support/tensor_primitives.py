@@ -8,6 +8,7 @@ from fugatensor._state import active_trace
 from fugatensor.backends.host import HostStorage
 from fugatensor.tracing import TraceContext
 from tests.support.selection import select
+from tests.support.covering import pairwise
 
 DTYPES = {name: getattr(ft, name) for name in ('fp32', 'fp16', 'bf16', 'int32', 'int64', 'bool')}
 SHAPES = ((), (4,), (2, 3), (1, 2, 1), (0, 3), (2, 0))
@@ -67,19 +68,33 @@ def geometry_matrix():
             axes for length in range(len(shape) + 1) for axes in combinations(range(len(shape)), length))
 
 
-def matmul_matrix(*, shapes=MATRIX_SHAPES, batches=BATCHES, types=None):
-    for dtype, batch, (m, n, k), ta, tb in product(dtypes(True) if types is None else types,
-            batches, shapes, (False, True), (False, True)):
+def matmul_matrix(*, shapes=MATRIX_SHAPES, batches=BATCHES, types=None, exhaustive=False):
+    types = dtypes(True) if types is None else types
+    axes = (types, batches, shapes, (False, True), (False, True))
+    selected = pairwise(axes, exhaustive=exhaustive)
+    # Empty extents take different launch paths: retain every dtype/transpose boundary.
+    boundaries = tuple((dtype, (), shape, ta, tb)
+                       for dtype, shape, ta, tb in product(types, shapes, (False, True), (False, True))
+                       if 0 in shape)
+    if (0,) in batches:
+        boundaries += tuple((dtype, (0,), shapes[0], ta, tb)
+                            for dtype, ta, tb in product(types, (False, True), (False, True)))
+    for dtype, batch, (m, n, k), ta, tb in dict.fromkeys((*selected, *boundaries)):
         yield dtype, (*batch, k, m) if ta else (*batch, m, k), (*batch, n, k) if tb else (*batch, k, n), ta, tb
 
 
-def host_workspace_matrix():
+def host_workspace_matrix(*, exhaustive=False):
     types = tuple(name for name in dtypes() if name not in ('bool', 'bf16'))
-    return product(types, (0, 1, 5), (0, 3), (2, 5), (False, True), (False, True))
+    selected = pairwise((types, (0, 1, 5), (0, 3), (2, 5), (False, True), (False, True)), exhaustive=exhaustive)
+    # Shared public intermediates and transposed repeated reads exercise slot liveness together.
+    retained = tuple((dtype, 5, 3, 5, transposed, retain)
+                     for dtype, transposed, retain in product(types, (False, True), (False, True)))
+    return tuple(dict.fromkeys((*selected, *retained)))
 
 
-def host_mixed_workspace_matrix():
+def host_mixed_workspace_matrix(*, exhaustive=False):
     types = tuple(name for name in dtypes() if name != 'bf16')
+    # Capturing the scalar changes lifetime across every source/destination storage pair.
     return product(types, types, (False, True))
 
 

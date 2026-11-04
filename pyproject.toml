@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 pure = []
+test = ["pytest>=8,<10"]
 all = ["triton>=3.9,<3.10"]
 
 [tool.scikit-build]
@@ -18,3 +19,12 @@ minimum-version = "1.1"
 build-dir = "build/native/{wheel_tag}"
 wheel.packages = ["src/fugatensor"]
 cmake.version = ">=3.28"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+markers = [
+  "cuda: physical CUDA execution",
+  "triton: external Triton worker and CUDA execution",
+  "shared_engine: reuse an Engine across numerical matrix cases",
+]

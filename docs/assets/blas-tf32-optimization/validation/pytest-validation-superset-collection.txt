@@ -1,0 +1,585 @@
+tests/test_arena_ownership.py::TestArenaOwnership::test_concurrent_projection_publishes_one_slice
+tests/test_arena_ownership.py::TestArenaOwnership::test_concurrent_cold_primitives_share_one_engine
+tests/test_arena_ownership.py::TestArenaOwnership::test_discarded_custom_graphs_release_definitions_with_engine_alive
+tests/test_attention.py::TestAttentionContract::test_public_contract_rejects_invalid_inputs_before_kernel_registration
+tests/test_attention.py::TestAttentionContract::test_public_api_traces_without_importing_triton
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-tail-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-tail-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-tail-true-scaled]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-wide-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-wide-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-batched-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[fp16-batched-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-tail-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-tail-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-tail-true-scaled]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-wide-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-wide-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-batched-false-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_generated_forward_backward_matrix[bf16-batched-true-plain]
+tests/test_attention.py::TestAttentionCUDAExecution::test_independent_engines_on_same_device_are_rejected
+tests/test_attention.py::TestAttentionCUDAExecution::test_higher_derivatives_fail_before_compile
+tests/test_autodiff.py::TestHostAutodiff::test_forward_and_two_derivative_orders_share_one_execution
+tests/test_autodiff.py::TestHostAutodiff::test_stopped_paths_inside_fun_forward_and_vjp_compose
+tests/test_autodiff.py::TestHostAutodiff::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths
+tests/test_autodiff.py::TestHostAutodiff::test_reshape_gradient_and_higher_order_preserve_input_shape
+tests/test_autodiff.py::TestHostAutodiff::test_dtype_objects_are_static_fun_arguments_and_configuration
+tests/test_autodiff.py::TestHostAutodiff::test_finite_difference_multiport_and_mixed_precision
+tests/test_autodiff.py::TestHostAutodiff::test_custom_fun_multioutput_gradients_and_repeated_transform
+tests/test_autodiff.py::TestHostAutodiff::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path
+tests/test_autodiff.py::TestHostAutodiff::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call
+tests/test_autodiff.py::TestHostAutodiff::test_failed_gradient_execution_preserves_other_results_and_can_retry
+tests/test_autodiff.py::TestHostAutodiff::test_unused_nested_fun_definition_does_not_invalidate_selected_gradients
+tests/test_autodiff.py::TestHostAutodiff::test_stopped_opaque_fun_needs_no_external_derivative_or_execution
+tests/test_autodiff.py::TestHostAutodiff::test_automatic_fun_rules_seed_guards_and_deep_chain
+tests/test_autodiff.py::TestCUDAAutodiff::test_forward_and_two_derivative_orders_share_one_execution
+tests/test_autodiff.py::TestCUDAAutodiff::test_stopped_paths_inside_fun_forward_and_vjp_compose
+tests/test_autodiff.py::TestCUDAAutodiff::test_intermediate_targets_and_repeated_ports_keep_all_derivative_paths
+tests/test_autodiff.py::TestCUDAAutodiff::test_reshape_gradient_and_higher_order_preserve_input_shape
+tests/test_autodiff.py::TestCUDAAutodiff::test_dtype_objects_are_static_fun_arguments_and_configuration
+tests/test_autodiff.py::TestCUDAAutodiff::test_finite_difference_multiport_and_mixed_precision
+tests/test_autodiff.py::TestCUDAAutodiff::test_custom_fun_multioutput_gradients_and_repeated_transform
+tests/test_autodiff.py::TestCUDAAutodiff::test_evaluation_preserves_source_and_stop_gradient_cuts_only_selected_path
+tests/test_autodiff.py::TestCUDAAutodiff::test_custom_definition_change_rejects_pending_forward_and_retraces_new_call
+tests/test_autodiff.py::TestCUDAAutodiff::test_failed_gradient_execution_preserves_other_results_and_can_retry
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_only_relevant_axes_expand_each_workload
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_independent_references_on_small_exact_inputs
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_explicit_matmul_sizes_do_not_expand_other_workloads
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_general_matmul_matches_independent_dot_products[fp32-row_major]
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_general_matmul_matches_independent_dot_products[fp32-transpose]
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_general_matmul_matches_independent_dot_products[fp16-row_major]
+tests/test_benchmark_torch.py::TestBenchmarkMatrix::test_general_matmul_matches_independent_dot_products[fp16-transpose]
+tests/test_benchmark_torch.py::TestBenchmarkResult::test_wrong_values_and_output_contracts_are_rejected
+tests/test_benchmark_torch.py::TestBenchmarkResult::test_ratio_direction_round_aggregation_and_failure_exclusion
+tests/test_benchmark_torch.py::TestBenchmarkResult::test_tf32_tolerance_applies_only_to_f32_matmul
+tests/test_benchmark_torch.py::TestBenchmarkResult::test_precision_and_input_distribution_are_comparison_dimensions
+tests/test_benchmark_torch.py::TestBenchmarkResult::test_percentile_preserves_units_and_interpolates_small_samples
+tests/test_case_selection.py::test_host_matmul_representatives_cover_all_factor_pairs
+tests/test_config.py::TestEngineConfig::test_saved_paths_need_no_environment_exports_or_gpu_probe
+tests/test_config.py::TestEngineConfig::test_environment_and_explicit_options_override_saved_values
+tests/test_config.py::TestEngineConfig::test_installed_triton_is_optional_and_yields_to_configured_workers
+tests/test_config.py::TestEngineConfig::test_explicit_or_env_ask_opt_isolates_from_saved_workers
+tests/test_config.py::TestEngineConfig::test_invalid_configuration_reports_clear_error
+tests/test_config.py::TestDeviceDescription::test_optional_index_identity_and_immutability
+tests/test_config.py::TestDeviceDescription::test_invalid_device_descriptions_are_rejected
+tests/test_config.py::TestDefaultDevice::test_direct_tensor_calls_reuse_engine_and_support_autograd
+tests/test_config.py::TestDefaultDevice::test_selection_is_lazy_and_context_local
+tests/test_config.py::TestDefaultDevice::test_explicit_engines_and_devices_override_selection
+tests/test_config.py::TestDefaultDevice::test_devices_are_static_fun_arguments_and_configuration
+tests/test_config.py::TestDefaultDevice::test_buffer_and_weight_factories_share_selected_engine
+tests/test_config.py::TestDefaultDevice::test_synchronize_selects_engine_without_materializing_graph
+tests/test_config.py::TestDefaultDevice::test_process_exit_closes_default_engine
+tests/test_config.py::TestBootstrap::test_build_uses_installed_sdk_without_ask_python_or_llvm_sdk
+tests/test_config.py::TestBootstrap::test_all_installs_optional_dependencies_through_pip
+tests/test_config.py::TestBootstrap::test_missing_sdk_stops_before_creating_environment
+tests/test_config.py::TestBootstrap::test_sdk_prefix_is_required_and_old_package_options_are_rejected
+tests/test_config.py::TestBootstrap::test_fuga_build_failure_does_not_write_configuration
+tests/test_config.py::TestBootstrap::test_sdk_cli_and_cmake_metadata_versions_must_match
+tests/test_config.py::TestBootstrap::test_saved_gpu_paths_survive_rebuild_and_reset_is_explicit
+tests/test_config.py::TestBootstrap::test_missing_saved_worker_requires_explicit_configuration
+tests/test_config.py::TestBootstrap::test_cuda_tool_version_matches_the_built_sdk_without_revision_headers
+tests/test_config.py::TestBootstrap::test_bundled_worker_needs_no_ask_registry_and_does_not_install_compiler
+tests/test_config.py::TestBootstrap::test_missing_and_old_build_tools_are_detected
+tests/test_config.py::TestBootstrap::test_worker_python_symlink_is_not_resolved_into_base_environment
+tests/test_config.py::TestBootstrap::test_engine_config_uses_fuga_worker_and_writes_atomically
+tests/test_control_flow.py::TestHostControlFlow::test_scalar_branch_reads_only_condition_and_caches_selected_graphs
+tests/test_control_flow.py::TestHostControlFlow::test_computed_predicate_does_not_flush_unrelated_pending_tensor
+tests/test_control_flow.py::TestHostControlFlow::test_while_loop_ordinary_helpers_and_distinct_fun_closures
+tests/test_control_flow.py::TestHostControlFlow::test_grad_across_branches_loops_and_rejection_guards
+tests/test_control_flow.py::TestCUDAControlFlow::test_scalar_branch_reads_only_condition_and_caches_selected_graphs
+tests/test_control_flow.py::TestCUDAControlFlow::test_computed_predicate_does_not_flush_unrelated_pending_tensor
+tests/test_control_flow.py::TestCUDAControlFlow::test_while_loop_ordinary_helpers_and_distinct_fun_closures
+tests/test_control_flow.py::TestCUDAControlFlow::test_grad_across_branches_loops_and_rejection_guards
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 0)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 1)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 0)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 1)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 31)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 32)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 31)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 32)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 63)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 33)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 63)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 64)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 65)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(0, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 0, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 64)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 65)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(0, 2, 33)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 0, 33)-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 31)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp32-(7, 2, 32)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 31)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 32)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[fp16-(7, 2, 63)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 0)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 1)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 63)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 64)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 2, 65)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(0, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[bf16-(7, 0, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 0)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 1)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 63)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 64)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 2, 65)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(0, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int32-(7, 0, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 0)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 1)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 31)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 32)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 64)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 2, 65)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(0, 2, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_dtype_shape_axes_layout_and_fusion_matrix[int64-(7, 0, 33)-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[fp32-width33-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[fp32-width65-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[fp16-width33-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[fp16-width65-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[bf16-width33-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[bf16-width65-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[int32-width33-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[int32-width65-layout(2, 0, 1)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[int64-width33-layout(0, 1, 2)]
+tests/test_cuda_reduction_max.py::TestCUDAMaximum::test_nested_max_and_expanded_intermediate_matrix[int64-width65-layout(2, 0, 1)]
+tests/test_higher_order.py::TestHostHigherOrder::test_quartic_three_orders_control_flow_and_seed_participation
+tests/test_higher_order.py::TestHostHigherOrder::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation
+tests/test_higher_order.py::TestCUDAHigherOrder::test_quartic_three_orders_control_flow_and_seed_participation
+tests/test_higher_order.py::TestCUDAHigherOrder::test_nested_fun_rules_recomputed_intermediates_and_mutation_revalidation
+tests/test_higher_order.py::TestOpaqueExternalHigherOrder::test_custom_vjp_composes_and_active_opaque_derivative_is_rejected
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m3-n15-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch(2,)-m4-n16-k17-t11-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch()-m5-n17-k3-t01-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch(2,)-m8-n31-k17-t10-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m5-n32-k17-t10-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch(2,)-m8-n33-k3-t00-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch()-m3-n33-k17-t11-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch()-m4-n16-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch(2,)-m3-n32-k3-t01-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m8-n31-k3-t01-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp16-batch(2,)-m5-n15-k3-t11-shared1]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch(2,)-m3-n17-k17-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m4-n15-k17-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m4-n17-k3-t10-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m3-n16-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m3-n31-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m4-n31-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m4-n32-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m4-n33-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m5-n16-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m5-n31-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m5-n33-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m8-n15-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m8-n16-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m8-n17-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_tile_layout_dtype_and_shared_output_matrix[fp32-batch()-m8-n32-k3-t00-shared0]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[15-([-1, 1.0000001192092896], [1, 0.9999998807907104])]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[15-([16777216, 1, -16777216], [1, 1, 1])]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[16-([-1, 1.0000001192092896], [1, 0.9999998807907104])]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[16-([16777216, 1, -16777216], [1, 1, 1])]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[17-([-1, 1.0000001192092896], [1, 0.9999998807907104])]
+tests/test_host_matmul.py::TestHostMatmul::test_f32_blas_error_bound_under_cancellation[17-([16777216, 1, -16777216], [1, 1, 1])]
+tests/test_host_matmul.py::TestHostMatmul::test_f16_keeps_ordered_f32_accumulation[15]
+tests/test_host_matmul.py::TestHostMatmul::test_f16_keeps_ordered_f32_accumulation[16]
+tests/test_host_matmul.py::TestHostMatmul::test_f16_keeps_ordered_f32_accumulation[17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-3-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-3-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-3-17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-4-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-4-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-4-17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-5-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-5-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp32-5-17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-3-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-3-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-3-17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-4-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-4-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-4-17]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-5-15]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-5-16]
+tests/test_host_matmul.py::TestHostMatmul::test_nonfinite_values_across_row_and_column_tails[fp16-5-17]
+tests/test_ir.py::TestFugaIRCore::test_reshape_typing_lowering_and_composable_derivatives
+tests/test_ir.py::TestFugaIRCore::test_public_dtype_objects_normalize_to_canonical_ir_types
+tests/test_ir.py::TestFugaIRCore::test_types_nodes_immutability_and_ssa_naming
+tests/test_ir.py::TestFugaIRCore::test_constants_own_rne_precision_and_reject_unrounded_literals
+tests/test_ir.py::TestFugaIRCore::test_origins_verifier_dominance_regions_and_external_specs
+tests/test_ir.py::TestPrimitiveRuleAndSpecialization::test_primitive_abstract_evaluation_and_rule_dispatch
+tests/test_ir.py::TestPrimitiveRuleAndSpecialization::test_static_if_for_max_unroll_prune_and_dynamic_rejection
+tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_stop_gradient_blocks_opaque_rules_in_both_ad_directions
+tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_vjp_duplicate_outputs_disconnected_zero_casts_and_static_loops
+tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_vjp_and_jvp_external_effects_splat_and_argnum_guards
+tests/test_ir_autodiff.py::TestReverseAndForwardIR::test_jvp_vjp_composition_executes_identically_in_both_orders
+tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_opaque_forward_keeps_custom_rule_boundary_in_higher_order_ir
+tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_plain_method_signatures_visible_outputs_and_custom_rule_selection
+tests/test_ir_autodiff.py::TestCustomFunctionIRContract::test_mixed_inputs_tuples_missing_rules_and_definition_invalidation
+tests/test_jit.py::TestHostStorage::test_contiguous_buffers_preserve_bits_and_ownership
+tests/test_jit.py::TestHostStorage::test_storage_roundtrips_and_bounds
+tests/test_jit.py::TestTensorCreation::test_size_factories_create_buffers_without_compiling
+tests/test_jit.py::TestTensorCreation::test_factory_gradients_and_rejected_sizes
+tests/test_jit.py::TestTensorCreation::test_shape_helpers_validate_inference_and_integer_dimensions
+tests/test_jit.py::TestHostJIT::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs
+tests/test_jit.py::TestHostJIT::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings
+tests/test_jit.py::TestHostJIT::test_general_template_binding_retains_python_parameter_rules
+tests/test_jit.py::TestHostJIT::test_reshape_is_lazy_fuses_and_preserves_values
+tests/test_jit.py::TestHostJIT::test_public_dtype_objects_survive_deferred_execution
+tests/test_jit.py::TestHostJIT::test_public_buffer_import_and_export
+tests/test_jit.py::TestHostJIT::test_cache_hit_skips_projection_composition_and_ir_printing
+tests/test_jit.py::TestHostJIT::test_lazy_fusion_cache_hits_and_artifacts
+tests/test_jit.py::TestHostJIT::test_joint_materialization_and_shared_values
+tests/test_jit.py::TestHostJIT::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions
+tests/test_jit.py::TestHostJIT::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions
+tests/test_jit.py::TestHostJIT::test_compile_and_execution_failure_do_not_materialize_or_fall_back
+tests/test_jit.py::TestHostJIT::test_all_precisions_shapes_casts_and_independent_outputs
+tests/test_jit.py::TestHostJIT::test_python_functions_captures_constants_and_engine_lifecycle
+tests/test_jit.py::TestHostJIT::test_cuda_alias_and_external_shape_delegation
+tests/test_jit.py::TestOwnedCUDAJIT::test_primitive_binding_matrix_preserves_keywords_defaults_and_cache_inputs
+tests/test_jit.py::TestOwnedCUDAJIT::test_primitive_type_contracts_reject_invalid_cold_and_hot_bindings
+tests/test_jit.py::TestOwnedCUDAJIT::test_general_template_binding_retains_python_parameter_rules
+tests/test_jit.py::TestOwnedCUDAJIT::test_reshape_is_lazy_fuses_and_preserves_values
+tests/test_jit.py::TestOwnedCUDAJIT::test_public_dtype_objects_survive_deferred_execution
+tests/test_jit.py::TestOwnedCUDAJIT::test_public_buffer_import_and_export
+tests/test_jit.py::TestOwnedCUDAJIT::test_cache_hit_skips_projection_composition_and_ir_printing
+tests/test_jit.py::TestOwnedCUDAJIT::test_lazy_fusion_cache_hits_and_artifacts
+tests/test_jit.py::TestOwnedCUDAJIT::test_joint_materialization_and_shared_values
+tests/test_jit.py::TestOwnedCUDAJIT::test_unused_pending_inputs_do_not_execute_or_validate_dead_definitions
+tests/test_jit.py::TestOwnedCUDAJIT::test_requested_fun_outputs_merge_demands_and_exclude_dead_nested_definitions
+tests/test_jit.py::TestOwnedCUDAJIT::test_compile_and_execution_failure_do_not_materialize_or_fall_back
+tests/test_jit.py::TestOwnedCUDAJIT::test_all_precisions_shapes_casts_and_independent_outputs
+tests/test_jit.py::TestOwnedCUDAJIT::test_device_objects_factories_and_cross_device_errors
+tests/test_jit.py::TestOwnedCUDAJIT::test_cached_jit_replays_graph_through_native_bridge
+tests/test_jit.py::TestOwnedCUDAJIT::test_ask_ir_and_executable_caches_survive_engine_clear_cache
+tests/test_lazy_schedule.py::TestLazySchedule::test_output_subset_alias_input_binding_and_cache_matrix
+tests/test_lazy_schedule.py::TestLazySchedule::test_output_order_changes_bindings
+tests/test_lazy_schedule.py::TestLazySchedule::test_repeated_fun_result_and_input_return
+tests/test_lazy_schedule.py::TestLazySchedule::test_constant_carrier_with_pending_alias_and_changed_shape
+tests/test_lazy_schedule.py::TestLazySchedule::test_materialized_intermediate_keeps_derivative_provenance
+tests/test_lazy_schedule.py::TestLazySchedule::test_deep_alias_and_expression_chains
+tests/test_lowering.py::TestShapeAndTracing::test_shape_normalization_and_tolist_reconstruction
+tests/test_lowering.py::TestShapeAndTracing::test_trace_context_isolation_and_device_neutral_fuga_ir
+tests/test_lowering.py::TestLoweringBoundary::test_mixed_precision_and_bool_lowering_verify_in_ask
+tests/test_lowering.py::TestLoweringBoundary::test_source_map_ids_unrolled_origins_and_atomic_failure
+tests/test_lowering.py::TestLoweringBoundary::test_explicit_external_shape_and_dynamic_control_flow_rejection
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[fp32-rounded_inputs]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[fp32-cancellation]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[fp16-rounded_inputs]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[fp16-cancellation]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[bf16-rounded_inputs]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_library_accuracy_and_shared_result[bf16-cancellation]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_nan_infinity_and_zero_products[fp32]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_nan_infinity_and_zero_products[fp16]
+tests/test_matmul_precision.py::TestCUDAMatmulPrecision::test_nan_infinity_and_zero_products[bf16]
+tests/test_native_arena.py::TestNativeArena::test_graph_identity_and_materialization_matrix
+tests/test_native_arena.py::TestNativeArena::test_materializing_an_existing_parent_changes_the_numerical_frontier
+tests/test_native_arena.py::TestNativeArena::test_native_edges_preserve_gradients_after_wrappers_are_released
+tests/test_native_arena.py::TestNativeArena::test_equal_fingerprints_require_exact_graph_identity
+tests/test_native_arena.py::TestNativeArena::test_closed_engine_and_pending_handles_are_collectible
+tests/test_native_arena.py::TestNativeArena::test_node_slots_reuse_while_older_outputs_keep_their_history
+tests/test_native_graph.py::TestNativeGraph::test_loaded_module_is_required_native_extension
+tests/test_native_graph.py::TestNativeGraph::test_inactive_coefficient_is_live_without_its_reverse_rule
+tests/test_native_graph.py::TestNativeGraph::test_reconverging_paths_visit_shared_operation_once
+tests/test_native_graph.py::TestNativeGraph::test_multiresult_call_is_one_opaque_reverse_boundary
+tests/test_native_graph.py::TestNativeGraph::test_effects_keep_their_dependencies_without_creating_reverse_paths
+tests/test_native_graph.py::TestNativeGraph::test_effectful_results_need_normal_output_path_for_reverse
+tests/test_native_graph.py::TestNativeGraph::test_constants_and_unselected_outputs_need_no_reverse_rules
+tests/test_native_graph.py::TestNativeGraph::test_empty_selected_inputs_produces_ordinary_dce
+tests/test_native_graph.py::TestNativeGraph::test_identity_and_empty_graphs_have_no_operation_schedule
+tests/test_native_graph.py::TestNativeGraph::test_keyword_arguments_and_tuple_input
+tests/test_native_graph.py::TestNativeGraph::test_invalid_ssa_references_are_rejected
+tests/test_native_graph.py::TestNativeGraph::test_invalid_counts_and_effect_shapes_are_rejected
+tests/test_native_graph.py::TestNativeGraph::test_invalid_python_types_do_not_coerce_silently
+tests/test_native_graph.py::TestNativeGraph::test_parallel_requests_do_not_share_analysis_state
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape()-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp32-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape()-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[fp16-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape()-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int32-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape()-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[int64-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape()-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestHostOperationMatrix::test_generated_operation_compositions[bool-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp32-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[fp16-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bf16-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int32-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch2]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch3]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch4]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch5]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch6]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(2, 2)-batch7]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[int64-shape(0, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape()-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape(4,)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape(2, 2)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape(2, 2)-batch1]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape(1, 4, 1)-batch0]
+tests/test_ops_matrix.py::TestCUDAOperationMatrix::test_generated_operation_compositions[bool-shape(0, 2)-batch0]
+tests/test_primitive_binding.py::TestPrimitiveBinding::test_equivalent_reduction_parameters_reuse_numerical_program
+tests/test_primitive_binding.py::TestPrimitiveBinding::test_automatic_broadcast_matches_explicit_dimensions
+tests/test_primitive_binding.py::TestPrimitiveBinding::test_invalid_parameters_after_warm_binding_keep_error_contracts
+tests/test_tensor_primitives.py::TestTensorPrimitiveContract::test_type_rules_and_derivative_closure
+tests/test_tensor_primitives.py::TestTensorPrimitiveContract::test_generated_invalid_contracts
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 4)x(4, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0, 1)x(2, 1, 0)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 2, 0, 2)x(1, 2, 3, 2)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 3, 2)x(0, 3, 0)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 1, 3)x(1, 2, 1, 2)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 3)x(0, 0, 3)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(4, 2)x(3, 4)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 1, 0)x(2, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0)x(2, 3)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(3, 1)x(2, 1)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 0)x(0, 1)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3)x(3, 0)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 2, 4)x(2, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0, 2)x(2, 2, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 2, 3)x(2, 3, 0)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3, 1)x(2, 1, 2)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 2, 4)x(1, 2, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 1, 0)x(1, 2, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 2, 3)x(1, 2, 3, 0)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 4)x(0, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1, 0)x(0, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 0, 2)x(0, 2, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 3, 1)x(0, 1, 2)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 0)x(1, 0)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1)x(0, 1)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1)x(1, 0)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2)x(2, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2)x(3, 2)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0)x(3, 2)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3)x(0, 3)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(3, 2)x(3, 0)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(3, 2)x(0, 3)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 0)x(0, 1)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 0)x(1, 0)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 1)x(0, 1)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 1)x(1, 0)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2)x(2, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2)x(3, 2)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 0)x(2, 3)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 0)x(3, 2)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 3)x(3, 0)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 3)x(0, 3)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(3, 2)x(3, 0)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(3, 2)x(0, 3)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 4)x(0, 3, 4)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 4, 2)x(0, 4, 3)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 4, 2)x(0, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2, 4)x(0, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2, 4)x(0, 3, 4)-t01]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 4, 2)x(0, 4, 3)-t10]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 4, 2)x(0, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_materialized_mixed_dtype_matrix
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_materialized_workspace_matrix
+tests/test_tensor_primitives.py::TestHostTensorPrimitiveMatrix::test_bf16_computation_is_rejected
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_geometry_reduction_comparison_matrix
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_elementary_values_gradients_and_fusion
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_broadcast_reduction_max_and_jvp
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_reduction_rounding_and_exceptional_values
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 4)x(4, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0, 1)x(2, 1, 0)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 2, 0, 2)x(1, 2, 3, 2)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 3, 2)x(0, 3, 0)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(1, 3)x(2, 1)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(2, 1, 0)x(2, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 2, 0)x(1, 2, 2, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 3)x(0, 0, 3)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 4, 2)x(2, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3, 1)x(2, 1, 2)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 0)x(0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(1, 2, 2, 4)x(1, 2, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 0, 2)x(0, 2, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 2, 3, 1)x(1, 2, 1, 2)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(2, 3)x(3, 0)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2)x(2, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0, 2)x(2, 2, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 2, 3)x(2, 3, 0)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 1, 0)x(1, 2, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 2, 2, 3)x(1, 2, 3, 0)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 4)x(0, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1, 0)x(0, 0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 3, 1)x(0, 1, 2)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 0)x(0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(1, 0)x(1, 0)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1)x(0, 1)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 1)x(1, 0)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2)x(3, 2)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0)x(2, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 0)x(3, 2)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3)x(3, 0)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(2, 3)x(0, 3)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(3, 2)x(3, 0)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(3, 2)x(0, 3)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(1, 0)x(1, 0)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 1)x(0, 1)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 1)x(1, 0)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2)x(2, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2)x(3, 2)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 0)x(2, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 0)x(3, 2)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 3)x(3, 0)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(2, 3)x(0, 3)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(3, 2)x(3, 0)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(3, 2)x(0, 3)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(1, 0)x(0, 1)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(1, 0)x(1, 0)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 1)x(0, 1)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 1)x(1, 0)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 2)x(2, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 2)x(3, 2)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(2, 0)x(2, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(2, 0)x(3, 2)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(2, 3)x(0, 3)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(3, 2)x(3, 0)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(3, 2)x(0, 3)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 2, 4)x(0, 3, 4)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 4, 2)x(0, 4, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp32-(0, 4, 2)x(0, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2, 4)x(0, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 2, 4)x(0, 3, 4)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 4, 2)x(0, 4, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[fp16-(0, 4, 2)x(0, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 2, 4)x(0, 4, 3)-t00]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 2, 4)x(0, 3, 4)-t01]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 4, 2)x(0, 4, 3)-t10]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_dtype_shape_transpose_matrix[bf16-(0, 4, 2)x(0, 3, 4)-t11]
+tests/test_tensor_primitives.py::TestCUDATensorPrimitiveMatrix::test_matmul_derivative_transpose_and_composition_matrix
+tests/test_tensor_storage.py::TestHostTensorStorage::test_cpu_creation_matrix_and_bf16_rejection
+tests/test_tensor_storage.py::TestCUDATensorStorage::test_cuda_creation_uses_device_storage_and_bf16_arithmetic
+tests/test_tensor_storage.py::TestCUDATensorStorage::test_bf16_raw_buffer_preserves_bits_and_copy_contract
+tests/test_triton.py::TestTritonRegistration::test_verbatim_snapshot_without_importing_triton_and_frozen_metadata
+tests/test_triton.py::TestTritonRegistration::test_pending_kernel_calls_snapshot_changed_callback_configuration
+tests/test_triton.py::TestTritonRegistration::test_environment_selects_bundled_worker_without_importing_triton
+tests/test_triton.py::TestTritonRegistration::test_multiple_inputs_and_explicit_output_metadata
+tests/test_triton.py::TestTritonRegistration::test_deferred_arch_binding_and_invalid_registration_guards
+tests/test_triton.py::TestTritonRegistration::test_scalar_multioutput_and_recursive_constants_survive_lowering
+tests/test_triton.py::TestTritonRegistration::test_public_dtypes_bind_metadata_scalars_and_constexpr
+tests/test_triton.py::TestTritonWorkerContract::test_compiler_selection_accepts_stable_patches_and_rejects_other_releases
+tests/test_triton.py::TestTritonWorkerContract::test_binary_export_uses_source_abi_without_reading_compiler_ir
+tests/test_triton.py::TestTritonGPUExecution::test_reshape_preserves_external_tensor_metadata
+tests/test_triton.py::TestTritonGPUExecution::test_worker_tracks_transitive_imports_without_stale_bytecode
+tests/test_triton.py::TestTritonGPUExecution::test_programmatic_jit_keeps_stored_source_and_default_scalar
+tests/test_triton.py::TestTritonGPUExecution::test_existing_jit_dependencies_scalars_and_multiple_outputs
+tests/test_triton.py::TestTritonGPUExecution::test_scheduled_forward_across_precisions_algorithms_and_custom_backward
+tests/test_triton.py::TestTritonGPUExecution::test_multiple_external_nodes_and_different_storage_outputs
+tests/test_triton.py::TestTritonGPUExecution::test_pointer_order_and_external_only_execution_without_ask_codegen_tools
+tests/test_weights.py::TestWeightExport::test_published_manifest_schema_describes_the_format
+tests/test_weights.py::TestWeightExport::test_roundtrip_cpu_dtypes_nested_tree_and_metadata
+tests/test_weights.py::TestWeightExport::test_content_addressed_dedup_and_overwrite_guard
+tests/test_weights.py::TestWeightExport::test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata
+tests/test_weights.py::TestWeightExport::test_rejects_integrity_escape_and_version_tampering
+tests/test_weights.py::TestWeightExport::test_optional_extensions_and_minimal_manifest_are_forward_compatible
+tests/test_weights.py::TestWeightExport::test_loaded_weights_are_differentiable_in_explicit_engine
+tests/test_weights.py::TestCUDAWeightExport::test_gpu_tensors_roundtrip_through_host_blobs
+
+583 tests collected in 0.27s

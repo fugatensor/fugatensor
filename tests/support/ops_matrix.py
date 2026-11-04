@@ -118,7 +118,7 @@ class Case:
         return x
 
 
-def plan_matrix():
+def plan_matrix(*, exhaustive=False):
     names = select('FUGATENSOR_TEST_OPS', [op.name for op in OPERATIONS])
     depths = select('FUGATENSOR_TEST_DEPTHS', ('1', '2', '3'), default=('1', '2'))
     dtypes = select('FUGATENSOR_TEST_DTYPES', DTYPES)
@@ -131,8 +131,12 @@ def plan_matrix():
         cases = tuple(Case(items) for depth in depths for items in product(operations, repeat=int(depth)))
         if cases:
             selected = True
+            composition_shape = 'matrix' if 'matrix' in shapes else shapes[0]
             for shape in shapes:
-                yield dtype, SHAPES[shape], cases, orders if dtype in FLOATS else (0,)
+                chosen = cases if exhaustive or shape == composition_shape else tuple(
+                    case for case in cases if len(case.operations) == 1)
+                if chosen:
+                    yield dtype, SHAPES[shape], chosen, orders if dtype in FLOATS else (0,)
     if not selected:
         raise ValueError('selected operations and dtypes have no supported combinations')
 

@@ -1,18 +1,20 @@
 """Portable PyTree weight export: roundtrip, dedup, integrity and rejection paths."""
 from __future__ import annotations
 
+import pytest
+
 import json
 from pathlib import Path
 import tempfile
-import unittest
 
 import fugatensor as ft
 from fugatensor._ask.cuda import CUDAError
 from fugatensor.weights import WeightsError
-from tests._helpers import EngineTestCase, requires_cuda
+from tests._helpers import requires_cuda
 
 
-class WeightExportTests(EngineTestCase):
+@pytest.mark.usefixtures("engine_context")
+class TestWeightExport:
     device = "cpu"
 
     def make_tree(self):
@@ -30,10 +32,10 @@ class WeightExportTests(EngineTestCase):
     def test_published_manifest_schema_describes_the_format(self):
         schema = json.loads((Path(__file__).resolve().parents[1] /
                              "schemas/weights-manifest-v1.schema.json").read_text(encoding="utf-8"))
-        self.assertEqual(schema["properties"]["format"]["const"], "fuga.weights")
-        self.assertEqual(schema["properties"]["schema_version"]["const"], 1)
-        self.assertIn("tree", schema["properties"])
-        self.assertIn("array", schema["$defs"])
+        assert (schema['properties']['format']['const']) == ('fuga.weights')
+        assert (schema['properties']['schema_version']['const']) == (1)
+        assert ('tree') in (schema['properties'])
+        assert ('array') in (schema['$defs'])
 
     def test_roundtrip_cpu_dtypes_nested_tree_and_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -41,23 +43,21 @@ class WeightExportTests(EngineTestCase):
             tree = self.make_tree()
             ft.weights.save(target, tree, metadata={"step": 12, "arch": "demo"})
             manifest = ft.weights.read_manifest(target)
-            self.assertEqual((manifest["format"], manifest["schema_version"]),
-                             (ft.weights.FORMAT, 1))
-            self.assertEqual(ft.weights.read_metadata(target), {"arch": "demo", "step": 12})
+            assert ((manifest['format'], manifest['schema_version'])) == ((ft.weights.FORMAT, 1))
+            assert (ft.weights.read_metadata(target)) == ({'arch': 'demo', 'step': 12})
             loaded = ft.weights.load(target, engine=self.engine)
-            self.assertIsInstance(loaded["nested"], list)
-            self.assertIsInstance(loaded["nested"][1], tuple)
+            assert isinstance(loaded['nested'], list)
+            assert isinstance(loaded['nested'][1], tuple)
             for name in ("bool", "i32", "i64", "f32", "f16"):
-                self.assertIs(loaded[name].dtype, ft.DType(name))
-                self.assertEqual(loaded[name].dtype, tree[name].dtype)
-                self.assertEqual(loaded[name].shape, tree[name].shape)
-                self.assertEqual(loaded[name].tolist(), tree[name].tolist())
-            self.assertEqual({record["dtype"] for record in manifest["arrays"].values()},
-                             {"bool", "i32", "i64", "f32", "f16"})
-            self.assertEqual(loaded["nested"][0]["weight"].tolist(), [[1.0, 2.0]])
-            self.assertEqual(loaded["nested"][1][0].tolist(), 3.0)
-            self.assertEqual(loaded["empty"].shape, (2, 0, 3))
-            self.assertEqual(loaded["empty"].tolist(), [[], []])
+                assert (loaded[name].dtype) is (ft.DType(name))
+                assert (loaded[name].dtype) == (tree[name].dtype)
+                assert (loaded[name].shape) == (tree[name].shape)
+                assert (loaded[name].tolist()) == (tree[name].tolist())
+            assert ({record['dtype'] for record in manifest['arrays'].values()}) == ({'bool', 'i32', 'i64', 'f32', 'f16'})
+            assert (loaded['nested'][0]['weight'].tolist()) == ([[1.0, 2.0]])
+            assert (loaded['nested'][1][0].tolist()) == (3.0)
+            assert (loaded['empty'].shape) == ((2, 0, 3))
+            assert (loaded['empty'].tolist()) == ([[], []])
 
     def test_content_addressed_dedup_and_overwrite_guard(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -66,25 +66,25 @@ class WeightExportTests(EngineTestCase):
             tree = {"a": first, "b": first, "copy": ft.tensor([1.0, 2.0], dtype="f32")}
             ft.weights.save(target, tree)
             manifest = ft.weights.read_manifest(target)
-            self.assertEqual(len(manifest["arrays"]), 1)
-            self.assertEqual(len(manifest["tree"]["items"]), 3)
-            with self.assertRaises(FileExistsError):
+            assert (len(manifest['arrays'])) == (1)
+            assert (len(manifest['tree']['items'])) == (3)
+            with pytest.raises(FileExistsError):
                 ft.weights.save(target, tree)
-            self.assertEqual(ft.weights.load(target, engine=self.engine)["a"].tolist(), [1.0, 2.0])
+            assert (ft.weights.load(target, engine=self.engine)['a'].tolist()) == ([1.0, 2.0])
             ft.weights.save(target, {"x": ft.tensor([3], dtype="i32")}, overwrite=True)
-            self.assertEqual(ft.weights.load(target, engine=self.engine)["x"].tolist(), [3])
+            assert (ft.weights.load(target, engine=self.engine)['x'].tolist()) == ([3])
 
     def test_rejects_non_tensor_leaves_bad_keys_cycles_and_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "weights"
             for tree in ({"x": 1}, {1: ft.tensor([1])}, [ft.tensor([1]), object()]):
-                with self.subTest(tree=tree), self.assertRaises(TypeError):
+                with pytest.raises(TypeError):
                     ft.weights.save(target, tree)
             cycle = {}
             cycle["self"] = cycle
-            with self.assertRaisesRegex(WeightsError, "cycle"):
+            with pytest.raises(WeightsError, match='cycle'):
                 ft.weights.save(target, cycle)
-            with self.assertRaisesRegex(TypeError, "JSON"):
+            with pytest.raises(TypeError, match='JSON'):
                 ft.weights.save(target, {"x": ft.tensor([1])}, metadata={"bad": object()})
 
     def test_rejects_integrity_escape_and_version_tampering(self):
@@ -103,20 +103,20 @@ class WeightExportTests(EngineTestCase):
                 tampered = json.loads(json.dumps(original))
                 tampered[field] = value
                 write(tampered)
-                with self.assertRaisesRegex(WeightsError, message):
+                with pytest.raises(WeightsError, match=message):
                     ft.weights.load(target, engine=self.engine)
 
             tampered = json.loads(json.dumps(original))
             identifier = next(iter(tampered["arrays"]))
             tampered["arrays"][identifier]["file"] = "../escape.bin"
             write(tampered)
-            with self.assertRaisesRegex(WeightsError, "escapes"):
+            with pytest.raises(WeightsError, match='escapes'):
                 ft.weights.load(target, engine=self.engine)
 
             write(original)
             blob = target / original["arrays"][identifier]["file"]
             blob.write_bytes(b"tampered")
-            with self.assertRaisesRegex(WeightsError, "mismatch"):
+            with pytest.raises(WeightsError, match='mismatch'):
                 ft.weights.load(target, engine=self.engine)
 
     def test_optional_extensions_and_minimal_manifest_are_forward_compatible(self):
@@ -131,8 +131,8 @@ class WeightExportTests(EngineTestCase):
             manifest["tree"]["items"][0]["value"]["metadata"] = {"scale": [1.0, 1.0]}
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             loaded = ft.weights.load(target, engine=self.engine)
-            self.assertEqual(loaded["x"].tolist(), [1.0, 2.0])
-            self.assertEqual(ft.weights.read_metadata(target), {})
+            assert (loaded['x'].tolist()) == ([1.0, 2.0])
+            assert (ft.weights.read_metadata(target)) == ({})
 
     def test_loaded_weights_are_differentiable_in_explicit_engine(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -142,16 +142,17 @@ class WeightExportTests(EngineTestCase):
                 loaded = ft.weights.load(target, engine=other)
                 weight = loaded["w"]
                 derivative = ft.grad(weight * weight, weight, seed=ft.ones_like(weight))
-                self.assertEqual(derivative.tolist(), [2.0, 4.0])
-                self.assertEqual(loaded["w"].engine, other)
+                assert (derivative.tolist()) == ([2.0, 4.0])
+                assert (loaded['w'].engine) == (other)
             ft.weights.save(Path(directory) / "ints", {"w": ft.tensor([1], dtype="i32")})
             integers = ft.weights.load(Path(directory) / "ints", engine=self.engine)["w"]
-            with self.assertRaisesRegex((TypeError, ValueError), "float|dtype"):
+            with pytest.raises((TypeError, ValueError), match='float|dtype'):
                 ft.grad(integers, integers)
 
 
 @requires_cuda
-class CUDAWeightExportTests(EngineTestCase):
+@pytest.mark.usefixtures("engine_context")
+class TestCUDAWeightExport:
     device = "cuda"
 
     def test_gpu_tensors_roundtrip_through_host_blobs(self):
@@ -159,21 +160,16 @@ class CUDAWeightExportTests(EngineTestCase):
             target = Path(directory) / "weights"
             dtypes = ("f16", "f32", "bf16") if self.supports_bf16 else ("f16", "f32")
             if not self.supports_bf16:
-                with self.assertRaisesRegex(CUDAError, "bf16.*support"):
+                with pytest.raises(CUDAError, match='bf16.*support'):
                     ft.tensor([1], dtype=ft.bf16)
             tree = {dtype: ft.tensor([1.5, -2.0, 3.25], dtype=dtype)
                     for dtype in dtypes}
             ft.weights.save(target, tree)
             loaded = ft.weights.load(target, engine=self.engine)
             for dtype, value in tree.items():
-                with self.subTest(dtype=dtype):
-                    self.assertEqual(loaded[dtype].tolist(), value.tolist())
-                    self.assertEqual(loaded[dtype].dtype, value.dtype)
-                    self.assertEqual(loaded[dtype].device, value.device)
+                assert (loaded[dtype].tolist()) == (value.tolist())
+                assert (loaded[dtype].dtype) == (value.dtype)
+                assert (loaded[dtype].device) == (value.device)
             if self.supports_bf16:
-                with self.assertRaisesRegex(TypeError, "CPU tensors support only bool/i32/i64/f32/f16"):
+                with pytest.raises(TypeError, match='CPU tensors support only bool/i32/i64/f32/f16'):
                     ft.weights.load(target, device="cpu")
-
-
-if __name__ == "__main__":
-    unittest.main()

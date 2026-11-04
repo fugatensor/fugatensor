@@ -53,18 +53,18 @@
   - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK，`--variant pure|all` 选择安装依赖。安装详情见 [`docs/安装.md`](docs/安装.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试组织**：
-  - 基础数值测试从算子注册表生成组合，再与精度、求导阶数和设备正交交叉；新增算子扩展同一注册表，不逐个手写所有组合。独立参考给出预期数值，统一断言校验形状、类型、结果和梯度；环境变量可缩小覆盖用于定位。
-  - 状态寿命、缓存、异常契约和不透明外部算法保留独立测试；FlashAttention 测试直接调用用户 API，按精度、因果模式、形状与前后运算生成覆盖。
-  - 测试命令、矩阵筛选与新增覆盖方式见 [`docs/测试.md`](docs/测试.md)。
+  - 使用 pytest fixture、原生 `assert`、`pytest.raises` 与参数化。输入生成和独立数值参考位于 `tests/support/`，资源 fixture 位于 `tests/conftest.py`；数值矩阵复用 Engine，状态测试独立初始化。
+  - 默认矩阵用生成式两两组合和定向边界分层覆盖 dtype、shape、layout 与图组合；`--exhaustive` 展开完整组合。因素对覆盖与更高阶交互分别陈述，不以缩减矩阵代替生命周期、定义失效、物化、并发和数值边界断言。
+  - FP32 CPU matmul 按 OpenBLAS 的 f32 累加误差界校验，CUDA FP32 matmul 按 TF32 输入与 f32 累加误差界校验；FP16 CPU 保留逐 K 累加规则。参考以高精度点积和绝对乘积和确定尺度化容差。
+  - 测试命令、筛选与新增覆盖方式见 [`docs/测试.md`](docs/测试.md)。
 - **测试运行**：
-  - 前端测试位于 `tests/test_*.py`，共用 `tests/_helpers.py` 的 `EngineTestCase`：
-    - CPU + IR + 原生图分析：`.venv/bin/python -m unittest -v`
-    - 启用自有 CUDA 硬件测试：`FUGATENSOR_TEST_CUDA=1 .venv/bin/python -m unittest -v`
-    - 启用自有 CUDA + 用户 Triton 调度测试：`FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v`
-  - 后端桥接与产物协议测试位于 `tests/backend/`：`ASK_SOURCE_ROOT=/path/to/ask ASK_OPT=/path/to/ask-sdk/bin/ask-opt .venv/bin/python -m unittest discover -s tests/backend -p 'test_*.py' -v`。
-  - 后端物理 GPU 测试独立运行：`.venv/bin/python -m unittest discover -s tests/backend/gpu -p 'test_gpu_*.py' -v`，同时配置 `ASK_SOURCE_ROOT`、`ASK_OPT`、`ASK_LLVM_TOOLS_DIR` 与 `ASK_PTXAS`；设置 `ASK_REQUIRE_CUDA_DEVICE=1` 可要求驱动和工具缺失时失败。
-  - `ASK_SOURCE_ROOT` 仅供集成测试读取 ASK 的 IR fixture、依赖锁与工具路径，不是 FugaTensor 的构建或运行依赖。依赖缺失导致 skipped 不能视作相关功能通过验证。
-  - 始终使用已安装 `_native` 扩展的 `.venv/bin/python` 运行测试，不使用脱离原生扩展的 `PYTHONPATH=$PWD/src`。
+  - 测试依赖：`python -m pip install -e '.[pure,test]'`；Triton 环境用 `'.[all,test]'`。
+  - CPU、IR 与原生图分析：`.venv/bin/python -m pytest -q`。
+  - 自有 CUDA：`.venv/bin/python -m pytest --cuda -q`；CUDA 与 Triton：`.venv/bin/python -m pytest --triton -q`。显式启用的驱动、工具和 worker 缺失时报错；skipped 单独记录。
+  - 后端桥接与产物协议独立选择：`.venv/bin/python -m pytest tests/backend -q`；物理 GPU 增加 `--cuda`，配置 `ASK_SOURCE_ROOT`、`ASK_OPT`、`ASK_LLVM_TOOLS_DIR` 与 `ASK_PTXAS`。
+  - wheel 安装独立选择：`.venv/bin/python -m pytest tests/packaging --wheel /path/to/fugatensor.whl --triton -q`，为 pure/all 分别安装依赖；默认发现不进入 backend/packaging。
+  - `ASK_SOURCE_ROOT` 只供集成测试读取 ASK fixture、依赖锁和工具路径；ASK CTest 独立运行。
+  - 使用已安装 `_native` 扩展的解释器运行测试。
 
 ---
 

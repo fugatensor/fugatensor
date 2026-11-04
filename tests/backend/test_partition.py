@@ -1,44 +1,44 @@
 """Native static graph partitioning and execution-plan SSA contracts, without a GPU."""
 from __future__ import annotations
 
+import pytest
+
 import json
 import math
 from pathlib import Path
 import subprocess
 import tempfile
-import unittest
 
 from fugatensor._ask import Compiler, CompilerError, Module, TensorType
 from fugatensor._ask.compiler import _result
-from support.host_runner import ask_opt_path
+from tests.backend.support.host_runner import ask_opt_path
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[3] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent))
 
 
-class PartitionTests(unittest.TestCase):
+class TestPartition:
     def partition(self, source, **options):
         return Compiler().partition(source, **options)
 
     def assert_plan(self, result):
         plan = result.execution_plan
-        self.assertEqual((plan["schema_version"], plan["kind"]), (1, "ask.cuda.execution_plan"))
-        self.assertEqual(plan["scheduling"], {"policy": "sequential", "stream": "session"})
+        assert ((plan['schema_version'], plan['kind'])) == ((1, 'ask.cuda.execution_plan'))
+        assert (plan['scheduling']) == ({'policy': 'sequential', 'stream': 'session'})
         buffers = {buffer["id"]: buffer for buffer in plan["buffers"]}
         available, completed = set(plan["inputs"]), set()
         for step in plan["steps"]:
-            self.assertTrue(set(step["inputs"]) <= available)
-            self.assertTrue(set(step["depends_on"]) <= completed)
-            self.assertTrue(set(step["outputs"]) <= buffers.keys())
-            self.assertFalse(set(step["outputs"]) & available)
+            assert (set(step['inputs']) <= available)
+            assert (set(step['depends_on']) <= completed)
+            assert (set(step['outputs']) <= buffers.keys())
+            assert not (set(step['outputs']) & available)
             available.update(step["outputs"])
             completed.add(step["id"])
             source = result.step_sources[step["id"]]
-            self.assertIn(f'ask.kernel_id = "{step["id"]}"', source)
-            self.assertIn(f'ask.kernel_kind = "{step["kind"]}"', source)
+            assert (f'''ask.kernel_id = "{step['id']}"''') in (source)
+            assert (f'''ask.kernel_kind = "{step['kind']}"''') in (source)
             Compiler().prepare(source)
-        self.assertTrue(set(plan["outputs"]) <= available)
-        self.assertIn("ask.execution_plan", result.ir)
+        assert (set(plan['outputs']) <= available)
+        assert ('ask.execution_plan') in (result.ir)
         return plan
 
     def test_owned_graph_and_identity_outputs_preserve_aliases(self):
@@ -48,33 +48,32 @@ class PartitionTests(unittest.TestCase):
         result = graph.add(graph.inputs["x"], graph.splat(graph.constant(2), (3,)))
         graph.return_(graph.inputs["x"], result, result)
         plan = self.assert_plan(self.partition(module))
-        self.assertEqual([step["kind"] for step in plan["steps"]], ["owned"])
-        self.assertEqual(plan["outputs"][0], plan["inputs"][0])
-        self.assertEqual(plan["outputs"][1], plan["outputs"][2])
+        assert ([step['kind'] for step in plan['steps']]) == (['owned'])
+        assert (plan['outputs'][0]) == (plan['inputs'][0])
+        assert (plan['outputs'][1]) == (plan['outputs'][2])
         identity = self.partition("module { func.func @id(%x: tensor<i32>) -> tensor<i32> { return %x : tensor<i32> } }")
         plan = self.assert_plan(identity)
-        self.assertEqual(plan["steps"], [])
-        self.assertEqual(plan["inputs"], plan["outputs"])
+        assert (plan['steps']) == ([])
+        assert (plan['inputs']) == (plan['outputs'])
 
     def test_external_boundaries_preserve_owned_regions_and_provenance(self):
         source = (ROOT / "tests/ir/pipeline.mlir").read_text()
         result = self.partition(source)
         plan = self.assert_plan(result)
-        self.assertEqual([step["kind"] for step in plan["steps"]], ["owned", "external", "owned"])
-        self.assertEqual(plan["steps"][1]["external_id"], "F")
-        self.assertEqual(len(result.diagnostics["markers"]), 2)
-        self.assertIn("ask.source_markers", result.ir)
-        self.assertEqual(result.external_requests[0]["protocol_version"], 2)
-        self.assertEqual(result.external_requests[0]["port_shapes"],
-                         {"input:0": [10], "output:0": [10]})
+        assert ([step['kind'] for step in plan['steps']]) == (['owned', 'external', 'owned'])
+        assert (plan['steps'][1]['external_id']) == ('F')
+        assert (len(result.diagnostics['markers'])) == (2)
+        assert ('ask.source_markers') in (result.ir)
+        assert (result.external_requests[0]['protocol_version']) == (2)
+        assert (result.external_requests[0]['port_shapes']) == ({'input:0': [10], 'output:0': [10]})
 
     def test_fanout_preserves_public_outputs(self):
         source = (ROOT / "tests/ir/pipeline.mlir").read_text()
         source = source.replace('-> tensor<10xi32> {\n    %one', '-> (tensor<10xi32>, tensor<10xi32>) {\n    %one')
         source = source.replace('return %y : tensor<10xi32>', 'return %t, %y : tensor<10xi32>, tensor<10xi32>')
         plan = self.assert_plan(self.partition(source))
-        self.assertGreaterEqual(len(plan["steps"]), 2)
-        self.assertEqual(len(plan["outputs"]), 2)
+        assert (len(plan['steps'])) >= (2)
+        assert (len(plan['outputs'])) == (2)
 
     def test_multiport_shape_change_and_duplicate_external_inputs(self):
         source = '''module {
@@ -87,13 +86,12 @@ class PartitionTests(unittest.TestCase):
         }'''
         result = self.partition(source)
         plan = self.assert_plan(result)
-        self.assertEqual(len(plan["steps"]), 1)
+        assert (len(plan['steps'])) == (1)
         step = plan["steps"][0]
-        self.assertEqual(step["kind"], "external")
-        self.assertEqual(step["inputs"], [plan["inputs"][0]] * 2)
-        self.assertEqual(len(step["outputs"]), 2)
-        self.assertEqual(result.external_requests[0]["port_shapes"],
-                         {"input:0": [4], "input:1": [4], "output:0": [2], "output:1": [1]})
+        assert (step['kind']) == ('external')
+        assert (step['inputs']) == ([plan['inputs'][0]] * 2)
+        assert (len(step['outputs'])) == (2)
+        assert (result.external_requests[0]['port_shapes']) == ({'input:0': [4], 'input:1': [4], 'output:0': [2], 'output:1': [1]})
 
     def test_sdk_multioutput_scalar_abi_and_json_constants_roundtrip(self):
         incoming = TensorType((4,), "f32")
@@ -116,43 +114,41 @@ class PartitionTests(unittest.TestCase):
         graph = module.graph("main", inputs={"x": incoming}, results=outputs)
         results = graph.external(graph.inputs["x"], semantics=semantics, implementation=implementation,
                                  result_types=outputs, id="multi")
-        self.assertIsInstance(results, tuple)
-        self.assertEqual([value.value_id for value in results], ["multi.result0", "multi.result1"])
+        assert isinstance(results, tuple)
+        assert ([value.value_id for value in results]) == (['multi.result0', 'multi.result1'])
         graph.return_(*results)
         compiled = self.partition(module)
         plan = self.assert_plan(compiled)
-        self.assertEqual(len(plan["steps"][0]["outputs"]), 2)
+        assert (len(plan['steps'][0]['outputs'])) == (2)
         request = compiled.external_requests[0]
-        self.assertEqual(request["source_bindings"], bindings)
-        self.assertEqual(request["constants"], constants)
-        self.assertEqual(request["fixed_options"], options)
-        self.assertIs(type(request["constants"]["one"]), float)
-        self.assertIs(type(request["constants"]["minus_one"]), float)
-        self.assertIs(type(request["constants"]["integer"]), int)
-        self.assertEqual(math.copysign(1, request["source_bindings"]["fp32"]), -1)
-        self.assertEqual(math.copysign(1, request["constants"]["nested"]["key with spaces"][2]), -1)
+        assert (request['source_bindings']) == (bindings)
+        assert (request['constants']) == (constants)
+        assert (request['fixed_options']) == (options)
+        assert (type(request['constants']['one'])) is (float)
+        assert (type(request['constants']['minus_one'])) is (float)
+        assert (type(request['constants']['integer'])) is (int)
+        assert (math.copysign(1, request['source_bindings']['fp32'])) == (-1)
+        assert (math.copysign(1, request['constants']['nested']['key with spaces'][2])) == (-1)
         for compiler in (Compiler(), Compiler(executable=ask_opt_path())):
             for method in (compiler.prepare, compiler.partition):
-                with self.subTest(compiler=compiler.executable, method=method.__name__):
-                    restored = method(module).external_requests[0]
-                    self.assertEqual(restored, request)
-                    self.assertIs(type(restored["constants"]["one"]), float)
-                    self.assertIs(type(restored["constants"]["minus_one"]), float)
-                    self.assertIs(type(restored["constants"]["integer"]), int)
-                    self.assertEqual(math.copysign(1, restored["source_bindings"]["fp32"]), -1)
+                restored = method(module).external_requests[0]
+                assert (restored) == (request)
+                assert (type(restored['constants']['one'])) is (float)
+                assert (type(restored['constants']['minus_one'])) is (float)
+                assert (type(restored['constants']['integer'])) is (int)
+                assert (math.copysign(1, restored['source_bindings']['fp32'])) == (-1)
 
         for parameter, replacement in (("i1", 1), ("i8", 128), ("u8", -1), ("fp32", True),
                                        ("i64", 2**63), ("u64", -1)):
-            with self.subTest(parameter=parameter):
-                bad = Module()
-                sem = bad.semantics("sem", inputs=[incoming], results=outputs, shape_rule="fixed")
-                impl = bad.implementation("impl", compiler="fixture", source="opaque", entry="kernel",
-                    signature=signature, source_bindings={**bindings, parameter: replacement},
-                    target={"backend": "cuda", "arch": 80})
-                body = bad.graph("main", inputs={"x": incoming}, results=outputs)
-                body.return_(*body.external(body.inputs["x"], semantics=sem, implementation=impl))
-                with self.assertRaisesRegex(CompilerError, "invalid scalar source binding"):
-                    self.partition(bad)
+            bad = Module()
+            sem = bad.semantics("sem", inputs=[incoming], results=outputs, shape_rule="fixed")
+            impl = bad.implementation("impl", compiler="fixture", source="opaque", entry="kernel",
+                signature=signature, source_bindings={**bindings, parameter: replacement},
+                target={"backend": "cuda", "arch": 80})
+            body = bad.graph("main", inputs={"x": incoming}, results=outputs)
+            body.return_(*body.external(body.inputs["x"], semantics=sem, implementation=impl))
+            with pytest.raises(CompilerError, match='invalid scalar source binding'):
+                self.partition(bad)
 
     def test_cli_and_binding_have_the_same_contract_and_reject_dynamic_inputs(self):
         source = (ROOT / "tests/ir/pipeline.mlir").read_text()
@@ -163,11 +159,7 @@ class PartitionTests(unittest.TestCase):
             result = subprocess.run([ask_opt_path(), "--partition", "--no-optimize",
                                      "--report-json", str(report), "-o", str(output)],
                                     input=source, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(_result("partition", output.read_text(), json.loads(report.read_text())), native)
-        with self.assertRaisesRegex(CompilerError, "concrete"):
+            assert (result.returncode) == (0), result.stderr
+            assert (_result('partition', output.read_text(), json.loads(report.read_text()))) == (native)
+        with pytest.raises(CompilerError, match='concrete'):
             self.partition('module { func.func @main(%x: tensor<?xi32>) -> tensor<?xi32> { return %x : tensor<?xi32> } }')
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -8,10 +8,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import unittest
 
 ROOT = Path(__import__('os').environ.get('ASK_SOURCE_ROOT', Path(__file__).resolve().parents[4] / 'ask'))
-__import__('sys').path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fugatensor._ask.cuda import CUDAError
 from fugatensor._ask.numerics import decode_float, encode_float
@@ -36,7 +34,7 @@ def ask_opt_path() -> str:
     found = shutil.which("ask-opt")
     if found:
         return found
-    raise unittest.SkipTest("ASK_OPT is not set and no build/<preset>/bin/ask-opt was found")
+    raise RuntimeError("ASK_OPT is not set and no build/<preset>/bin/ask-opt was found")
 
 
 def llvm_tools_dir() -> Path:
@@ -57,7 +55,7 @@ def llc_path() -> str:
     found = shutil.which("llc")
     if found:
         return found
-    raise unittest.SkipTest("pinned llc binary not found")
+    raise RuntimeError("pinned llc binary not found")
 
 
 def ptxas_path() -> str:
@@ -72,7 +70,7 @@ def ptxas_path() -> str:
             return str(cuda_bin)
     if os.environ.get("ASK_REQUIRE_CUDA_DEVICE"):
         raise RuntimeError("ptxas is required when ASK_REQUIRE_CUDA_DEVICE is set")
-    raise unittest.SkipTest("ptxas not found")
+    raise RuntimeError("ptxas not found")
 
 
 def run_ask_opt(*args, source: str | None = None, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -88,7 +86,7 @@ def run_ask_opt(*args, source: str | None = None, timeout: int = 60) -> subproce
 def require_cc() -> str:
     cc = shutil.which("cc")
     if not cc:
-        raise unittest.SkipTest("C compiler 'cc' not available")
+        raise RuntimeError("C compiler 'cc' not available")
     return cc
 
 
@@ -154,4 +152,4 @@ def open_cuda_session():
     except (CUDAError, OSError, RuntimeError) as exc:
         if os.environ.get("ASK_REQUIRE_CUDA_DEVICE"):
             raise
-        raise unittest.SkipTest(f"CUDA device/driver unavailable: {exc}") from exc
+        raise RuntimeError(f"CUDA device/driver unavailable: {exc}") from exc
