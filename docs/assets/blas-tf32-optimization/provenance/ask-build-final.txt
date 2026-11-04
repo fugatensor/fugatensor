@@ -1,0 +1,5 @@
+[1/5] Building CXX object CMakeFiles/ask_runtime.dir/lib/Runtime/CUBLASLt.cpp.o
+[2/5] Linking CXX shared library lib/libask_runtime.so.0.1.0
+[3/5] Creating library symlink lib/libask_runtime.so.0 lib/libask_runtime.so
+[4/5] Linking CXX executable ask-runtime-test
+[5/5] Linking CXX executable ask-matmul-test

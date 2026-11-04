@@ -1,0 +1,7 @@
+{
+  "purpose": "Warmup sensitivity: identical production runtime, CUDA fp32 general 1024 GEMM.",
+  "short": "10 iterations, 3 process rounds.",
+  "long": "1000 iterations, 1 diagnostic round.",
+  "formal": "steady/ uses at least 10 iterations AND 1 second for every measured process, 3 rounds.",
+  "layout_experiments": "Temporary layout/alignment binaries were removed; final runtime SHA-256 matches the native regression build."
+}

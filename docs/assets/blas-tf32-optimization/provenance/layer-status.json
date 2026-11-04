@@ -1,0 +1,233 @@
+[
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "baseline",
+      "--device",
+      "cpu",
+      "--side",
+      "16",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-16-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-16-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "baseline",
+      "--device",
+      "cpu",
+      "--side",
+      "128",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-128-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-128-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "baseline",
+      "--device",
+      "cpu",
+      "--side",
+      "1024",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-1024-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/baseline-cpu-1024-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "baseline",
+      "--device",
+      "cuda",
+      "--side",
+      "128",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/baseline-cuda-128-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/baseline-cuda-128-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "baseline",
+      "--device",
+      "cuda",
+      "--side",
+      "1024",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/baseline-cuda-1024-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/baseline-cuda-1024-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cpu",
+      "--side",
+      "16",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-16-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-16-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cpu",
+      "--side",
+      "128",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-128-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-128-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cpu",
+      "--side",
+      "1024",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-1024-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cpu-1024-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cuda",
+      "--side",
+      "128",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-128-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-128-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cuda",
+      "--side",
+      "1024",
+      "--precision",
+      "ieee",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-1024-ieee.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-1024-ieee.csv",
+    "status": "passed"
+  },
+  {
+    "command": [
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/layers.py",
+      "--version",
+      "candidate",
+      "--device",
+      "cuda",
+      "--side",
+      "1024",
+      "--precision",
+      "tf32",
+      "--samples",
+      "101",
+      "--output",
+      "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-1024-tf32.csv"
+    ],
+    "output": "/tmp/fuga-blas-pytest-audit/layers/candidate-cuda-1024-tf32.csv",
+    "status": "passed"
+  }
+]

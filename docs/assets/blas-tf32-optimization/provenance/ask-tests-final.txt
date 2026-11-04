@@ -1,0 +1,19 @@
+Test project /home/asuka/ask/build/core
+    Start 1: ask-pass
+1/7 Test #1: ask-pass .........................   Passed    0.22 sec
+    Start 2: ask-compiler
+2/7 Test #2: ask-compiler .....................   Passed    0.08 sec
+    Start 3: ask-primitives
+3/7 Test #3: ask-primitives ...................   Passed    2.74 sec
+    Start 4: ask-host-blas
+4/7 Test #4: ask-host-blas ....................   Passed    0.99 sec
+    Start 5: ask-core
+5/7 Test #5: ask-core .........................   Passed    0.01 sec
+    Start 6: ask-runtime
+6/7 Test #6: ask-runtime ......................   Passed   10.15 sec
+    Start 7: ask-matmul
+7/7 Test #7: ask-matmul .......................   Passed    6.30 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =  20.48 sec

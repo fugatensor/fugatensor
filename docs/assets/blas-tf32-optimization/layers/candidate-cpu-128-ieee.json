@@ -1,0 +1,17 @@
+{
+  "stats": {
+    "compilations": 1,
+    "executions": 8217,
+    "cache_hits": 8115
+  },
+  "framework_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+  "samples": 101,
+  "warmup_iterations": 8116,
+  "native_warmup_iterations": 13867,
+  "warmup_minimum_iterations": 20,
+  "warmup_minimum_seconds": 1.0,
+  "matmul_precision": "ieee",
+  "verified": true,
+  "native_scope": "CPU ctypes function with preallocated buffers; CUDA ASK submit + synchronize",
+  "layers_scope": "instrumented isolated stages; omits public evaluate wrapper and last-artifact publication"
+}

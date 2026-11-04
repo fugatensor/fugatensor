@@ -1,0 +1,8 @@
+Time (%),Total Time (ns),Num Calls,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+75.8,5359330,51,105084.9,61459.0,31408,1390272,208252.4,cuStreamSynchronize
+21.7,1538601,51,30168.6,27811.0,26560,76477,8216.7,cuGraphLaunch
+1.6,116100,51,2276.5,2159.0,1856,6956,688.0,cuEventRecord
+0.7,47020,51,922.0,876.0,743,1693,195.9,cuEventQuery
+0.1,8404,1,8404.0,8404.0,8404,8404,0.0,cuProfilerStart
+0.1,5030,1,5030.0,5030.0,5030,5030,0.0,cuCtxSynchronize
+0.0,388,1,388.0,388.0,388,388,0.0,cuProfilerStop

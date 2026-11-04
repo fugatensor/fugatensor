@@ -8,6 +8,8 @@ ASK Host 与 Fuga 构图优化后的三轮记录见[性能剖析与优化](性�
 
 后续结果见[LLVM 协作归约与 C++ 图收集对照](LLVM归约与原生图收集优化.md#comparison)，最新构图优化见[原生节点池对照](原生节点池与增量指纹优化.md#comparison)。
 
+OpenBLAS、TF32 与提交路径的稳态数据见[矩阵乘法与提交优化](矩阵乘法与提交优化.md#comparison)，使用每项至少 1 秒预热，并提供 IEEE 控制组和 Nsight kernel 时间。
+
 <a id="quick-start"></a>
 
 ## 先跑一个小负载
@@ -67,7 +69,7 @@ python tools/benchmark_torch.py --backends fuga torch_eager \
 
 ## 计时口径
 
-每个配置、后端、轮次使用独立进程和临时编译缓存，轮间轮换后端顺序。输入构造和上传位于调用计时外。默认预热 5 次，记录 31 次热调用；CUDA 每次调用后同步完成。
+每个配置、后端、轮次使用独立进程和临时编译缓存，轮间轮换后端顺序。输入构造和上传位于调用计时外。默认预热至少 5 次且持续至少 1 秒，再记录 31 次热调用；CUDA 每次调用后同步完成。`--warmup` 与 `--warmup-seconds` 分别设置最少次数和最短时长，`warmup_iterations` 记录实际次数。本轮短调用对预热次数较敏感，持续预热用于建立稳态。
 
 - `setup_us`：导入框架、初始化与输入创建。
 - `first_complete_us`：第一次函数调用到完成，包含该表达式的编译和首次执行。

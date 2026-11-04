@@ -1,0 +1,13 @@
+Processing ./.
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: fugatensor
+  Building wheel for fugatensor (pyproject.toml): started
+  Building wheel for fugatensor (pyproject.toml): finished with status 'done'
+  Created wheel for fugatensor: filename=fugatensor-0.1.0-cp313-cp313-linux_x86_64.whl size=29377621 sha256=b556624fb031ec7c8600ca533fe5f3215351a691f0f88e5fe65663569f12321c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-nx_j9_uo/wheels/d2/56/df/84dc87f563c563b7cda10448b1f633fdd8a128d294e21d6dd0
+Successfully built fugatensor

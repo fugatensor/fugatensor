@@ -1,0 +1,143 @@
+{
+  "recorded_at": "2026-11-04T06:24:17.814343+00:00",
+  "settings": {
+    "devices": [
+      "cuda"
+    ],
+    "backends": [
+      "fuga",
+      "torch_eager"
+    ],
+    "workloads": [
+      "matmul"
+    ],
+    "sizes": [
+      "small",
+      "large"
+    ],
+    "dtypes": [
+      "fp32"
+    ],
+    "layouts": [
+      "row_major"
+    ],
+    "depths": [
+      8
+    ],
+    "branches": [
+      4
+    ],
+    "matmul_sizes": [
+      1024
+    ],
+    "matmul_data": "general",
+    "matmul_precision": "tf32",
+    "rounds": 1,
+    "samples": 31,
+    "warmup": 1000,
+    "threads": 1,
+    "cpu_core": 2,
+    "fuga_python": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+    "torch_python": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+    "timeout": 600,
+    "output": "/tmp/fuga-blas-pytest-audit/long-warmup-probe"
+  },
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+  "environments": [
+    {
+      "round": 0,
+      "device": "cuda",
+      "backend": "fuga",
+      "matmul_precision": "tf32",
+      "workload": "matmul",
+      "size": "n1024",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rows": 1024,
+      "columns": 1024,
+      "depth": 0,
+      "branches": 1,
+      "matmul_data": "general",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "framework_version": "0.1.0",
+      "framework_path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/__init__.py",
+      "device_name": "NVIDIA GeForce RTX 3080",
+      "threads": 1,
+      "cpu_affinity": [
+        2
+      ],
+      "compile_mode": "",
+      "cuda_version": "",
+      "host_matmul": {
+        "configuration": "OpenBLAS 0.3.33 NO_LAPACK NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY USE_LOCKING Haswell SINGLE_THREADED",
+        "f16_provider": "native",
+        "f32_provider": "openblas_sgemm",
+        "integer_abi": "lp64",
+        "openblas_version": "0.3.33",
+        "threads": 1
+      },
+      "runtime": {
+        "allocation_reuses": 1031,
+        "allocations": 3,
+        "context_creations": 0,
+        "device_to_host_copies": 2,
+        "event_creations": 1,
+        "event_reuses": 1031,
+        "event_waits": 0,
+        "external_stream_waits": 0,
+        "graph_edges": 0,
+        "graph_instantiations": 1,
+        "graph_launches": 1032,
+        "graph_node_updates": 0,
+        "graph_nodes": 1,
+        "host_to_device_copies": 2,
+        "launches": 1032,
+        "matmul_preparations": 1,
+        "module_hits": 0,
+        "module_loads": 0,
+        "peak_resident_device_bytes": 12582912,
+        "pending_events": 0,
+        "pooled_bytes": 4194304,
+        "pooled_events": 1,
+        "prepared_internal_bytes": 0,
+        "prepared_internal_slots": 0,
+        "primary_context_retains": 1,
+        "program_submissions": 1032,
+        "resident_device_bytes": 12582912,
+        "resident_modules": 0,
+        "stream_creations": 1,
+        "synchronizations": 1037,
+        "workspace_reuses": 1031
+      }
+    },
+    {
+      "round": 0,
+      "device": "cuda",
+      "backend": "torch_eager",
+      "matmul_precision": "tf32",
+      "workload": "matmul",
+      "size": "n1024",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rows": 1024,
+      "columns": 1024,
+      "depth": 0,
+      "branches": 1,
+      "matmul_data": "general",
+      "python": "3.12.15 (main, Oct 21 2026, 17:47:06) [Clang 23.1.3 ]",
+      "executable": "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "framework_version": "2.14.0+cu130",
+      "framework_path": "/home/asuka/vllm/.venv/lib/python3.12/site-packages/torch/__init__.py",
+      "device_name": "NVIDIA GeForce RTX 3080",
+      "threads": 1,
+      "cpu_affinity": [
+        2
+      ],
+      "compile_mode": "",
+      "cuda_version": "13.0",
+      "blas_library": "_BlasBackend.Cublas",
+      "build_config": "PyTorch built with:\n  - GCC 13.3\n  - C++ Version: 202002\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.12.0 (Git Hash 80afa71049cd69a3df32adcccb623b12cd7baa22)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - CUDA Runtime 13.0\n  - NVCC architecture flags: -gencode;arch=compute_75,code=sm_75;-gencode;arch=compute_80,code=sm_80;-gencode;arch=compute_86,code=sm_86;-gencode;arch=compute_90,code=sm_90;-gencode;arch=compute_100,code=sm_100;-gencode;arch=compute_120,code=sm_120\n  - CuDNN 92.4  (built against CUDA 13.3)\n  - Magma 2.6.1\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, COMMIT_SHA=08187d9e0fba026dc8217405802ab5381dc88d90, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all -DONNX_NAMESPACE=onnx_torch -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_100,code=sm_100 -gencode arch=compute_120,code=sm_120 -Xcudafe --diag_suppress=cc_clobber_ignored,--diag_suppress=field_without_dll_interface,--diag_suppress=base_class_has_different_dll_interface,--diag_suppress=dll_interface_conflict_none_assumed,--diag_suppress=dll_interface_conflict_dllexport_assumed,--diag_suppress=bad_friend_decl --expt-relaxed-constexpr --expt-extended-lambda -Xfatbin -compress-all --threads 2 -compress-mode=size -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CUDA_VERSION=13.0, CUDNN_VERSION=9.24.0, CXX_COMPILER=/opt/rh/gcc-toolset-13/root/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DHAS_CUPTI -DUSE_FBGEMM -DUSE_MSLK -DUSE_PYTORCH_QNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -faligned-new -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-dangling-reference -Wno-error=dangling-reference -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.14.0, USE_CUDA=1, USE_CUDNN=ON, USE_CUSPARSELT=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=ON, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n"
+    }
+  ]
+}

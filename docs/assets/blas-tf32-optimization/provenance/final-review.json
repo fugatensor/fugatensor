@@ -1,0 +1,29 @@
+{
+  "temporary_task_directory_removed": "/tmp/fuga-blas-pytest-audit",
+  "production_runtime_matches_validated_sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467",
+  "independent_report_review": {
+    "steady_results": 288,
+    "steady_samples": 9216,
+    "layer_summary_rows": 22,
+    "layer_samples_per_row": 101,
+    "nsight_summary_rows": 12,
+    "nsight_instances_per_row": 51,
+    "relative_links_and_anchors_checked": 648,
+    "unresolved_findings": 0
+  },
+  "validated_test_runs": {
+    "ask_ctest": 7,
+    "independent_compiler_sdk": 3,
+    "frontend_superset": 583,
+    "backend_final_sdk": 80,
+    "wheel_variants": 2,
+    "benchmark_unit_tests": 29
+  },
+  "current_collection": {
+    "cpu": 335,
+    "cuda_and_triton": 595,
+    "exhaustive": 2723,
+    "coverage": "Current selected tests are covered by the validated frontend superset and pure incremental tests."
+  },
+  "build_artifacts": "ASK SDK and Fuga wheel remain in ignored build/sdk and dist directories."
+}

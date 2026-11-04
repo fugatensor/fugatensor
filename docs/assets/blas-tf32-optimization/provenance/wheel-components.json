@@ -1,0 +1,26 @@
+{
+  "wheel": "/home/asuka/fugatensor/dist/fugatensor-0.1.0-cp313-cp313-linux_x86_64.whl",
+  "all_shared_libraries_match_sdk": true,
+  "components": [
+    {
+      "path": "fugatensor/_lib/libask_compiler.so.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "fugatensor/_lib/libask_openblas.so.0",
+      "bytes": 10731144,
+      "sha256": "c666e41aca958a46bfd654bd140e036c210513e4af3eb7cac617442b81cb19c2"
+    },
+    {
+      "path": "fugatensor/_lib/libask_runtime.so.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "fugatensor/_lib/licenses/OpenBLAS/LICENSE",
+      "bytes": 1548,
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ]
+}

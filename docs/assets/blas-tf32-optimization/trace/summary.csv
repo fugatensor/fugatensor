@@ -1,0 +1,13 @@
+backend,precision,side,instances,kernel_median_us,kernel_name,graph_launches
+fuga,ieee,16,51,2.176,"void gemmSN_NN_kernel<float, (int)256, (int)4, (int)2, (int)8, (int)4, (int)4, (bool)0, cublasGemvTensorStridedBatched<const float>, cublasGemvTensorStridedBatched<const float>, cublasGemvTensorStridedBatched<float>>(cublasGemmSmallNParams<T9, T10, T11, T1>)",51
+fuga,ieee,128,51,5.312,ampere_sgemm_32x32_sliced1x4_nn,51
+fuga,ieee,512,51,43.04,ampere_sgemm_64x32_sliced1x4_nn,51
+fuga,ieee,1024,51,111.584,ampere_sgemm_128x64_nn,51
+fuga,tf32,16,51,3.232,ampere_sgemm_32x128_nn,51
+fuga,tf32,128,51,5.28,ampere_sgemm_32x32_sliced1x4_nn,51
+fuga,tf32,512,51,45.888,void cutlass::Kernel2<cutlass_80_tensorop_s1688gemm_64x64_32x6_nn_align1>(T1::Params),51
+fuga,tf32,1024,51,85.639,void cutlass::Kernel2<cutlass_80_tensorop_s1688gemm_128x64_32x3_nn_align1>(T1::Params),51
+torch,tf32,16,51,3.232,ampere_sgemm_32x128_nn,0
+torch,tf32,128,51,5.376,void cutlass::Kernel2<cutlass_80_tensorop_s1688gemm_64x64_32x6_nn_align4>(T1::Params),0
+torch,tf32,512,51,23.391,void cutlass::Kernel2<cutlass_80_tensorop_s1688gemm_64x64_32x6_nn_align4>(T1::Params),0
+torch,tf32,1024,51,72.414,void cutlass::Kernel2<cutlass_80_tensorop_s1688gemm_128x128_16x5_nn_align4>(T1::Params),0

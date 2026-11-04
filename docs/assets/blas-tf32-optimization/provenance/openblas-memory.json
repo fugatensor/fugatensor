@@ -1,0 +1,41 @@
+{
+  "process_scope": "isolated ctypes process, current RSS; owned arrays remain live at each SGEMM sample",
+  "rows": [
+    {
+      "phase": "python_ctypes",
+      "Rss": 13901824,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 5328896
+    },
+    {
+      "phase": "openblas_loaded",
+      "Rss": 14831616,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 5378048
+    },
+    {
+      "phase": "allocated_16",
+      "Rss": 15343616,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 5382144
+    },
+    {
+      "phase": "sgemm_16",
+      "Rss": 15622144,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 5398528
+    },
+    {
+      "phase": "allocated_1024",
+      "Rss": 28217344,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 17993728
+    },
+    {
+      "phase": "sgemm_1024",
+      "Rss": 29929472,
+      "Shared_Clean": 2478080,
+      "Private_Dirty": 19705856
+    }
+  ]
+}

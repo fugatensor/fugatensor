@@ -1,0 +1,68 @@
+[
+  {
+    "command": [
+      "nsys",
+      "profile",
+      "--trace=cuda",
+      "--sample=none",
+      "--cpuctxsw=none",
+      "--cuda-graph-trace=node",
+      "--capture-range=cudaProfilerApi",
+      "--capture-range-end=repeat:4",
+      "--force-overwrite=true",
+      "--output=/tmp/fuga-blas-pytest-audit/trace/fuga-tf32",
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/device_trace.py",
+      "--backend",
+      "fuga",
+      "--precision",
+      "tf32"
+    ],
+    "status": "passed"
+  },
+  {
+    "command": [
+      "nsys",
+      "profile",
+      "--trace=cuda",
+      "--sample=none",
+      "--cpuctxsw=none",
+      "--cuda-graph-trace=node",
+      "--capture-range=cudaProfilerApi",
+      "--capture-range-end=repeat:4",
+      "--force-overwrite=true",
+      "--output=/tmp/fuga-blas-pytest-audit/trace/fuga-ieee",
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/device_trace.py",
+      "--backend",
+      "fuga",
+      "--precision",
+      "ieee"
+    ],
+    "status": "passed"
+  },
+  {
+    "command": [
+      "nsys",
+      "profile",
+      "--trace=cuda",
+      "--sample=none",
+      "--cpuctxsw=none",
+      "--cuda-graph-trace=node",
+      "--capture-range=cudaProfilerApi",
+      "--capture-range-end=repeat:4",
+      "--force-overwrite=true",
+      "--output=/tmp/fuga-blas-pytest-audit/trace/torch-tf32",
+      "/home/asuka/fugatensor/build/torch-benchmark-env/bin/python",
+      "-I",
+      "/tmp/fuga-blas-pytest-audit/device_trace.py",
+      "--backend",
+      "torch",
+      "--precision",
+      "tf32"
+    ],
+    "status": "passed"
+  }
+]

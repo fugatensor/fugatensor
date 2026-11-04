@@ -1,0 +1,2 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,matmul_data,matmul_precision,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cuda,matmul,n1024,fp32,row_major,1024,1024,0,1,general,tf32,torch_eager,186.883,161.035,1.1605116900052785,16.051169000527853,1,1

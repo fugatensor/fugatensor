@@ -1,0 +1,7 @@
+Resolved 1 package in 2ms
+   Building fugatensor @ file:///home/asuka/fugatensor
+      Built fugatensor @ file:///home/asuka/fugatensor
+Prepared 1 package in 23.82s
+Uninstalled 1 package in 1ms
+Installed 1 package in 3ms
+ ~ fugatensor==0.1.0 (from file:///home/asuka/fugatensor)

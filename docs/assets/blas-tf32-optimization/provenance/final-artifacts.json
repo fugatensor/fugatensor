@@ -1,0 +1,103 @@
+{
+  "ask_commit": "459023d28c556acc51710b4dc5ac68c02984c628",
+  "fuga_commit": "e0703a646ac1bf08cc679a5ee7dd3800f531959a",
+  "installed_libraries_match_sdk": true,
+  "artifacts": [
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_runtime.so",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0.1.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_openblas.so.0",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_openblas.so.0",
+      "bytes": 10731144,
+      "sha256": "c666e41aca958a46bfd654bd140e036c210513e4af3eb7cac617442b81cb19c2"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0.1.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0.1.0",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_runtime.so.0.1.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "/home/asuka/ask/build/sdk/lib/libask_compiler.so",
+      "resolved": "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_openblas.so.0",
+      "resolved": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_openblas.so.0",
+      "bytes": 10731144,
+      "sha256": "c666e41aca958a46bfd654bd140e036c210513e4af3eb7cac617442b81cb19c2"
+    },
+    {
+      "path": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_runtime.so.0",
+      "resolved": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_runtime.so.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_compiler.so.0",
+      "resolved": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_compiler.so.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_openblas.so.0",
+      "resolved": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_openblas.so.0",
+      "bytes": 10731144,
+      "sha256": "c666e41aca958a46bfd654bd140e036c210513e4af3eb7cac617442b81cb19c2"
+    },
+    {
+      "path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_runtime.so.0",
+      "resolved": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_runtime.so.0",
+      "bytes": 272752,
+      "sha256": "f4a9a70ed7d9714a477d190315a904341e06d512fb51106ea19d3ec7ae4de467"
+    },
+    {
+      "path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_compiler.so.0",
+      "resolved": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_compiler.so.0",
+      "bytes": 68737496,
+      "sha256": "61f84f411964fd5e254e366ae2190af3cfd42020aea4d9a00eb50f2ed02befd9"
+    },
+    {
+      "path": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_native.cpython-313-x86_64-linux-gnu.so",
+      "resolved": "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_native.cpython-313-x86_64-linux-gnu.so",
+      "bytes": 399280,
+      "sha256": "f934b9ee15c2e222f76de5056e2ad2848412a224b5c64528ecaafd34afe6b39f"
+    },
+    {
+      "path": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_native.cpython-312-x86_64-linux-gnu.so",
+      "resolved": "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_native.cpython-312-x86_64-linux-gnu.so",
+      "bytes": 399248,
+      "sha256": "46e5910b874f882357438cdb670f4ec7a7756f0dcfdefe8e30af03f91d3bd281"
+    },
+    {
+      "path": "/home/asuka/fugatensor/dist/fugatensor-0.1.0-cp313-cp313-linux_x86_64.whl",
+      "resolved": "/home/asuka/fugatensor/dist/fugatensor-0.1.0-cp313-cp313-linux_x86_64.whl",
+      "bytes": 29377621,
+      "sha256": "b556624fb031ec7c8600ca533fe5f3215351a691f0f88e5fe65663569f12321c"
+    }
+  ]
+}

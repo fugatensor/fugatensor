@@ -1,0 +1,8 @@
+Using Python 3.12.15 environment at: build/torch-benchmark-env
+Resolved 1 package in 2ms
+   Building fugatensor @ file:///home/asuka/fugatensor
+      Built fugatensor @ file:///home/asuka/fugatensor
+Prepared 1 package in 21.87s
+Uninstalled 1 package in 3ms
+Installed 1 package in 5ms
+ ~ fugatensor==0.1.0 (from file:///home/asuka/fugatensor)

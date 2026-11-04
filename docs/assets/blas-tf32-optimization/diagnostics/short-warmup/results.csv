@@ -1,0 +1,7 @@
+round,device,backend,matmul_precision,workload,size,dtype,layout,rows,columns,depth,branches,matmul_data,status,setup_us,first_complete_us,call_p50_us,complete_p50_us,complete_p90_us,host_peak_rss_bytes,executions,compilations,max_abs_error,verified,device_reserved_bytes,device_peak_reserved_bytes,device_allocated_bytes,device_peak_allocated_bytes,host_workspace_bytes
+0,cuda,fuga,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,6855371.105,204631.974,89.654,620.707,1371.511,565915648,42,1,0.03000660685756884,True,12582912,12582912,,,
+0,cuda,torch_eager,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,2616618.368,106491.784,52.446,168.768,195.541,872366080,,,0.03000660685756884,True,41943040,41943040,16908288,21102592,
+1,cuda,torch_eager,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,2587323.063,105568.505,51.415,157.793,197.425,872992768,,,0.03000660685756884,True,41943040,41943040,16908288,21102592,
+1,cuda,fuga,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,6795664.258,204765.971,83.746,596.841,1294.582,565993472,42,1,0.03000660685756884,True,12582912,12582912,,,
+2,cuda,fuga,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,6771250.185,204072.366,87.316,564.97,1118.12,566140928,42,1,0.03000660685756884,True,12582912,12582912,,,
+2,cuda,torch_eager,tf32,matmul,n1024,fp32,row_major,1024,1024,0,1,general,ok,2602632.062,107053.473,52.79,160.295,172.417,873017344,,,0.03000660685756884,True,41943040,41943040,16908288,21102592,

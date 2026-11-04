@@ -1,0 +1,20 @@
+{
+  "tool": "NVIDIA Nsight Systems 2026.1.3",
+  "warmup_minimum_seconds": 1,
+  "warmup_minimum_iterations": 20,
+  "measured_iterations": 51,
+  "capture": "cuProfilerStart/Stop after numerical checks and continuous warmup; graph node tracing",
+  "range_to_square_side": {
+    "1": 16,
+    "2": 128,
+    "3": 512,
+    "4": 1024
+  },
+  "backend_processes": [
+    "fuga tf32",
+    "fuga ieee",
+    "torch eager tf32"
+  ],
+  "checks": "Each capture contains 51 kernels; every Fuga capture contains 51 cuGraphLaunch calls. Values checked before warmup and after capture.",
+  "units": "raw CSV in ns; summary kernel_median_us in us"
+}

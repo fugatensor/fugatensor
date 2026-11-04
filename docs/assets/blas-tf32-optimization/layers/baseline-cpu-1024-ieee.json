@@ -1,0 +1,17 @@
+{
+  "stats": {
+    "compilations": 1,
+    "executions": 121,
+    "cache_hits": 19
+  },
+  "framework_path": "/tmp/fuga-blas-pytest-audit/baseline-package/fugatensor/__init__.py",
+  "samples": 101,
+  "warmup_iterations": 20,
+  "native_warmup_iterations": 21,
+  "warmup_minimum_iterations": 20,
+  "warmup_minimum_seconds": 1.0,
+  "matmul_precision": "ieee",
+  "verified": true,
+  "native_scope": "CPU ctypes function with preallocated buffers; CUDA ASK submit + synchronize",
+  "layers_scope": "instrumented isolated stages; omits public evaluate wrapper and last-artifact publication"
+}
