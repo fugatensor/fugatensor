@@ -1,0 +1,19 @@
+{
+  "ask_revision": "d767b9a917c48fa4bd67960df8b631063b662b58",
+  "fuga_base_revision": "b0daf320196b65440d98a08ac1baf02d841fa3fa",
+  "cpu": "Intel(R) Xeon(R) CPU E5-2696 v4 @ 2.20GHz",
+  "installed_libraries": {
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_compiler.so.0": "5b30943de8845711e9cdb84cf03a97ab5ea2c010e0bba6fbb73687825a8ea208",
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_runtime.so.0": "bd09c738c2553675d2358383b3665bec72f746deec6753d200b9f3cf332ebcac"
+  },
+  "validation": {
+    "fp32_cases": 48,
+    "fp16_transpose_cases": 24,
+    "failed_cases": 0,
+    "max_abs_error": 0,
+    "unit_tests": 5,
+    "fuga_compilations_per_case": 1,
+    "fp32_executions_per_fuga_case": 27,
+    "fp16_executions_per_fuga_case": 7
+  }
+}
