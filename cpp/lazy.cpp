@@ -101,6 +101,18 @@ struct CanonicalNode {
   std::vector<Binding> inputs;
   bool operator==(const CanonicalNode &other) const { return key == other.key && inputs == other.inputs; }
 };
+struct DependencySelection {
+  Id slice;
+  PyObject *dependencies;
+  bool operator==(const DependencySelection &other) const {
+    return slice == other.slice && dependencies == other.dependencies;
+  }
+  struct Hash {
+    std::size_t operator()(const DependencySelection &value) const {
+      return mix(value.slice, reinterpret_cast<std::size_t>(value.dependencies));
+    }
+  };
+};
 struct ArenaOwner;
 struct ExpressionView;
 struct ResultView;
@@ -503,25 +515,30 @@ class Collection {
     if (leaves.empty()) { Id value = carrier();leafIndices.emplace(value, 0);leaves.push_back(value); }
     nb::dict definitions, projections;
     nb::list expressionObjects, leafObjects;
+    std::unordered_set<DependencySelection, DependencySelection::Hash> processedDependencies;
     PlanKey key(nb::borrow<nb::object>(engine.attr("_arena")), arena);
     for (Id value : leaves) { leafObjects.append(arena->wrap(value, engine));key.leaves.push_back(arena->values[value].type); }
     for (Id id : ordered) {
       auto expression = arena->expressions[id];
       const auto selectedId = selections.at(id).slice;
-      auto selectedObject = weakOwner(arena->slices[selectedId].owner);
-      auto templateOwner = arena->templates[expression.metadata].owner;
-      auto dependencyCache = arena->templates[expression.metadata].dependencies;
-      auto dependencies = nb::cast<nb::tuple>(arena->dependencies[expression.dependencies]);
-      nb::tuple dependencyKey = nb::make_tuple(arena->slices[selectedId].indices, dependencies);
-      auto live = lookup(dependencyCache, dependencyKey);
-      if (!live) live = templateOwner.attr("live_dependencies")(selectedObject, dependencies);
-      for (nb::handle pair : nb::cast<nb::tuple>(live)) {
-        auto entry = nb::cast<nb::tuple>(pair);
-        auto previous = lookup(definitions, entry[0]);
-        if (previous && different(previous, entry[1])) changedDefinition();
-        definitions[entry[0]] = entry[1];
+      nb::object selectedObject;
+      if (processedDependencies.insert({selectedId, arena->dependencies[expression.dependencies].ptr()}).second) {
+        selectedObject = weakOwner(arena->slices[selectedId].owner);
+        auto templateOwner = arena->templates[expression.metadata].owner;
+        auto dependencyCache = arena->templates[expression.metadata].dependencies;
+        auto dependencies = nb::cast<nb::tuple>(arena->dependencies[expression.dependencies]);
+        nb::tuple dependencyKey = nb::make_tuple(arena->slices[selectedId].indices, dependencies);
+        auto live = lookup(dependencyCache, dependencyKey);
+        if (!live) live = templateOwner.attr("live_dependencies")(selectedObject, dependencies);
+        for (nb::handle pair : nb::cast<nb::tuple>(live)) {
+          auto entry = nb::cast<nb::tuple>(pair);
+          auto previous = lookup(definitions, entry[0]);
+          if (previous && different(previous, entry[1])) changedDefinition();
+          definitions[entry[0]] = entry[1];
+        }
       }
       if (exposeDetails) {
+        if (!selectedObject) selectedObject = weakOwner(arena->slices[selectedId].owner);
         auto object = nb::cast(ExpressionView(arena, engine, id, true));
         expressionObjects.append(object);projections[object] = selectedObject;
       }
@@ -652,30 +669,43 @@ const std::vector<std::int64_t> &TensorHandle::dimensions() const { return arena
 
 nb::tuple bindPending(nb::handle engine, nb::handle tensorType, nb::handle metadata,
                       nb::tuple inputs, nb::tuple dependencies) {
-  EngineLock lock(engine);
-  engine.attr("_check_open")();
   auto arena = arenaOf(engine);
-  if (!arena->tensorType) arena->tensorType = nb::borrow<nb::object>(tensorType);
-  const auto metadataId = arena->metadata(metadata);
   std::vector<Id> values;
+  values.reserve(nb::len(inputs));
   for (nb::handle input : inputs) {
     auto &tensor = nb::cast<TensorHandle &>(input);
     if (tensor.arena != arena) throw nb::value_error("operation inputs must belong to the same Engine");
     values.push_back(tensor.value);
   }
-  const auto id = arena->expression(metadataId, values, arena->dependency(dependencies));
+  return nb::cast<nb::tuple>(bindValues(engine, tensorType, metadata, values, dependencies, true));
+}
+
+nb::object bindValues(nb::handle engine, nb::handle tensorType, nb::handle metadata,
+                      const std::vector<Id> &inputs, nb::tuple dependencies, bool keepTuple) {
+  EngineLock lock(engine);
+  engine.attr("_check_open")();
+  auto arena = arenaOf(engine);
+  if (!arena->tensorType) arena->tensorType = nb::borrow<nb::object>(tensorType);
+  const auto metadataId = arena->metadata(metadata);
+  const auto id = arena->expression(metadataId, inputs, arena->dependency(dependencies));
   // A construction pin also covers templates with no returned ports.
   arena->retainExpression(id);
-  nb::list result;
+  nb::object result;
   try {
-    const auto types = arena->templates[metadataId].outputs;
-    for (Id port = 0; port < types.size(); ++port) {
-      Id value = arena->value(types[port], id, port);
-      result.append(arena->wrap(value, engine, tensorType));
+    if (!keepTuple) {
+      Id value = arena->value(arena->templates[metadataId].outputs.front(), id);
+      result = arena->wrap(value, engine, tensorType);
+    } else {
+      const auto count = arena->templates[metadataId].outputs.size();
+      result = checked(PyTuple_New(count));
+      for (Id port = 0; port < count; ++port) {
+        Id value = arena->value(arena->templates[metadataId].outputs[port], id, port);
+        PyTuple_SET_ITEM(result.ptr(), port, arena->wrap(value, engine, tensorType).release().ptr());
+      }
     }
   } catch (...) { arena->release(id, true);throw; }
   arena->release(id, true);
-  return nb::tuple(result);
+  return result;
 }
 } // namespace fuga::lazy
 

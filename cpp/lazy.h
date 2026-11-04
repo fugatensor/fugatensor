@@ -27,4 +27,8 @@ struct TensorHandle {
 
 nb::tuple bindPending(nb::handle engine, nb::handle tensorType, nb::handle metadata,
                       nb::tuple inputs, nb::tuple dependencies);
+// Input IDs belong to engine and remain pinned by the caller's arguments.
+nb::object bindValues(nb::handle engine, nb::handle tensorType, nb::handle metadata,
+                      const std::vector<std::uint32_t> &inputs, nb::tuple dependencies,
+                      bool keepTuple);
 } // namespace fuga::lazy

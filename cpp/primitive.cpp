@@ -46,7 +46,9 @@ class PrimitiveBinder {
 
   nb::object bind(nb::tuple arguments, nb::handle definition) {
     std::string signature;
-    nb::list tensors;
+    signature.reserve(nb::len(arguments) * 16);
+    std::vector<std::uint32_t> values;
+    values.reserve(nb::len(arguments));
     nb::object engine;
     for (nb::handle argument : arguments) {
       if (nb::isinstance<TensorHandle>(argument)) {
@@ -55,7 +57,7 @@ class PrimitiveBinder {
         else if (!engine.is(tensor.engine)) engine.attr("_check_tensor")(argument);
         signature.push_back('t');
         word(signature, tensor.typeId());
-        tensors.append(argument);
+        values.push_back(tensor.value);
       } else {
         if (nb::isinstance(argument, traceType)) throw nb::type_error("a traced Tensor cannot escape its active trace");
         signature.push_back('s');
@@ -63,7 +65,6 @@ class PrimitiveBinder {
       }
     }
     if (!engine.is_valid()) throw nb::type_error("an operation requires at least one Tensor argument");
-    const nb::tuple inputs(tensors);
     // Keep a record alive across definition callbacks, which may clear caches.
     auto foundEngine = cache->engines.find(engine.ptr());
     Record record;
@@ -82,6 +83,14 @@ class PrimitiveBinder {
       }
     }
     if (!hit) {
+      nb::tuple inputs = nb::steal<nb::tuple>(PyTuple_New(values.size()));
+      if (!inputs.is_valid()) throw nb::python_error();
+      std::size_t index = 0;
+      for (nb::handle argument : arguments) {
+        if (!nb::isinstance<TensorHandle>(argument)) continue;
+        Py_INCREF(argument.ptr());
+        PyTuple_SET_ITEM(inputs.ptr(), index++, argument.ptr());
+      }
       auto traced = definition.attr("_trace_primitive")(arguments, inputs, engine);
       record = {traced.attr("template"), nb::cast<nb::tuple>(traced.attr("dependencies")),
                 nb::cast<bool>(traced.attr("is_tuple"))};
@@ -99,8 +108,8 @@ class PrimitiveBinder {
       position->second.records.insert_or_assign(std::move(signature), record);
       engine.attr("_register_jit")(definition);
     }
-    nb::tuple outputs = fuga::lazy::bindPending(engine, tensorType, record.metadata, inputs, record.dependencies);
-    return record.tupleResult ? nb::object(outputs) : nb::borrow<nb::object>(outputs[0]);
+    return fuga::lazy::bindValues(engine, tensorType, record.metadata, values,
+                                  record.dependencies, record.tupleResult);
   }
 
   void drop(nb::handle engine) { cache->engines.erase(engine.ptr()); }

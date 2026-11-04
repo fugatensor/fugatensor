@@ -112,6 +112,8 @@ def sqrt(x):
 
 @primitive
 def _broadcast(x, shape, dimensions):
+    if dimensions is None:
+        dimensions = tuple(range(len(shape) - len(x.shape), len(shape)))
     return x.context.wrap(x.context.graph.broadcast_in_dim(x.value, shape, dimensions))
 
 
@@ -120,8 +122,7 @@ def broadcast_in_dim(x, shape, dimensions):
 
 
 def broadcast_to(x, shape):
-    shape = tuple(shape)
-    return broadcast_in_dim(x, shape, tuple(range(len(shape) - len(x.shape), len(shape))))
+    return _broadcast(x, tuple(shape), None)
 
 
 @primitive
@@ -143,9 +144,19 @@ def _axes(axis, rank):
     return tuple(sorted(axes))
 
 
+def _axis_parameter(axis):
+    if axis is None or type(axis) is int:
+        return axis
+    axes = tuple(axis)
+    if any(type(value) is not int for value in axes):
+        raise ValueError('reduction axes must be integer dimensions in range')
+    return axes
+
+
 @primitive
-def _reduce(x, opcode, axes, keepdims, dtype):
+def _reduce(x, opcode, axis, keepdims, dtype):
     from .ir import ScalarType
+    axes = _axes(axis, len(x.shape))
     if type(keepdims) is not bool:
         raise TypeError('keepdims must be bool')
     if dtype is not None:
@@ -161,11 +172,11 @@ def _reduce(x, opcode, axes, keepdims, dtype):
 
 
 def sum(x, axis=None, *, keepdims=False, dtype=None):
-    return _reduce(x, 'reduce_sum', _axes(axis, len(x.shape)), keepdims, dtype)
+    return _reduce(x, 'reduce_sum', _axis_parameter(axis), keepdims, dtype)
 
 
 def amax(x, axis=None, *, keepdims=False):
-    return _reduce(x, 'reduce_max', _axes(axis, len(x.shape)), keepdims, None)
+    return _reduce(x, 'reduce_max', _axis_parameter(axis), keepdims, None)
 
 
 def mean(x, axis=None, *, keepdims=False, dtype=None):
