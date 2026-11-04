@@ -1,0 +1,42 @@
+Start testing: Nov 04 10:26 CST
+----------------------------------------------------------
+1/2 Testing: ask-runtime
+1/2 Test: ask-runtime
+Command: "/home/asuka/ask/build/verification/runtime/ask-runtime-test"
+Directory: /home/asuka/ask/build/verification/runtime
+"ask-runtime" start time: Nov 04 10:26 CST
+Output:
+----------------------------------------------------------
+graph instances: 1, graph launches: 2
+graph matrix: 640
+deep fork matrix: 16
+<end of output>
+Test time =  10.93 sec
+----------------------------------------------------------
+Test Passed.
+"ask-runtime" end time: Nov 04 10:26 CST
+"ask-runtime" time elapsed: 00:00:10
+----------------------------------------------------------
+
+2/2 Testing: ask-matmul
+2/2 Test: ask-matmul
+Command: "/home/asuka/ask/build/verification/runtime/ask-matmul-test"
+Directory: /home/asuka/ask/build/verification/runtime
+"ask-matmul" start time: Nov 04 10:26 CST
+Output:
+----------------------------------------------------------
+matmul matrix: 360 cases
+matmul branch matrix: 48 cases
+matmul scratch: 0 bytes, limit 0, graph 0
+matmul scratch: 4194304 bytes, limit 4194304, graph 0
+matmul scratch: 0 bytes, limit 0, graph 1
+matmul scratch: 4194304 bytes, limit 4194304, graph 1
+<end of output>
+Test time =   7.28 sec
+----------------------------------------------------------
+Test Passed.
+"ask-matmul" end time: Nov 04 10:26 CST
+"ask-matmul" time elapsed: 00:00:07
+----------------------------------------------------------
+
+End testing: Nov 04 10:26 CST

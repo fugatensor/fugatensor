@@ -1,0 +1,8 @@
+test_dtype_shape_axes_layout_and_fusion_matrix (tests.test_cuda_reduction_max.CUDAMaximumTests.test_dtype_shape_axes_layout_and_fusion_matrix) ... ok
+test_nested_max_and_expanded_intermediate_matrix (tests.test_cuda_reduction_max.CUDAMaximumTests.test_nested_max_and_expanded_intermediate_matrix) ... ok
+test_repeated_fun_result_and_input_return (tests.test_lazy_schedule.LazyScheduleTests.test_repeated_fun_result_and_input_return) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 20.360s
+
+OK

@@ -6,6 +6,8 @@
 
 ASK Host 与 Fuga 构图优化后的三轮记录见[性能剖析与优化](性能剖析与优化.md#comparison)，包含分层归因、CPU 矩阵尺寸扩展、冷启动与内存成本。
 
+后续结果见 [LLVM 协作归约与 C++ 图收集对照](LLVM归约与原生图收集优化.md#comparison)。
+
 <a id="quick-start"></a>
 
 ## 先跑一个小负载

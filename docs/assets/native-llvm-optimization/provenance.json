@@ -1,0 +1,101 @@
+{
+  "date": "2026-11-04",
+  "baseline": {
+    "ask": "a8ba30679adbd27be38a3b58d2877991733e3855",
+    "fugatensor": "2d060f59eec8137df9562a7bb9b0aa14d6223f92",
+    "compiler_sha256": "6a6507ed4837c9a3acab3edac8c5539be418038492f67d00880aab9c14741fac"
+  },
+  "candidate": {
+    "ask": "266e5e7d678ae942880ae445887c70ac324ce661",
+    "fugatensor": "3a6b3c653a75e30de9b6f9767973dde97a3c0066",
+    "artifact_hashes": "build-hashes.json"
+  },
+  "measurement": {
+    "benchmark": {
+      "command": "build/torch-benchmark-env/bin/python tools/benchmark_torch.py --backends fuga torch_eager --rounds 3 --samples 41 --warmup 10 --cpu-core 2 --output build/benchmarks/native-llvm-current",
+      "dtype": "fp32",
+      "layout": "row_major",
+      "rounds": 3,
+      "warmup": 10,
+      "hot_samples_per_case": 41,
+      "separate_process_per_case": true,
+      "cuda_synchronized": true,
+      "compilations_per_fuga_case": 1,
+      "executions_per_fuga_case": 52
+    },
+    "layers": {
+      "configurations": 16,
+      "warmup_before_normal": 5,
+      "warmup_before_native": 5,
+      "diagnostic_reuses_warm_state": true,
+      "samples_per_phase": 31,
+      "phases": [
+        "normal",
+        "diagnostic",
+        "native"
+      ],
+      "compilations_per_case": 1,
+      "engine_executions_per_case": 68,
+      "cuda_submissions_including_native_phase": 104,
+      "cuda_native_completion_includes": [
+        "submit",
+        "wait",
+        "resource_recycling"
+      ],
+      "reference_validation": "first regular result and final direct native result",
+      "baseline_analysis_aggregation": "sum collect/dependencies/structure-key within each sample, then take median"
+    },
+    "record_counts": {
+      "baseline": {
+        "benchmark_cases": 96,
+        "benchmark_samples": 4032,
+        "layer_samples": 1488
+      },
+      "candidate": {
+        "benchmark_cases": 96,
+        "benchmark_samples": 4032,
+        "layer_samples": 1488
+      }
+    }
+  },
+  "validation": {
+    "fuga_full": {
+      "command": "FUGATENSOR_TEST_CUDA=1 FUGATENSOR_TEST_TRITON=1 .venv/bin/python -m unittest -v",
+      "tests": 199,
+      "seconds": 1688.236,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "validation/fuga-full.txt"
+    },
+    "ask_ctest": {
+      "tests": 6,
+      "skipped": 0,
+      "log": "validation/ask-ctest.txt"
+    },
+    "independent_sdk_compiler": {
+      "tests": 2,
+      "llvm_mlir_package_discovery": false,
+      "log": "validation/sdk-compiler.txt"
+    },
+    "independent_sdk_runtime": {
+      "tests": 2,
+      "llvm_mlir_package_discovery": false,
+      "log": "validation/sdk-runtime.txt"
+    },
+    "new_matrices": {
+      "ask_static_cases": 764,
+      "fuga_lazy_cases": 112,
+      "cuda_max": {
+        "input_groups": 100,
+        "axis_subsets": 7,
+        "valid_outputs": 1160,
+        "empty_domain_rejections": 120,
+        "nested_input_groups": 20,
+        "nested_outputs": 60
+      },
+      "ptx_audit": "ptx-audit.json"
+    }
+  },
+  "temporary_profiling_artifacts": "Task-owned diagnostic wrappers, package snapshots and PTX/cubin audit files are removed after recording the results. The production benchmark remains tools/benchmark_torch.py."
+}

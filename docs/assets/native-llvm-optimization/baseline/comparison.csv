@@ -1,0 +1,17 @@
+device,workload,size,dtype,layout,rows,columns,depth,branches,torch_mode,fuga_p50_us,torch_p50_us,fuga_over_torch,difference_pct,fuga_rounds,torch_rounds
+cpu,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,123.56,20.085,6.151854617874035,515.1854617874035,3,3
+cpu,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,202.612,243.498,0.8320889699299379,-16.791103007006214,3,3
+cpu,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,580.905,80.178,7.245191947915887,624.5191947915887,3,3
+cpu,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,929.022,673.933,1.378507952570953,37.85079525709529,3,3
+cpu,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,390.262,47.912,8.145391551177159,714.539155117716,3,3
+cpu,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,670.568,553.639,1.2112008005216395,21.12008005216395,3,3
+cpu,matmul,small,fp32,row_major,16,16,0,1,torch_eager,63.95,3.26,19.616564417177916,1861.6564417177915,3,3
+cpu,matmul,large,fp32,row_major,128,128,0,1,torch_eager,187.117,71.485,2.6175701196055114,161.75701196055115,3,3
+cuda,elementwise,small,fp32,row_major,32,64,0,1,torch_eager,189.822,154.493,1.2286770274381364,22.867702743813645,3,3
+cuda,elementwise,large,fp32,row_major,512,256,0,1,torch_eager,190.874,153.444,1.2439326399207529,24.393263992075287,3,3
+cuda,reduction_chain,small,fp32,row_major,32,64,8,1,torch_eager,656.96,612.219,1.0730800579531181,7.308005795311812,3,3
+cuda,reduction_chain,large,fp32,row_major,512,256,8,1,torch_eager,812.45,575.282,1.412263898401132,41.2263898401132,3,3
+cuda,fork_join,small,fp32,row_major,32,64,0,4,torch_eager,458.777,403.384,1.1373207663169584,13.732076631695843,3,3
+cuda,fork_join,large,fp32,row_major,512,256,0,4,torch_eager,609.781,409.907,1.48760816477884,48.76081647788399,3,3
+cuda,matmul,small,fp32,row_major,16,16,0,1,torch_eager,130.259,70.95,1.8359267089499645,83.59267089499644,3,3
+cuda,matmul,large,fp32,row_major,128,128,0,1,torch_eager,132.323,76.021,1.7406111469199301,74.06111469199301,3,3

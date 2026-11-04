@@ -1,0 +1,12 @@
+{
+  "compiler": {
+    "/home/asuka/ask/build/core/lib/libask_compiler.so.0.1.0": "4b4499efa205451df7a08b2ac0afa2145fe250272c353609beb15cf45fc5630b",
+    "/home/asuka/ask/build/sdk/lib/libask_compiler.so.0.1.0": "4b4499efa205451df7a08b2ac0afa2145fe250272c353609beb15cf45fc5630b",
+    "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_lib/libask_compiler.so.0": "4b4499efa205451df7a08b2ac0afa2145fe250272c353609beb15cf45fc5630b",
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_lib/libask_compiler.so.0": "4b4499efa205451df7a08b2ac0afa2145fe250272c353609beb15cf45fc5630b"
+  },
+  "native_extensions": {
+    "/home/asuka/fugatensor/.venv/lib/python3.13/site-packages/fugatensor/_native.cpython-313-x86_64-linux-gnu.so": "e0e65fdc3af5b6e4bb8c22736dc1864005dbba085a34df1de6663c62c8df0277",
+    "/home/asuka/fugatensor/build/torch-benchmark-env/lib/python3.12/site-packages/fugatensor/_native.cpython-312-x86_64-linux-gnu.so": "a425f5728b9e557184851d09791a07fa9f4d367ce6e7c3ab9d7038c33bc6ae90"
+  }
+}

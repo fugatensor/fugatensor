@@ -1,0 +1,85 @@
+{
+  "scope": "llc and ptxas compilation of a tail-width maximum; PTX counts are static instructions, not execution counts or physical register measurements.",
+  "cases": [
+    {
+      "dtype": "i32",
+      "input_shape": [
+        9,
+        65
+      ],
+      "reduction_axes": [
+        1
+      ],
+      "target": "sm_86",
+      "ptx_version": "8.0",
+      "shuffle_instructions": 5,
+      "shared_declarations": 0,
+      "cubin_bytes": 3880,
+      "cubin_sha256": "660452d47e5dc252ac5eb3f7af23f0dfb062c83819f243ee6275c95330632597"
+    },
+    {
+      "dtype": "i64",
+      "input_shape": [
+        9,
+        65
+      ],
+      "reduction_axes": [
+        1
+      ],
+      "target": "sm_86",
+      "ptx_version": "8.0",
+      "shuffle_instructions": 10,
+      "shared_declarations": 0,
+      "cubin_bytes": 4392,
+      "cubin_sha256": "a0fa5d29f924820ec66e61b41e1799971978a93964411b98a2f5dbdab25115d6"
+    },
+    {
+      "dtype": "f32",
+      "input_shape": [
+        9,
+        65
+      ],
+      "reduction_axes": [
+        1
+      ],
+      "target": "sm_86",
+      "ptx_version": "8.0",
+      "shuffle_instructions": 5,
+      "shared_declarations": 0,
+      "cubin_bytes": 3880,
+      "cubin_sha256": "9a88980e21cb8bbbcfdfa4f771116977257a17a2c082d0e6ed19c06502686cfe"
+    },
+    {
+      "dtype": "f16",
+      "input_shape": [
+        9,
+        65
+      ],
+      "reduction_axes": [
+        1
+      ],
+      "target": "sm_86",
+      "ptx_version": "8.0",
+      "shuffle_instructions": 5,
+      "shared_declarations": 0,
+      "cubin_bytes": 4008,
+      "cubin_sha256": "167a30d04680ed923b5771fc65a4e30b8c1db8406305f092df67ee41a14a3ef2"
+    },
+    {
+      "dtype": "bf16",
+      "input_shape": [
+        9,
+        65
+      ],
+      "reduction_axes": [
+        1
+      ],
+      "target": "sm_86",
+      "ptx_version": "8.0",
+      "shuffle_instructions": 5,
+      "shared_declarations": 0,
+      "cubin_bytes": 4136,
+      "cubin_sha256": "86510ad18162aef1f6d067046f8e36989de2d6058aa58738b9fafd2a52b4025b"
+    }
+  ]
+}

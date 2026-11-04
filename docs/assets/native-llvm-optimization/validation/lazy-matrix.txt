@@ -1,0 +1,10 @@
+test_constant_carrier_with_pending_alias_and_changed_shape (tests.test_lazy_schedule.LazyScheduleTests.test_constant_carrier_with_pending_alias_and_changed_shape) ... ok
+test_deep_alias_and_expression_chains (tests.test_lazy_schedule.LazyScheduleTests.test_deep_alias_and_expression_chains) ... ok
+test_materialized_intermediate_keeps_derivative_provenance (tests.test_lazy_schedule.LazyScheduleTests.test_materialized_intermediate_keeps_derivative_provenance) ... ok
+test_output_order_changes_bindings (tests.test_lazy_schedule.LazyScheduleTests.test_output_order_changes_bindings) ... ok
+test_output_subset_alias_input_binding_and_cache_matrix (tests.test_lazy_schedule.LazyScheduleTests.test_output_subset_alias_input_binding_and_cache_matrix) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 15.976s
+
+OK
