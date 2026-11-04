@@ -38,7 +38,8 @@ public:
                nb::handle values, nb::handle tensorType) const {
     auto tensors = checkPorts(values, inputs, "inputs", tensorType);
     prepareAccess(tensors, session);
-    session.attr("reap")();
+    auto pending = session.attr("_pending");
+    if (PyList_GET_SIZE(pending.ptr()) > 0) session.attr("reap")();
     auto bound = buffers(tensors);
     std::pair<std::vector<std::shared_ptr<DeviceBuffer>>, std::shared_ptr<Event>> result;
     {
@@ -118,7 +119,10 @@ private:
   }
 
   static void prepareAccess(nb::tuple tensors, nb::handle session) {
-    for (nb::handle tensor : tensors) tensor.attr("_prepare_access")(session);
+    for (nb::handle tensor : tensors) {
+      if (!tensor.attr("_owner").is_none())
+        tensor.attr("_prepare_access")(session);
+    }
   }
 
   static std::vector<std::shared_ptr<DeviceBuffer>> buffers(nb::tuple tensors) {

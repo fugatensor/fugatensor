@@ -159,10 +159,26 @@ class Tensor(_native.TensorHandle):
         from .ops import square
         return square(self)
 
+    def item(self):
+        """Return the value of this tensor as a standard Python number or bool."""
+        if math.prod(self.shape) != 1 and self.shape != ():
+            raise ValueError('only one element tensors can be converted to Python scalars')
+        return self._engine.to_flat(self)[0]
+
     def __bool__(self):
         if self.shape != ():
             raise TypeError('control-flow conditions require a scalar Tensor with shape=()')
-        return bool(self.tolist())
+        return bool(self._engine.to_flat(self)[0])
+
+    def __int__(self):
+        if self.shape != ():
+            raise TypeError('only scalar tensors can be converted to Python int')
+        return int(self._engine.to_flat(self)[0])
+
+    def __float__(self):
+        if self.shape != ():
+            raise TypeError('only scalar tensors can be converted to Python float')
+        return float(self._engine.to_flat(self)[0])
 
     def __truediv__(self, other):
         from .ops import divide

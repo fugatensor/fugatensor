@@ -95,6 +95,9 @@ class TraceTensor(_native.TraceHandle):
     def tolist(self):
         raise TypeError("tensor values cannot be read while tracing an isolated operation")
 
+    def item(self):
+        raise TypeError("tensor values cannot be read while tracing an isolated operation")
+
     def __truediv__(self, other):
         from .ops import divide
         return divide(self, other)
