@@ -8,7 +8,9 @@ import fugatensor as ft
 from fugatensor.ir import Module, ScalarType, TensorType
 from tests._helpers import EngineTestCase, requires_cuda
 from tests.support.tensor_primitives import (DTYPES, dtypes, execute_ir, flatten, geometry_matrix,
-    matmul_matrix, matmul_reference, reduction_reference, trace, transpose_reference, values)
+    host_mixed_workspace_matrix, host_workspace_matrix, materialized_chain_reference,
+    matmul_matrix, matmul_reference, reduction_reference, trace,
+    transpose_reference, values)
 
 
 class TensorPrimitiveContractTests(unittest.TestCase):
@@ -265,6 +267,57 @@ class SharedTensorPrimitiveMatrix:
 
 class HostTensorPrimitiveMatrix(SharedTensorPrimitiveMatrix, EngineTestCase):
     device = 'cpu'
+
+    def test_materialized_mixed_dtype_matrix(self):
+        shape = (5, 3)
+        for first, following, capture_scalar in host_mixed_workspace_matrix():
+            with self.subTest(first=first, following=following, capture_scalar=capture_scalar):
+                data = values(shape, first)
+                if first in ('fp16', 'fp32'):
+                    data = [value + 0.5 for value in data]
+                storage_types = (first, following, following)
+                expected, expected_scalar = materialized_chain_reference(data, shape, storage_types)
+                current = ft.tensor(data, dtype=DTYPES[first]).reshape(shape)
+                captured = None
+                for stage, dtype in enumerate(storage_types):
+                    numeric = ft.int32 if dtype == 'bool' else DTYPES[dtype]
+                    stored = current.astype(numeric).sum(axis=1).astype(DTYPES[dtype])
+                    if stage == 0 and capture_scalar:
+                        captured = stored.astype(numeric).sum()
+                    current = ft.broadcast_in_dim(stored, shape, (0,))
+                mask = current == current
+                outputs = (captured, current, mask) if capture_scalar else (current, mask)
+                ft.evaluate(*outputs)
+                self.assert_values(current, shape, expected)
+                self.assert_values(mask, shape, [True] * math.prod(shape))
+                if capture_scalar:
+                    self.assert_values(captured, (), [expected_scalar])
+
+    def test_materialized_workspace_matrix(self):
+        for name, rows, columns, depth, transposed, retain in host_workspace_matrix():
+            with self.subTest(dtype=name, shape=(rows, columns), depth=depth,
+                              transposed=transposed, retain=retain):
+                shape = (rows, columns)
+                data = values(shape, name)
+                storage_shape = shape[::-1] if transposed else shape
+                stored = transpose_reference(data, shape, (1, 0)) if transposed else data
+                base = ft.tensor(stored, dtype=DTYPES[name]).reshape(storage_shape)
+                x = base.T if transposed else base
+                current, reference = x, data
+                early, early_reference = None, None
+                for stage in range(depth):
+                    reduced = current.sum(axis=1)
+                    sums = [sum(reference[row * columns:(row + 1) * columns]) for row in range(rows)]
+                    if stage == 0:
+                        early, early_reference = reduced, sums
+                    current = ft.broadcast_in_dim(reduced, shape, (0,)) + x
+                    reference = [sums[row] + data[row * columns + column]
+                                 for row in range(rows) for column in range(columns)]
+                outputs = (current, early) if retain else (current,)
+                ft.evaluate(*outputs)
+                self.assert_values(current, shape, reference)
+                if retain:
+                    self.assert_values(early, (rows,), early_reference)
 
     def test_bf16_computation_is_rejected(self):
         from fugatensor._ask.compiler import CompilerError

@@ -72,6 +72,30 @@ def matmul_matrix():
         yield dtype, (*batch, k, m) if ta else (*batch, m, k), (*batch, n, k) if tb else (*batch, k, n), ta, tb
 
 
+def host_workspace_matrix():
+    types = tuple(name for name in dtypes() if name not in ('bool', 'bf16'))
+    return product(types, (0, 1, 5), (0, 3), (2, 5), (False, True), (False, True))
+
+
+def host_mixed_workspace_matrix():
+    types = tuple(name for name in dtypes() if name != 'bf16')
+    return product(types, types, (False, True))
+
+
+def materialized_chain_reference(data, shape, storage_types):
+    rows, columns = shape
+    current, captured = data, None
+    for stage, dtype in enumerate(storage_types):
+        cast = bool if dtype == 'bool' else int if dtype in ('int32', 'int64') else float
+        numeric = int if dtype == 'bool' else cast
+        reduced = [cast(sum(numeric(value) for value in current[row * columns:(row + 1) * columns]))
+                   for row in range(rows)]
+        if stage == 0:
+            captured = sum(numeric(value) for value in reduced)
+        current = [value for value in reduced for _ in range(columns)]
+    return current, captured
+
+
 def matmul_reference(left, right, ashape, bshape, ta=False, tb=False):
     m, k = ashape[-2:][::-1] if ta else ashape[-2:]
     _, n = bshape[-2:][::-1] if tb else bshape[-2:]

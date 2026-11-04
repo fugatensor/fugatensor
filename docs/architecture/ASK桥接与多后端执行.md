@@ -56,7 +56,7 @@ GPU 引擎首次上传 Tensor 或访问 `engine.session` 时创建 [ASK `Executi
 
 1. **纯自有计算图 → ASK 自有 CUDA 降级**：
    `Engine` 将 ASK 图和 `arch` 交给 [ASK CUDA 后端](../../../ask/docs/图优化与自有代码生成.md#owned-cuda) 生成 cubin。会话加载后准备 C++ `PreparedProgram`，引擎调用桥接层 `prepared.run(inputs)` 提交到 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 和空张量。
-2. **含 `ft.triton.kernel` 的混合图 → 自有与外部 kernel 顺序调度**：
+2. **含 `ft.triton.kernel` 的混合图 → 自有与外部 kernel 依赖调度**：
    - 通过 `ft.triton.kernel("kernels.py", entry=..., input=... 或 inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - 注册时保存 UTF-8 源码和配置快照，后续文件修改须重新注册。
    - 每次调用执行 `constants`、`scalars` 和 `grid` 回调，传入 `TensorSpec(shape, dtype, device, numel)`。shape 使用 reshape 后的维度，dtype 和 device 使用公开对象。返回配置随节点冻结，闭包变化只影响后续调用。降级时再绑定所选 GPU 的 `arch`，生成 `ask.implementation` 和 `ask.external`。
@@ -64,7 +64,7 @@ GPU 引擎首次上传 Tensor 或访问 `engine.session` 时创建 [ASK `Executi
 
 矩阵乘法产生 `library="cublaslt"` 步骤，计划保存 dtype、M/N/K、batch_count 和转置标志；运行时在准备阶段选择算法并管理工作区。
 
-ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法分别排入[执行计划 JSON v1](../../../ask/docs/图切分与多Kernel执行计划.md#plan-v1)。桥接层从 `PartitionResult.execution_plan` 获取计划，按 `step_sources` 编译各步骤，通过 `external_requests` 路由 worker。GPU 编译产物的 `execution_plan` 字段独立保存分区计划，`report` 保存诊断与缓存信息。归约结果被广播复用时在边界物化，避免为每个输出重复整段归约。分区内逐元素与索引变换保留融合；导数图遵循同样规则。步骤通过设备缓冲区传递数据，在会话 stream 上顺序提交；非法图、损坏产物和编译失败会报错。
+ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法分别排入[执行计划 JSON v1](../../../ask/docs/图切分与多Kernel执行计划.md#plan-v1)。桥接层从 `PartitionResult.execution_plan` 获取计划，按 `step_sources` 编译各步骤，通过 `external_requests` 路由 worker。GPU 编译产物的 `execution_plan` 字段独立保存分区计划，`report` 保存诊断与缓存信息。归约结果被广播复用时在边界物化，避免为每个输出重复整段归约。分区内逐元素与索引变换保留融合；导数图遵循同样规则。步骤通过设备缓冲区传递数据，普通 stream 按序启动，Graph 按实际依赖调度；非法图、损坏产物和编译失败会报错。
 
 安装 all 后，引擎从当前环境的安装元数据发现 Triton，以该解释器启动 worker。独立环境通过 `ft.triton.environment(python=...)` 选择。worker 检查版本，按 JIT 参数顺序去掉 constexpr，补齐 CUDA ABI 的 scratch 参数，并读取动态共享内存大小。全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动当前不受支持。版本与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
 
@@ -86,11 +86,15 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法�
 
 GPU JIT 的单 kernel 和混合计划都使用 CUDA Graph。首次提交建立 graph executable，执行槽完成后可复用，并更新变化的输入输出地址。在途调用各用一份中间缓冲区和 graph 实例，每次提交返回一个完成事件。
 
+ASK 在准备时从读写端口推导节点依赖，并静态检查每个读取及共享槽位的访问顺序。独立分支保留并行机会，各自持有仍在使用的临时区；Fuga 提交的端口接口保持一致。CPU 物化临时区也由 ASK 在编译期按实际读取生存期复用，布局见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
+
 C++ 计划保留 kernel 和在途缓冲区；Python 绑定保留外部框架的 owner，并检查 shape/dtype。原生计划检查设备归属、字节数、写权限和别名，再一次提交所有步骤。事件完成后可回收底层 CUDA event，用户持有的 Event 保持完成状态。
 
 桥接层 `prepared.run(inputs)` 由原生计划分配输出，异步返回设备张量列表；重复输出和输入别名保留相同张量句柄。`prepared.submit_many(inputs, outputs)` 使用调用方给定的输出并返回完成事件。两条入口统一校验端口、建立外部 stream 依赖并保留 owner；自动输出的完成事件由会话保留，外部生产者重用输入存储前须同步会话。
 
 ASK 同时提供普通 stream 提交和 Graph replay。FugaTensor JIT 默认使用后者。
+
+依赖调度、CPU 临时区复用的延迟与内存对照见 [ASK 验证报告](../../../ask/docs/依赖调度与临时区复用验证报告.md#fuga-profile)。
 
 <a id="cache-hierarchy"></a>
 

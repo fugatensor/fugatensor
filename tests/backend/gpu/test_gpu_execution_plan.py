@@ -222,6 +222,44 @@ delay:
                 outputs[0].copy_to_host(observed)
                 self.assertEqual(observed.tolist(), [4 * value for value in range(index * 10, (index + 1) * 10)])
 
+    def test_native_branch_dependency_matrix(self):
+        for branches, depth, graph in product((2, 4), (2, 4), (False, True)):
+            with self.subTest(branches=branches, depth=depth, graph=graph), ExecutionSession() as session:
+                native = session._native
+                kernel = native.load(PTX.encode(), "scale2", ["i32"], 80, [0, 0])
+                steps, output_ids = [], []
+                for branch in range(branches):
+                    source = 0
+                    for level in range(depth):
+                        target = 1 + branch * depth + level
+                        steps.append({"kernel": kernel, "arguments": [source, target],
+                                      "inputs": [source], "outputs": [target],
+                                      "grid": [1, 1, 1], "block": [32, 1, 1], "shared_bytes": 0})
+                        source = target
+                    output_ids.append(source)
+                program = native.prepare_program([40] * (1 + branches * depth), [0], output_ids, steps, graph=graph)
+                slots = min(2, depth - 1) * (branches if graph else 1)
+                self.assertEqual(native.stats["prepared_internal_slots"], slots)
+                self.assertEqual(native.stats["prepared_internal_bytes"], 40 * slots)
+                held = []
+                for iteration in range(3):
+                    x = native.allocate(40)
+                    data = array("i", range(iteration * 10, (iteration + 1) * 10))
+                    x.copy_from_host(data)
+                    outputs, completion = program.run([x])
+                    completion.wait()
+                    expected = [value * 2**depth for value in data]
+                    held.extend((output, expected) for output in outputs)
+                    before = native.stats["graph_node_updates"]
+                    program.submit([x], outputs).wait()
+                    self.assertEqual(native.stats["graph_node_updates"], before)
+                observed = array("i", [0] * 10)
+                for output, expected in held:
+                    output.copy_to_host(observed)
+                    self.assertEqual(observed.tolist(), expected)
+                self.assertEqual(native.stats["graph_nodes"], branches * depth * int(graph))
+                self.assertEqual(native.stats["graph_edges"], branches * (depth - 1) * int(graph))
+
     def test_direct_ptx_and_cubin_without_ask_codegen(self):
         for format_ in ("ptx", "cubin"):
             with self.subTest(format=format_), tempfile.TemporaryDirectory() as directory, ExecutionSession() as session:
