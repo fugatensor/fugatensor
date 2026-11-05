@@ -213,6 +213,8 @@ void bindAskRuntime(nb::module_ &module) {
             matmul.batchCount=nb::cast<std::uint64_t>(description["batch_count"]);
             matmul.transposeA=nb::cast<bool>(description["transpose_a"]);
             matmul.transposeB=nb::cast<bool>(description["transpose_b"]);
+            if(description.contains("workspace_limit"))
+              matmul.workspaceLimit=nb::cast<std::size_t>(description["workspace_limit"]);
             step.matmul=std::move(matmul);
             steps.push_back(std::move(step));
             continue;

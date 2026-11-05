@@ -39,8 +39,7 @@ def runtime_defaults(device):
         if not isinstance(environment, dict) or set(environment) - {'python', 'worker'}:
             raise ValueError(f'invalid configured environment for compiler {name!r}')
         env = dict(environment)
-        worker_path = Path(env.get('worker', ''))
-        if not worker_path.is_file():
+        if not env.get('worker'):
             fallback = Path(__file__).resolve().parent / '_triton_worker.py'
             if fallback.is_file():
                 env['worker'] = str(fallback)
