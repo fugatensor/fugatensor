@@ -39,7 +39,7 @@ public:
     auto tensors = checkPorts(values, inputs, "inputs", tensorType);
     prepareAccess(tensors, session);
     auto pending = session.attr("_pending");
-    if (PyList_GET_SIZE(pending.ptr()) > 0) session.attr("reap")();
+    if (PyList_GET_SIZE(pending.ptr()) >= 64) session.attr("reap")();
     auto bound = buffers(tensors);
     std::pair<std::vector<std::shared_ptr<DeviceBuffer>>, std::shared_ptr<Event>> result;
     {
@@ -47,20 +47,21 @@ public:
       result = program.run(bound);
     }
     session.attr("_retain")(nb::cast(result.second), tensors);
-    std::unordered_map<DeviceBuffer *, nb::object> handles;
-    handles.reserve(bound.size() + result.first.size());
-    for (std::size_t index = 0; index < bound.size(); ++index)
-      handles.insert_or_assign(bound[index].get(), nb::borrow<nb::object>(tensors[index]));
     nb::list wrapped;
     for (std::size_t index = 0; index < result.first.size(); ++index) {
       const auto &buffer = result.first[index];
-      auto found = handles.find(buffer.get());
-      if (found == handles.end()) {
-        const auto &port = outputs[index];
-        found = handles.emplace(buffer.get(), tensorType(
-            session, nb::cast(buffer), port.shape, port.dtype)).first;
+      nb::object handle;
+      for (std::size_t b = 0; b < bound.size(); ++b) {
+        if (bound[b].get() == buffer.get()) {
+          handle = nb::borrow<nb::object>(tensors[b]);
+          break;
+        }
       }
-      wrapped.append(found->second);
+      if (!handle.is_valid()) {
+        const auto &port = outputs[index];
+        handle = tensorType(session, nb::cast(buffer), port.shape, port.dtype);
+      }
+      wrapped.append(handle);
     }
     return wrapped;
   }
@@ -72,7 +73,8 @@ public:
     auto outputTensors = checkPorts(outputValues, outputs, "outputs", tensorType);
     prepareAccess(inputTensors, session);
     prepareAccess(outputTensors, session);
-    session.attr("reap")();
+    auto pending = session.attr("_pending");
+    if (PyList_GET_SIZE(pending.ptr()) >= 64) session.attr("reap")();
     auto inputBuffers = buffers(inputTensors), outputBuffers = buffers(outputTensors);
     std::shared_ptr<Event> event;
     {
@@ -111,8 +113,9 @@ private:
       nb::handle tensor = tensors[index];
       if (!nb::isinstance(tensor, tensorType))
         throw CUDAError("program ports require DeviceTensor values");
-      if (!nb::tuple(tensor.attr("shape")).equal(ports[index].shape) ||
-          !tensor.attr("dtype").equal(ports[index].dtype))
+      nb::handle shape = tensor.attr("_shape");
+      nb::handle dtype = tensor.attr("_dtype");
+      if (!shape.equal(ports[index].shape) || !dtype.equal(ports[index].dtype))
         throw CUDAError("program port shape/dtype differs from its compiled type");
     }
     return tensors;

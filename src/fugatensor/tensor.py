@@ -115,21 +115,18 @@ class Tensor(_native.TensorHandle):
         return memoryview(self.storage.to_host_bytes())
 
     def astype(self, dtype: DType | str) -> Tensor:
-        from .ops import cast
-        return cast(self, normalize_dtype(dtype))
+        return _ops.cast(self, normalize_dtype(dtype))
 
     def reshape(self, *shape) -> Tensor:
         """Return a deferred tensor with the same elements and a new shape."""
         from ._shape import infer_reshape
-        from .ops import _reshape
-        return _reshape(self, infer_reshape(shape, math.prod(self.shape)))
+        return _ops._reshape(self, infer_reshape(shape, math.prod(self.shape)))
 
     def _binary(self, operation, other, *, reverse=False):
         if not isinstance(other, Tensor) and type(other) not in (bool, int, float):
             return NotImplemented
-        from .ops import add, multiply
         arguments = (other, self) if reverse else (self, other)
-        return (add if operation == 'add' else multiply)(*arguments)
+        return (_ops.add if operation == 'add' else _ops.multiply)(*arguments)
 
     def __add__(self, other):
         return self._binary("add", other)
@@ -144,20 +141,16 @@ class Tensor(_native.TensorHandle):
         return self._binary("mul", other, reverse=True)
 
     def __neg__(self):
-        from .ops import negative
-        return negative(self)
+        return _ops.negative(self)
 
     def __sub__(self, other):
-        from .ops import subtract
-        return subtract(self, other)
+        return _ops.subtract(self, other)
 
     def __rsub__(self, other):
-        from .ops import subtract
-        return subtract(other, self)
+        return _ops.subtract(other, self)
 
     def square(self):
-        from .ops import square
-        return square(self)
+        return _ops.square(self)
 
     def item(self):
         """Return the value of this tensor as a standard Python number or bool."""
@@ -181,68 +174,56 @@ class Tensor(_native.TensorHandle):
         return float(self._engine.to_flat(self)[0])
 
     def __truediv__(self, other):
-        from .ops import divide
-        return divide(self, other)
+        return _ops.divide(self, other)
 
     def __rtruediv__(self, other):
-        from .ops import divide
-        return divide(other, self)
+        return _ops.divide(other, self)
 
     def __matmul__(self, other):
-        from .ops import matmul
-        return matmul(self, other)
+        return _ops.matmul(self, other)
 
     def __rmatmul__(self, other):
-        from .ops import matmul
-        return matmul(other, self)
+        return _ops.matmul(other, self)
 
     def __eq__(self, other):
-        from .ops import compare
-        return compare(self, other, 'eq')
+        return _ops.compare(self, other, 'eq')
 
     def __ne__(self, other):
-        from .ops import compare
-        return compare(self, other, 'ne')
+        return _ops.compare(self, other, 'ne')
 
     def __lt__(self, other):
-        from .ops import compare
-        return compare(self, other, 'lt')
+        return _ops.compare(self, other, 'lt')
 
     def __le__(self, other):
-        from .ops import compare
-        return compare(self, other, 'le')
+        return _ops.compare(self, other, 'le')
 
     def __gt__(self, other):
-        from .ops import compare
-        return compare(self, other, 'gt')
+        return _ops.compare(self, other, 'gt')
 
     def __ge__(self, other):
-        from .ops import compare
-        return compare(self, other, 'ge')
+        return _ops.compare(self, other, 'ge')
 
     def sum(self, axis=None, *, keepdims=False, dtype=None):
-        from .ops import sum
-        return sum(self, axis, keepdims=keepdims, dtype=dtype)
+        return _ops.sum(self, axis, keepdims=keepdims, dtype=dtype)
 
     def amax(self, axis=None, *, keepdims=False):
-        from .ops import amax
-        return amax(self, axis, keepdims=keepdims)
+        return _ops.amax(self, axis, keepdims=keepdims)
 
     def mean(self, axis=None, *, keepdims=False, dtype=None):
-        from .ops import mean
-        return mean(self, axis, keepdims=keepdims, dtype=dtype)
+        return _ops.mean(self, axis, keepdims=keepdims, dtype=dtype)
 
     def transpose(self, permutation=None):
-        from .ops import transpose
-        return transpose(self, permutation)
+        return _ops.transpose(self, permutation)
 
     @property
     def T(self):
         return self.transpose()
 
     def broadcast_to(self, shape):
-        from .ops import broadcast_to
-        return broadcast_to(self, shape)
+        return _ops.broadcast_to(self, shape)
 
     def __repr__(self):
         return f"Tensor(shape={self.shape!r}, dtype={self.dtype!r}, device={self.device!r})"
+
+
+from . import ops as _ops
