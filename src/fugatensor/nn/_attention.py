@@ -12,6 +12,12 @@ KERNEL_PATH = Path(__file__).with_name('_kernels') / 'flash_attention2.py'
 BLOCK = 32
 
 
+def _block_size(m, n):
+    if m >= 64 and n >= 64:
+        return 64
+    return 32
+
+
 def _dimensions(specs):
     q, k, v = specs[:3]
     if any(len(spec.shape) != 4 for spec in (q, k, v)):
@@ -49,33 +55,38 @@ def _stats_dimensions(specs):
 def _make_kernels(causal):
     def constants(specs):
         _, _, m, n, d, dv = _dimensions(specs)
+        block = _block_size(m, n)
         return {'M': m, 'N': n, 'D': d, 'DV': dv, 'CAUSAL': int(causal),
-                'BLOCK_M': BLOCK, 'BLOCK_N': BLOCK}
+                'BLOCK_M': block, 'BLOCK_N': block}
 
     def forward_shape(specs):
         b, h, m, _, _, dv = _dimensions(specs)
         return b, h, m, dv
 
     def query_grid(specs):
-        b, h, m, _, _, _ = _dimensions(specs)
-        return ((m + BLOCK - 1) // BLOCK, b * h)
+        b, h, m, n, _, _ = _dimensions(specs)
+        block = _block_size(m, n)
+        return ((m + block - 1) // block, b * h)
 
     def key_grid(specs):
-        b, h, _, n, _, _ = _dimensions(specs)
-        return ((n + BLOCK - 1) // BLOCK, b * h)
+        b, h, m, n, _, _ = _dimensions(specs)
+        block = _block_size(m, n)
+        return ((n + block - 1) // block, b * h)
 
     def stats_constants(specs):
         b, h, m, n, d, dv = _stats_dimensions(specs)
+        block = _block_size(m, n)
         return {'M': m, 'N': n, 'D': d, 'DV': dv, 'CAUSAL': int(causal),
-                'BLOCK_M': BLOCK, 'BLOCK_N': BLOCK}
+                'BLOCK_M': block, 'BLOCK_N': block}
 
     def stats_shape(specs):
         b, h, m, _, _, _ = _stats_dimensions(specs)
         return b, h, m, 2
 
     def stats_grid(specs):
-        b, h, m, _, _, _ = _stats_dimensions(specs)
-        return ((m + BLOCK - 1) // BLOCK, b * h)
+        b, h, m, n, _, _ = _stats_dimensions(specs)
+        block = _block_size(m, n)
+        return ((m + block - 1) // block, b * h)
 
     def dq_shape(specs):
         return specs[0].shape
