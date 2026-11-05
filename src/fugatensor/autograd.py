@@ -31,7 +31,12 @@ def _needed_inputs(module, output_index):
 def _validate_definitions(module):
     """Validate frozen custom rules on the selected graph, including cache hits."""
     from ._lazy import _template
-    live = _template(module).project(tuple(range(len(module.functions[0].outputs)))).definitions
+    template = _template(module)
+    if not template.definitions:
+        return
+    live = template.project(tuple(range(len(module.functions[0].outputs)))).definitions
+    if not live:
+        return
     for function in module.functions:
         used = {value for operation in function.operations for value in operation.operands}
         for operation in function.operations:
@@ -53,16 +58,22 @@ def _validate_definitions(module):
 def _plan(expression, output_indices, input_indices, engine):
     from ._lazy import _template
     template = _template(expression.module)
-    source_dependencies = template.live_dependencies(template.project(output_indices), expression.dependencies)
-    if any(definition._definition_key() != version for definition, version in source_dependencies):
-        raise ValueError("function definition changed after tracing; retrace the forward call")
+    has_defs = bool(template.definitions)
+    if has_defs:
+        source_dependencies = template.live_dependencies(template.project(output_indices), expression.dependencies)
+        if any(definition._definition_key() != version for definition, version in source_dependencies):
+            raise ValueError("function definition changed after tracing; retrace the forward call")
+    else:
+        source_dependencies = ()
     key = input_indices, output_indices
     with _cache_lock:
         by_module = _cache.setdefault(engine, weakref.WeakKeyDictionary())
         plans = by_module.setdefault(expression.module, {})
-        if key not in plans:
+        plan = plans.get(key)
+        if plan is None:
             projected = project_outputs(expression.module, output_indices)
-            _validate_definitions(projected)
+            if has_defs:
+                _validate_definitions(projected)
             from .tracing import TraceContext
             context = TraceContext.from_graph(projected.functions[0], engine=engine)
             token = active_trace.set(context)
@@ -70,13 +81,14 @@ def _plan(expression, output_indices, input_indices, engine):
                 derivative = vjp(projected, argnums=input_indices)
             finally:
                 active_trace.reset(token)
-            plans[key] = _Plan(derivative, (*source_dependencies, *context.dependencies.items()))
-        plan = plans[key]
-        # A derivative can prune all calls; validate its captured definitions too.
-        _validate_definitions(project_outputs(expression.module, output_indices))
-        _validate_definitions(plan.derivative)
-        if any(definition._definition_key() != version for definition, version in plan.dependencies):
-            raise ValueError("custom VJP definition changed after tracing; retrace the forward call")
+            plan = _Plan(derivative, (*source_dependencies, *context.dependencies.items()))
+            plans[key] = plan
+        if has_defs or plan.dependencies:
+            # A derivative can prune all calls; validate its captured definitions too.
+            _validate_definitions(template.project(output_indices).module)
+            _validate_definitions(plan.derivative)
+            if any(definition._definition_key() != version for definition, version in plan.dependencies):
+                raise ValueError("custom VJP definition changed after tracing; retrace the forward call")
         return plan
 
 
