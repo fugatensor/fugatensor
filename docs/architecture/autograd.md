@@ -1,10 +1,10 @@
 # 自动微分与自定义算子
 
-返回架构总览：[函数式自动微分、`ft.fun` 与高阶求导](README.md#arch-autodiff) · 相关细节：[张量模型与追踪机制](张量模型与追踪机制.md) · [原生图分析与 C++ 边界](原生图分析与C++边界.md) · [控制流与可组合变换](../ir/控制流与可组合变换.md)
+返回架构总览：[函数式自动微分、`ft.fun` 与高阶求导](README.md#arch-autodiff) · 相关细节：[张量模型与追踪机制](tensor_model.md) · [原生图分析与 C++ 边界](native.md) · [控制流与可组合变换](../ir/transforms.md)
 
 `ft.grad(outputs, inputs, seed=...)` 把表达式转换为新的 Fuga IR，返回导数对应的待计算 Tensor。数值执行由读取结果或 `ft.evaluate` 触发，并统一交给 ASK。
 
-API：[自动微分与自定义函数](../API/自动微分与自定义函数.md)
+API：[自动微分与自定义函数](../API/autograd.md)
 
 <a id="functional-autograd"></a>
 
@@ -14,7 +14,7 @@ Tensor 保存数值存储与表达式来源。运算结果求值后仍保留来�
 
 1. **确定求导边界**：从 `outputs` 的表达式依赖中找到选定 `inputs`，形成所需的 Fuga IR。显式停止梯度的值保留数值依赖，并截断对应微分路径。
 2. **检查梯度种子**：0-D 输出省略种子时使用同设备、同类型的标量 `1.0`；非标量须提供同 shape、同 dtype、同 Engine 的种子。多输出的种子使用同长度的 tuple/list，容器类型可互换。
-3. **变换 IR**：根据 C++ 活跃性分析构建 [`vjp`](../ir/控制流与可组合变换.md#jvp-and-vjp) 模块。共享路径的余切通过 `fuga.add` 合并，没有贡献的输入补零。
+3. **变换 IR**：根据 C++ 活跃性分析构建 [`vjp`](../ir/transforms.md#jvp-and-vjp) 模块。共享路径的余切通过 `fuga.add` 合并，没有贡献的输入补零。
 4. **返回表达式**：导数与普通算子结果一样是待计算 Tensor，可以继续参与运算和求导。每次调用保留自己的结果，用户显式决定是否将多个导数相加。
 5. **导数计划缓存与快速路径**：导数计划按表达式模块与端口索引缓存。标准算子图在缓存命中时直接复用导数模板，仅在包含自定义 `ft.fun` 调用时校验函数定义版本。
 
@@ -44,13 +44,13 @@ class Square(ft.fun):
 - 调用 `op(x)` 时隔离追踪 `forward`，将子模块、`vjp_rule` / `vjp_name` 和 `definition_key` 保存到 `CallSpec`，在外层插入 `fuga.call`。构图后修改实例配置或替换方法，会使旧图报错。
 - 求导配置放在实例的不可变属性中，运行时 Tensor 通过参数传入。修改闭包或全局变量中的可变内容后，调用 `op.clear_cache()` 并重新构图；这些捕获内容不在定义检查范围内。
 - 求导时，显式 VJP 从 `primals`、`outputs`、`cotangents` 三个 tuple 构造新的 SSA 表达式。原值包含全部 Tensor 输入，输出包含全部公开结果；未使用浮点输出的余切为零 Tensor，整数与布尔输出的余切为 `None`。只返回浮点 Tensor 输入的梯度，逐项检查数量、shape 和 dtype。没有显式 VJP 时，通过前向子图的原语规则生成导数。
-- VJP 可调用 [`ft.triton.kernel`](ASK桥接与多后端执行.md#cuda-and-triton)。编译时裁剪未用输入，ASK 将外部 kernel 排入执行计划；数值计算仍由这些 kernel 完成。
+- VJP 可调用 [`ft.triton.kernel`](backend.md#cuda-and-triton)。编译时裁剪未用输入，ASK 将外部 kernel 排入执行计划；数值计算仍由这些 kernel 完成。
 
 <a id="higher-order"></a>
 
 ## 3. 导数图的闭合与高阶微分
 
-已有 JVP/VJP 规则生成的导数图仍使用同一套 Fuga IR 原语。例如乘法的 VJP 生成两条 `fuga.mul`，共享输入的余切用 `fuga.add` 累加；浮点转换和 reshape 分别生成反向 cast 和 reshape。各规则的适用范围见[原语规则表](../ir/控制流与可组合变换.md#primitive-registry)。
+已有 JVP/VJP 规则生成的导数图仍使用同一套 Fuga IR 原语。例如乘法的 VJP 生成两条 `fuga.mul`，共享输入的余切用 `fuga.add` 累加；浮点转换和 reshape 分别生成反向 cast 和 reshape。各规则的适用范围见[原语规则表](../ir/transforms.md#primitive-registry)。
 
 `first = ft.grad(y, x)` 返回的表达式可继续传给 `ft.grad(first, x)`。导数的求值不会删除来源。高阶微分取决于实际活跃路径上的原语规则；不透明外部 kernel 未定义的导数会被拒绝。显式 VJP 由闭合原语构成时，即使前向含外部 kernel，也可继续对导数表达式求导；只有导数图活跃路径上的不透明节点会限制高阶微分。普通前向支持自动 JVP；有显式 VJP 的调用当前拒绝活跃 JVP，保持自定义导数的语义。
 
@@ -63,7 +63,7 @@ class Square(ft.fun):
 `ft.grad` 在返回导数表达式前检查请求和所需规则：
 
 1. 校验输出、输入、种子的结构、类型、形状与 Engine；
-2. 根据 C++ [`analyze_function`](原生图分析与C++边界.md#native-analyze) 定位活跃求导路径；
+2. 根据 C++ [`analyze_function`](native.md#native-analyze) 定位活跃求导路径；
 3. 构建并校验 VJP IR，活跃的裸 `fuga.external` 缺少规则时直接报错，自定义 VJP 的返回值须与浮点输入契约一致。
 
 变换成功后，调用方可以组合导数表达式，再统一求值。错误请求在数值执行前拒绝。

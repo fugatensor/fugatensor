@@ -1,6 +1,6 @@
 # 对象模型与验证
 
-返回 IR 总览：[对象模型与验证](README.md#ir-object-model) · 相关细节：[控制流与可组合变换](控制流与可组合变换.md) · [降级到 ASK](降级到ASK.md) · [原生图分析与 C++ 边界](../architecture/原生图分析与C++边界.md)
+返回 IR 总览：[对象模型与验证](README.md#ir-object-model) · 相关细节：[控制流与可组合变换](transforms.md) · [降级到 ASK](lowering.md) · [原生图分析与 C++ 边界](../architecture/native.md)
 
 <a id="types-and-ssa"></a>
 
@@ -41,14 +41,14 @@ Module (functions)
 | **归约** | `reduce_sum`、`reduce_max` | `axes` 为递增且唯一的轴；全归约产生 ScalarType，部分归约产生 TensorType。rank > 0 且 axes 为空时保持 TensorType。 |
 | **矩阵乘法** | `matmul` | 同批维度矩阵乘法，`transpose_a/b` 控制末两维转置；fp32 累加。 |
 | **微分边界** | `stop_gradient` | 一个标量或张量输入，前向原样返回数值、类型和形状；JVP 切线与 VJP 余切停止传播，数值降级时直接映射输入值。 |
-| **函数与外部算子** | `call` | `attrs["spec"]` 保存 `CallSpec` 及前向子图（如 [`ft.fun`](../architecture/自动微分与自定义算子.md#custom-fun)），结果为公开前向输出，求导规则接收输入原值、前向输出与余切。 |
+| **函数与外部算子** | `call` | `attrs["spec"]` 保存 `CallSpec` 及前向子图（如 [`ft.fun`](../architecture/autograd.md#custom-fun)），结果为公开前向输出，求导规则接收输入原值、前向输出与余切。 |
 | | `external` | 调用第三方编译器算子，`attrs["spec"]` 保存 `ExternalSpec`（编译器 ID、源码原文、端口绑定、常量、grid 与副作用列表）。 |
 | **结构化控制流** | `if` | 接收标量或 0-D 张量 `bool` 条件，含 `then` 与 `else` 两个单块 `Region`，两分支 `yield` 的结果类型列表必须一致。 |
 | | `for` | 静态区间计数循环（`attrs` 含 `lower`、`upper`、`step`），循环体块参数依次为 `i64` 标量归纳变量与携带状态。 |
 | | `while` | 含条件和循环体两个 `Region`：条件区域 `yield` 一个布尔值，循环体 `yield` 下一轮携带状态。 |
 | **终结符** | `return`、`yield` | 分别作为顶层函数与嵌套区域的末尾终结指令。 |
 
-`Operation.origin_id` 在克隆、循环展开或微分生成新节点时继承源节点 ID，最终记录到 [`fuga-to-ask.json`](降级到ASK.md#external-and-sourcemap)。
+`Operation.origin_id` 在克隆、循环展开或微分生成新节点时继承源节点 ID，最终记录到 [`fuga-to-ask.json`](lowering.md#external-and-sourcemap)。
 
 <a id="module-verifier"></a>
 

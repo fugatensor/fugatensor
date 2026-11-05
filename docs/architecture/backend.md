@@ -1,8 +1,8 @@
 # ASK 桥接与多后端执行
 
-返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](张量模型与追踪机制.md) · [Fuga IR 降级到 ASK](../ir/降级到ASK.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/常驻运行时与多级缓存.md)
+返回架构总览：[降级到 ASK、多后端执行与多级缓存](README.md#arch-ask-backends) · 相关细节：[张量模型与追踪机制](tensor_model.md) · [Fuga IR 降级到 ASK](../ir/lowering.md) · [ASK 常驻运行时与多级缓存](../../../ask/docs/runtime.md)
 
-API：[设备与执行](../API/设备与执行.md) · [Triton 算子接入](../API/Triton算子接入.md) · [attention](../API/attention.md)
+API：[设备与执行](../API/engine.md) · [Triton 算子接入](../API/triton.md) · [attention](../API/attention.md)
 
 读取普通结果、梯度结果或调用 `ft.evaluate` 时，`Engine` 将所需表达式合并为 Fuga IR，裁剪输入，降级成 ASK IR，再调用 CPU 动态库或 GPU 会话执行。
 
@@ -10,18 +10,18 @@ API：[设备与执行](../API/设备与执行.md) · [Triton 算子接入](../A
 
 ## 1. `Engine` 生命周期与无用输入端口裁剪（`engine.py`）
 
-`Engine` 连接 [ASK 编译器及运行时](../../../ask/docs/前端接入与构建配置.md#python-sdk)，管理以下状态：
+`Engine` 连接 [ASK 编译器及运行时](../../../ask/docs/build.md#python-sdk)，管理以下状态：
 
 - **引擎与设备**：默认引擎按设备创建和复用，在进程退出或 `ft.shutdown()` 时关闭。`ft.set_default_device` 用 `ContextVar` 保存后续张量的默认设备，已有张量保留原设备和引擎；`device=` 优先。独立 `Engine` 的上下文可临时覆盖默认选择。引擎关闭后，其张量的读取和运算会报错；跨设备运算报 `RuntimeError`，同设备的跨引擎运算报 `ValueError`。
 - **无用物理输入端口裁剪**：
-  例如反向函数签名是 `(x, dy)`，计算却只有 `dx = dy * 2`。`Engine._compile` 用 [`prune`](原生图分析与C++边界.md#transforms-reuse) 找出实际输入，只为 `dy` 编译物理端口；调用时 `_InputProjection` 按索引筛选实参。
-- **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/降级到ASK.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。
+  例如反向函数签名是 `(x, dy)`，计算却只有 `dx = dy * 2`。`Engine._compile` 用 [`prune`](native.md#transforms-reuse) 找出实际输入，只为 `dy` 编译物理端口；调用时 `_InputProjection` 按索引筛选实参。
+- **编译目录产物**：每次编译在产物目录写出 `fuga.ir`（Fuga IR 文本）、`frontend.mlir`（ASK MLIR）和 `fuga-to-ask.json`（见 [降级溯源表](../ir/lowering.md#external-and-sourcemap)），可通过 `engine.last_artifact_dir`、`engine.last_fuga_ir`、`engine.last_ask_ir` 查看。
 
 <a id="compiler-results"></a>
 
 ### 编译阶段结果
 
-内部 `fugatensor._ask.Compiler` 通过 `_native` 调用 [ASK `ask::compiler` 接口](../../../ask/docs/用户API.md#compiler-api)，按阶段返回以下类型：
+内部 `fugatensor._ask.Compiler` 通过 `_native` 调用 [ASK `ask::compiler` 接口](../../../ask/docs/api.md#compiler-api)，按阶段返回以下类型：
 
 | 阶段与结果 | 编译契约字段 |
 | --- | --- |
@@ -37,7 +37,7 @@ API：[设备与执行](../API/设备与执行.md) · [Triton 算子接入](../A
 
 ## 2. CPU 后端：目标文件生成与 `ctypes` 调用（`backends/host.py`）
 
-CPU 执行路径（`HostBackend`）调用 [ASK Host 共享循环降级](../../../ask/docs/图优化与自有代码生成.md#host-codegen)：
+CPU 执行路径（`HostBackend`）调用 [ASK Host 共享循环降级](../../../ask/docs/codegen.md#host-codegen)：
 
 ```text
 Fuga Module -> lower_to_ask -> ASK::Compiler 原生代码生成 (graph.o + ABI契约)
@@ -47,25 +47,25 @@ Fuga Module -> lower_to_ask -> ASK::Compiler 原生代码生成 (graph.o + ABI�
 - **编译入口**：默认由 `_native` 调用 ASK C++ `ask::compiler::codegen`；`ask_opt` 参数可选择 CLI 路径。
 - **ABI 绑定**：从 `CodegenResult.abi` 读取入口及端口的 shape、dtype 和字节数，并独立写入 `abi.json`；`report.json` 保存编译诊断。后续调用校验输入、分配 `HostStorage` 输出，再调用已加载的函数指针。
 - **库依赖**：ABI 的 `link_libraries` 声明所需库名，编译器 capabilities 的 `host_link_libraries` 提供对应已安装库路径；HostBackend 据此链接并设置搜索路径。f32 矩阵乘法调用 ASK SDK 携带的单线程 OpenBLAS，库与符号使用 ASK 前缀。
-- **归约复用**：临时空间由 ASK 生成的函数管理，分配与生存期见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
+- **归约复用**：临时空间由 ASK 生成的函数管理，分配与生存期见 [Host 代码生成](../../../ask/docs/codegen.md#host-codegen)。
 
 <a id="cuda-and-triton"></a>
 
 ## 3. 自有 CUDA 与用户 Triton 算子执行（`engine.py` / `triton.py`）
 
-GPU 引擎首次上传 Tensor 或访问 `engine.session` 时创建 [ASK `ExecutionSession`](../../../ask/docs/常驻运行时与多级缓存.md#execution-session)。编译图或读取 `engine.capability` 时查询目标架构，随后由 ASK 切分为自有、外部和库调用步骤：
+GPU 引擎首次上传 Tensor 或访问 `engine.session` 时创建 [ASK `ExecutionSession`](../../../ask/docs/runtime.md#execution-session)。编译图或读取 `engine.capability` 时查询目标架构，随后由 ASK 切分为自有、外部和库调用步骤：
 
 1. **纯自有计算图 → ASK 自有 CUDA 降级**：
-   `Engine` 将 ASK 图和 `arch` 交给 [ASK CUDA 后端](../../../ask/docs/图优化与自有代码生成.md#owned-cuda) 生成 cubin。会话加载后准备 C++ `PreparedProgram`，引擎调用桥接层 `prepared.run(inputs)` 提交到 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 和空张量。
+   `Engine` 将 ASK 图和 `arch` 交给 [ASK CUDA 后端](../../../ask/docs/codegen.md#owned-cuda) 生成 cubin。会话加载后准备 C++ `PreparedProgram`，引擎调用桥接层 `prepared.run(inputs)` 提交到 CUDA stream。支持多输入、异构形状与类型的多输出、0-D 和空张量。
 2. **含 `ft.triton.kernel` 的混合图 → 自有与外部 kernel 依赖调度**：
    - 通过 `ft.triton.kernel("kernels.py", entry=..., input=... 或 inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` 或 `ft.triton.from_source(...)` 注册 `@triton.jit` 代码。
    - 注册时保存 UTF-8 源码和配置快照，后续文件修改须重新注册。
    - 每次调用执行 `constants`、`scalars` 和 `grid` 回调，传入 `TensorSpec(shape, dtype, device, numel)`。shape 使用 reshape 后的维度，dtype 和 device 使用公开对象。返回配置随节点冻结，闭包变化只影响后续调用。降级时再绑定所选 GPU 的 `arch`，生成 `ask.implementation` 和 `ask.external`。
-   - [`_triton_worker.py`](../../src/fugatensor/_triton_worker.py) 在所选解释器中调用 Triton，返回 `asm["cubin"]` 和启动信息，接入 [worker 接口](../../../ask/docs/外部产物与执行接口.md#worker-interface)与[执行计划](../../../ask/docs/图切分与多Kernel执行计划.md#program-runtime)。
+   - [`_triton_worker.py`](../../src/fugatensor/_triton_worker.py) 在所选解释器中调用 Triton，返回 `asm["cubin"]` 和启动信息，接入 [worker 接口](../../../ask/docs/artifacts.md#worker-interface)与[执行计划](../../../ask/docs/partitioning.md#program-runtime)。
 
 矩阵乘法产生 `library="cublaslt"` 步骤，计划保存 dtype、M/N/K、batch_count 和转置标志；运行时在准备阶段选择算法并管理工作区。
 
-ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法分别排入[执行计划 JSON v1](../../../ask/docs/图切分与多Kernel执行计划.md#plan-v1)。桥接层从 `PartitionResult.execution_plan` 获取计划，按 `step_sources` 编译各步骤，通过 `external_requests` 路由 worker。GPU 编译产物的 `execution_plan` 字段独立保存分区计划，`report` 保存诊断与缓存信息。归约结果被广播复用时在边界物化，避免为每个输出重复整段归约。分区内逐元素与索引变换保留融合；导数图遵循同样规则。步骤通过设备缓冲区传递数据，普通 stream 按序启动，Graph 按实际依赖调度；非法图、损坏产物和编译失败会报错。
+ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法分别排入[执行计划 JSON v1](../../../ask/docs/partitioning.md#plan-v1)。桥接层从 `PartitionResult.execution_plan` 获取计划，按 `step_sources` 编译各步骤，通过 `external_requests` 路由 worker。GPU 编译产物的 `execution_plan` 字段独立保存分区计划，`report` 保存诊断与缓存信息。归约结果被广播复用时在边界物化，避免为每个输出重复整段归约。分区内逐元素与索引变换保留融合；导数图遵循同样规则。步骤通过设备缓冲区传递数据，普通 stream 按序启动，Graph 按实际依赖调度；非法图、损坏产物和编译失败会报错。
 
 安装 all 后，引擎从当前环境的安装元数据发现 Triton，以该解释器启动 worker。独立环境通过 `ft.triton.environment(python=...)` 选择。worker 检查版本，按 JIT 参数顺序去掉 constexpr，补齐 CUDA ABI 的 scratch 参数，并读取动态共享内存大小。全局 scratch、tensor descriptor、cluster、协作式或 PDL 启动当前不受支持。版本与 ABI 记录见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)。
 
@@ -77,7 +77,7 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法�
 
 张量端口与标量在 `PreparedCUDAProgram` 构建时转换为原生 `PlanStep`。cubin/PTX 载入时提交完整的 `parameter_types`，ASK 用驱动报告的参数布局核对类型宽度。准备完成后，Python 每次只传入输入输出缓冲区，原生计划负责地址绑定和启动。参数 schema、产物摘要与文件内容在准备阶段校验。
 
-多输入、多输出、配置回调、按值标量和 constexpr 的写法见 [Triton 接入](../API/Triton算子接入.md#registration-arguments)。每个外部节点保留独立启动步骤；物理输出由 kernel 契约确定，前端只消费部分结果时仍分配全部物理输出。
+多输入、多输出、配置回调、按值标量和 constexpr 的写法见 [Triton 接入](../API/triton.md#registration-arguments)。每个外部节点保留独立启动步骤；物理输出由 kernel 契约确定，前端只消费部分结果时仍分配全部物理输出。
 
 `ft.nn.functional.scaled_dot_product_attention` 使用包内 FlashAttention 源码和 `ft.fun.vjp` 梯度规则。前向是一个外部节点，可与前后自有计算组图。VJP 从 `outputs` 取得前向公开输出 `O`，构造统计量、dQ、dK、dV 四个反向 kernel。当前导数 IR 重放前向以计算 `O`，因此梯度计算包含五个外部步骤。
 
@@ -87,7 +87,7 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法�
 
 GPU JIT 的单 kernel 和混合计划都使用 CUDA Graph。首次提交建立 graph executable，执行槽完成后可复用，并更新变化的输入输出地址。在途调用各用一份中间缓冲区和 graph 实例，每次提交返回一个完成事件。
 
-ASK 在准备时从读写端口推导节点依赖，并静态检查每个读取及共享槽位的访问顺序。独立分支保留并行机会，各自持有仍在使用的临时区；Fuga 提交的端口接口保持一致。CPU 物化临时区也由 ASK 在编译期按实际读取生存期复用，布局见 [Host 代码生成](../../../ask/docs/图优化与自有代码生成.md#host-codegen)。
+ASK 在准备时从读写端口推导节点依赖，并静态检查每个读取及共享槽位的访问顺序。独立分支保留并行机会，各自持有仍在使用的临时区；Fuga 提交的端口接口保持一致。CPU 物化临时区也由 ASK 在编译期按实际读取生存期复用，布局见 [Host 代码生成](../../../ask/docs/codegen.md#host-codegen)。
 
 C++ 计划保留 kernel 和在途缓冲区。Fuga 的 C++ 端口对象在准备时保存 shape/dtype，提交时校验实际张量、建立外部 stream 依赖并保留 owner；ASK 原生计划检查设备归属、字节数、写权限和别名，再一次提交所有步骤。事件完成后可回收底层 CUDA event，用户持有的 Event 保持完成状态。
 
@@ -95,7 +95,7 @@ C++ 计划保留 kernel 和在途缓冲区。Fuga 的 C++ 端口对象在准备�
 
 ASK 同时提供普通 stream 提交和 Graph replay。FugaTensor JIT 默认使用后者。
 
-依赖调度、CPU 临时区复用的延迟与内存对照见 [ASK 验证报告](../../../ask/docs/依赖调度与临时区复用验证报告.md#fuga-profile)。
+依赖调度、CPU 临时区复用的延迟与内存对照见 [ASK 验证报告](../../../ask/docs/workspace_report.md#fuga-profile)。
 
 <a id="cache-hierarchy"></a>
 
@@ -111,17 +111,17 @@ ASK 同时提供普通 stream 提交和 Graph replay。FugaTensor JIT 默认使�
 
 `engine.cache_info()` 返回累计 `compilations`、`cache_hits` 和当前 `specializations` 数。`engine.clear_cache()` 清除内存中的已编译图及最近诊断信息，保留累计计数、已计算 Tensor 和磁盘缓存。最近提交的图与报告可从 `engine.last_fuga_ir`、`last_ask_ir`、`last_report`、`last_artifact_dir` 查看；CUDA 分区计划通过 `engine.last_execution_plan` 查看，未产生分区计划、尚无执行、清缓存或关闭引擎后为 `None`。
 
-模板冻结与结构键规则见[自动合图与引擎缓存](张量模型与追踪机制.md#jit-specialization)。CPU/CUDA 连续内存的批量导入导出及借用寿命见[buffer 接口](张量模型与追踪机制.md#buffer-io)。
+模板冻结与结构键规则见[自动合图与引擎缓存](tensor_model.md#jit-specialization)。CPU/CUDA 连续内存的批量导入导出及借用寿命见[buffer 接口](tensor_model.md#buffer-io)。
 
 自有 CUDA LLVM IR 包含 `__nv_` 数学函数时，编译编排先以 `llvm-link --only-needed` 链接 libdevice，再生成 PTX。缓存键记录 llvm-link 与 libdevice 文件摘要；普通逐元素图仅使用 llc 和 ptxas。
 
-ASK IR 文本摘要参与磁盘缓存键，文本变化会产生不同缓存项。校验和失效条件见 [ASK 双层持久缓存](../../../ask/docs/常驻运行时与多级缓存.md#two-tier-cache)。
+ASK IR 文本摘要参与磁盘缓存键，文本变化会产生不同缓存项。校验和失效条件见 [ASK 双层持久缓存](../../../ask/docs/runtime.md#two-tier-cache)。
 
 <a id="bootstrap-and-config"></a>
 
 ## 5. 安装后的配置与开发引导（`tools/bootstrap.py` / `_config.py`）
 
-FugaTensor 构建时链接 ASK SDK 的 `ASK::Compiler` 和 `ASK::Runtime`，wheel 携带对应共享库，步骤见[安装文档](../安装.md)。CPU 运行需 `cc` 链接目标文件，自有 CUDA 代码生成需 `llc` / `ptxas`，外部 kernel 的二进制由 worker 提供。
+FugaTensor 构建时链接 ASK SDK 的 `ASK::Compiler` 和 `ASK::Runtime`，wheel 携带对应共享库，步骤见[安装文档](../install.md)。CPU 运行需 `cc` 链接目标文件，自有 CUDA 代码生成需 `llc` / `ptxas`，外部 kernel 的二进制由 worker 提供。
 
 `Engine` 与 `_config.py` 按以下优先级读取配置：
 
@@ -132,4 +132,4 @@ FugaTensor 构建时链接 ASK SDK 的 `ASK::Compiler` 和 `ASK::Runtime`，whee
 
 `cc` 通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 设置。代码或环境变量指定 `ask_opt` 时，会隔离默认配置文件中的 SDK 和 worker 路径。
 
-开发安装可用 `tools/bootstrap.py --ask-prefix SDK目录`，默认选择 pure，`--variant all` 同时安装 Triton。配置保留和重置规则见[开发引导](../安装.md#source-bootstrap)。
+开发安装可用 `tools/bootstrap.py --ask-prefix SDK目录`，默认选择 pure，`--variant all` 同时安装 Triton。配置保留和重置规则见[开发引导](../install.md#source-bootstrap)。

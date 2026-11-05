@@ -50,13 +50,13 @@
 - **构建指令**：
   - 两个项目分别构建：先安装 ASK 0.1.0 的 C++ SDK，再用它构建 FugaTensor；ASK 不发布 Python 包，FugaTensor wheel 自带配套 ASK 共享库。
   - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
-  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK，`--variant pure|all` 选择安装依赖。安装详情见 [`docs/安装.md`](docs/安装.md)。
+  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`；引导脚本通过 `--ask-prefix /path/to/ask-sdk` 接收 SDK，`--variant pure|all` 选择安装依赖。安装详情见 [`docs/install.md`](docs/install.md)。
   - 包要求 Python 3.10+，`tools/bootstrap.py` 开发引导需要 Python 3.11+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试组织**：
   - 使用 pytest fixture、原生 `assert`、`pytest.raises` 与参数化。输入生成和独立数值参考位于 `tests/support/`，资源 fixture 位于 `tests/conftest.py`；数值矩阵复用 Engine，状态测试独立初始化。
   - 默认矩阵用生成式两两组合和定向边界分层覆盖 dtype、shape、layout 与图组合；`--exhaustive` 展开完整组合。因素对覆盖与更高阶交互分别陈述，不以缩减矩阵代替生命周期、定义失效、物化、并发和数值边界断言。
   - FP32 CPU matmul 按 OpenBLAS 的 f32 累加误差界校验，CUDA FP32 matmul 按 TF32 输入与 f32 累加误差界校验；FP16 CPU 保留逐 K 累加规则。参考以高精度点积和绝对乘积和确定尺度化容差。
-  - 测试命令、筛选与新增覆盖方式见 [`docs/测试.md`](docs/测试.md)。
+  - 测试命令、筛选与新增覆盖方式见 [`docs/testing.md`](docs/testing.md)。
 - **测试运行**：
   - 测试依赖：`python -m pip install -e '.[pure,test]'`；Triton 环境用 `'.[all,test]'`。
   - CPU、IR 与原生图分析：`.venv/bin/python -m pytest -q`。

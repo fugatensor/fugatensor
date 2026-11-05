@@ -1,6 +1,6 @@
 # 控制流与可组合变换
 
-返回 IR 总览：[结构化控制流与可组合微分](README.md#ir-control-transforms) · 相关细节：[对象模型与验证](对象模型与验证.md) · [降级到 ASK](降级到ASK.md) · [自动微分与自定义算子](../architecture/自动微分与自定义算子.md)
+返回 IR 总览：[结构化控制流与可组合微分](README.md#ir-control-transforms) · 相关细节：[对象模型与验证](model.md) · [降级到 ASK](lowering.md) · [自动微分与自定义算子](../architecture/autograd.md)
 
 <a id="structured-control-flow"></a>
 
@@ -8,8 +8,8 @@
 
 | 机制 | 产生方式 | 编译与求导行为 |
 | --- | --- | --- |
-| **IR 级结构化区域**（`fuga.if` / `fuga.for` / `fuga.while`） | 用 `Function` / `BlockBuilder` 构造 | 保存为嵌套 `Region`。常量条件的 `if` 和静态整数区间的 `for` 可化简后求导，再经 [`lower_to_ask`](降级到ASK.md#static-simplification) 转成单块 ASK 图。数据依赖的 IR `if` 和所有 IR `while` 当前无法降级。 |
-| **Python 标量条件边界**（[按需执行](../architecture/张量模型与追踪机制.md#graph-break)） | 普通 Python 中对 0-D Tensor 执行 `if cond:` / `while cond:` | 读取条件真值时编译并执行其依赖图，Python 按实际分支与循环次数继续构建 Tensor 表达式；各阶段的表达式来源保持连接。自定义 `ft.fun` 的隔离追踪不支持这类数据依赖控制流。 |
+| **IR 级结构化区域**（`fuga.if` / `fuga.for` / `fuga.while`） | 用 `Function` / `BlockBuilder` 构造 | 保存为嵌套 `Region`。常量条件的 `if` 和静态整数区间的 `for` 可化简后求导，再经 [`lower_to_ask`](lowering.md#static-simplification) 转成单块 ASK 图。数据依赖的 IR `if` 和所有 IR `while` 当前无法降级。 |
+| **Python 标量条件边界**（[按需执行](../architecture/tensor_model.md#graph-break)） | 普通 Python 中对 0-D Tensor 执行 `if cond:` / `while cond:` | 读取条件真值时编译并执行其依赖图，Python 按实际分支与循环次数继续构建 Tensor 表达式；各阶段的表达式来源保持连接。自定义 `ft.fun` 的隔离追踪不支持这类数据依赖控制流。 |
 
 <a id="primitive-registry"></a>
 
@@ -47,7 +47,7 @@
 两个变换都返回新的 `Module`：
 
 - **前向模式 `jvp(module, argnums=...)`**：
-  新函数输入为 `(*primals, *selected_tangents)`，输出为 `(*primal_outputs, *output_tangents)`。先化简静态区域，再用 C++ [`analyze_function`](../architecture/原生图分析与C++边界.md#native-analyze) 找到活跃子图，按拓扑序生成原值和切线，最后调用 `prune`。普通 `fuga.call` 通过前向子图自动 JVP；提供显式 VJP 的调用当前拒绝活跃 JVP。活跃的裸外部算子缺少 JVP 规则，会报错。
+  新函数输入为 `(*primals, *selected_tangents)`，输出为 `(*primal_outputs, *output_tangents)`。先化简静态区域，再用 C++ [`analyze_function`](../architecture/native.md#native-analyze) 找到活跃子图，按拓扑序生成原值和切线，最后调用 `prune`。普通 `fuga.call` 通过前向子图自动 JVP；提供显式 VJP 的调用当前拒绝活跃 JVP。活跃的裸外部算子缺少 JVP 规则，会报错。
 - **反向模式 `vjp(module, argnums=...)`**：
   生成输入为 `(*primals, *output_cotangent_seeds)`、输出对应 `argnums` 所选可微输入梯度的新函数：
   1. 选择静态 `if` 分支、展开静态 `for`，将各轮中间值转为 SSA 值。

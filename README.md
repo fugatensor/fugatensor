@@ -3,9 +3,9 @@
 ---
 
 <p align="center">
-  <a href="docs/安装.md#requirements"><img src="https://img.shields.io/badge/Python-3.10%2B-3776ab" alt="Python 3.10+"></a>
-  <a href="docs/API/设备与执行.md#default-device"><img src="https://img.shields.io/badge/backend-CPU%20%7C%20CUDA-76b900" alt="CPU / CUDA"></a>
-  <a href="docs/安装.md#installation-variants"><img src="https://img.shields.io/badge/Triton-optional-8b5cf6" alt="Triton optional"></a>
+  <a href="docs/install.md#requirements"><img src="https://img.shields.io/badge/Python-3.10%2B-3776ab" alt="Python 3.10+"></a>
+  <a href="docs/API/engine.md#default-device"><img src="https://img.shields.io/badge/backend-CPU%20%7C%20CUDA-76b900" alt="CPU / CUDA"></a>
+  <a href="docs/install.md#installation-variants"><img src="https://img.shields.io/badge/Triton-optional-8b5cf6" alt="Triton optional"></a>
 </p>
 
 FugaTensor 是基于 [ASK](../ask/README.md) 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
@@ -32,7 +32,7 @@ y = ft.tensor([1, 2, 3, 4]).reshape(2, 2)
 print((x + y).reshape(-1).tolist())  # [2.0, 3.0, 4.0, 5.0]
 ```
 
-`tensor` 从嵌套数据推断形状，`zeros`、`ones`、`empty` 接受尺寸参数，`full(size, value)` 指定填充值。`reshape` 保留元素次序和梯度连接，支持用一个 `-1` 推断尺寸。详见[张量创建与形状](docs/API/张量与数据交换.md#size-factories)。
+`tensor` 从嵌套数据推断形状，`zeros`、`ones`、`empty` 接受尺寸参数，`full(size, value)` 指定填充值。`reshape` 保留元素次序和梯度连接，支持用一个 `-1` 推断尺寸。详见[张量创建与形状](docs/API/tensor.md#size-factories)。
 
 接口用法见 [API](docs/API/README.md)。设计细节见 [文档目录](docs/README.md)、[架构总览](docs/architecture/README.md) 与 [Fuga IR 总览](docs/ir/README.md)。
 
@@ -40,15 +40,15 @@ print((x + y).reshape(-1).tolist())  # [2.0, 3.0, 4.0, 5.0]
 
 ## 独立构建与安装
 
-先安装 ASK C++ SDK，再通过 `CMAKE_PREFIX_PATH` 构建 FugaTensor。生成的 wheel 携带 ASK 编译器和运行时共享库。原生扩展通过 [ASK 的具名阶段结果](docs/architecture/ASK桥接与多后端执行.md#compiler-results)接收编译产物与诊断。
+先安装 ASK C++ SDK，再通过 `CMAKE_PREFIX_PATH` 构建 FugaTensor。生成的 wheel 携带 ASK 编译器和运行时共享库。原生扩展通过 [ASK 的具名阶段结果](docs/architecture/backend.md#compiler-results)接收编译产物与诊断。
 
 ```bash
 CMAKE_PREFIX_PATH=/absolute/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist
 ```
 
-`fugatensor[pure]` 使用基础依赖，`fugatensor[all]` 额外安装 Triton。两者共用一个 wheel，直接安装 `fugatensor` 等同 pure。命令和环境要求见[安装选项](docs/安装.md#installation-variants)。
+`fugatensor[pure]` 使用基础依赖，`fugatensor[all]` 额外安装 Triton。两者共用一个 wheel，直接安装 `fugatensor` 等同 pure。命令和环境要求见[安装选项](docs/install.md#installation-variants)。
 
-CPU JIT 使用 `cc` 和 libm，fp32 矩阵乘法链接 ASK SDK 提供的 OpenBLAS。自有 CUDA 计算使用 `llc` / `ptxas`；指数与对数另链接 CUDA libdevice，矩阵乘法使用 cuBLASLt，fp32 允许 TF32 乘法。构建依赖、工具配置和开发引导见[安装文档](docs/安装.md)。
+CPU JIT 使用 `cc` 和 libm，fp32 矩阵乘法链接 ASK SDK 提供的 OpenBLAS。自有 CUDA 计算使用 `llc` / `ptxas`；指数与对数另链接 CUDA libdevice，矩阵乘法使用 cuBLASLt，fp32 允许 TF32 乘法。构建依赖、工具配置和开发引导见[安装文档](docs/install.md)。
 
 ## 基本用法
 
@@ -80,13 +80,13 @@ class CustomSquare(ft.fun):
         return (2 * x * dy,)
 ```
 
-三个 VJP 参数均为 tuple，返回浮点 Tensor 输入的梯度 tuple。梯度图可组合为更高阶导数，活跃路径须有对应规则。详见[自动微分 API](docs/API/自动微分与自定义函数.md)与[IR 变换](docs/architecture/自动微分与自定义算子.md)。
+三个 VJP 参数均为 tuple，返回浮点 Tensor 输入的梯度 tuple。梯度图可组合为更高阶导数，活跃路径须有对应规则。详见[自动微分 API](docs/API/autograd.md)与[IR 变换](docs/architecture/autograd.md)。
 
 ### 2. 接入用户 Triton 算子
 
 `ft.triton.from_source(source, ...)` 注册源码字符串，`ft.triton.kernel(path, ...)` 读取 kernel 文件，`ft.triton.from_jit(fn, ...)` 注册已有 JIT 对象。返回的算子可与普通张量运算组合。
 
-注册时保存源码快照，worker 将其编译为 cubin，ASK 按图依赖调度。标量、多输出和编译配置见[Triton 接入](docs/API/Triton算子接入.md#example)，环境准备见 [Triton 配置](docs/安装.md#configure-triton)。
+注册时保存源码快照，worker 将其编译为 cubin，ASK 按图依赖调度。标量、多输出和编译配置见[Triton 接入](docs/API/triton.md#example)，环境准备见 [Triton 配置](docs/install.md#configure-triton)。
 
 内置 attention 使用 `ft.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)`，支持 CUDA fp16/bf16 前向和一阶反向。形状要求见[attention API](docs/API/attention.md)。
 
@@ -107,7 +107,7 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 `ft.evaluate(a, b)` 合并并求值两个输出的依赖图，返回原 Tensor。`shape`、`dtype`、`device` 和 `repr` 读取元信息。Python 的 `if`/`while` 在读取 0-D Tensor 真值时执行条件计算，再沿实际路径继续组图；`ft.fun` 内的数据依赖控制流会报错。
 
-引擎按图模板和连接关系查询缓存，命中后复用组合与编译结果，Python 函数照常执行。连续数据可通过 `ft.from_buffer(...)` 导入、`tensor.to_buffer()` 导出，详见 [buffer 接口与寿命规则](docs/architecture/张量模型与追踪机制.md#buffer-io)。
+引擎按图模板和连接关系查询缓存，命中后复用组合与编译结果，Python 函数照常执行。连续数据可通过 `ft.from_buffer(...)` 导入、`tensor.to_buffer()` 导出，详见 [buffer 接口与寿命规则](docs/architecture/tensor_model.md#buffer-io)。
 
 ## 当前支持范围
 
@@ -125,7 +125,7 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 ## 测试
 
-数值测试按算子、精度与关键边界生成代表组合，状态和生命周期保留独立契约测试。`--exhaustive` 扩展同一生成器的组合。运行和扩展方式见[测试矩阵](docs/测试.md)。
+数值测试按算子、精度与关键边界生成代表组合，状态和生命周期保留独立契约测试。`--exhaustive` 扩展同一生成器的组合。运行和扩展方式见[测试矩阵](docs/testing.md)。
 
 ```bash
 # CPU 编译、C++ 原生图分析、Fuga IR / JVP / VJP 与降级测试
@@ -140,14 +140,14 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 ## 文档
 
-- [安装与独立构建](docs/安装.md)
+- [安装与独立构建](docs/install.md)
 - [文档目录](docs/README.md)
 - [API](docs/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、attention。
-- **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [张量模型与追踪机制](docs/architecture/张量模型与追踪机制.md) · [原生图分析与 C++ 边界](docs/architecture/原生图分析与C++边界.md) · [自动微分与自定义算子](docs/architecture/自动微分与自定义算子.md) · [ASK 桥接与多后端执行](docs/architecture/ASK桥接与多后端执行.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
-- **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [对象模型与验证](docs/ir/对象模型与验证.md) · [控制流与可组合变换](docs/ir/控制流与可组合变换.md) · [降级到 ASK](docs/ir/降级到ASK.md)
+- **系统架构（`docs/architecture/`）**：[架构总览](docs/architecture/README.md) · [张量模型与追踪机制](docs/architecture/tensor_model.md) · [原生图分析与 C++ 边界](docs/architecture/native.md) · [自动微分与自定义算子](docs/architecture/autograd.md) · [ASK 桥接与多后端执行](docs/architecture/backend.md) · [权重格式与导出](docs/architecture/weights.md)
+- **中间表示（`docs/ir/`）**：[Fuga IR 总览](docs/ir/README.md) · [对象模型与验证](docs/ir/model.md) · [控制流与可组合变换](docs/ir/transforms.md) · [降级到 ASK](docs/ir/lowering.md)
 
 ## 许可证
 
 本项目采用 [Apache-2.0](LICENSE) 许可证开源。
 
-[多 kernel 计划契约](../ask/docs/图切分与多Kernel执行计划.md) · [attention API](docs/API/attention.md) · [权重格式与导出](docs/architecture/权重格式与导出.md)
+[多 kernel 计划契约](../ask/docs/partitioning.md) · [attention API](docs/API/attention.md) · [权重格式与导出](docs/architecture/weights.md)

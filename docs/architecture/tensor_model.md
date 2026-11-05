@@ -1,20 +1,20 @@
 # 张量模型与追踪机制
 
-返回架构总览：[张量模型、自动组图与执行边界](README.md#arch-tensor-trace) · 相关细节：[原生图分析与 C++ 边界](原生图分析与C++边界.md) · [自动微分与自定义算子](自动微分与自定义算子.md) · [Fuga IR 对象模型](../ir/对象模型与验证.md)
+返回架构总览：[张量模型、自动组图与执行边界](README.md#arch-tensor-trace) · 相关细节：[原生图分析与 C++ 边界](native.md) · [自动微分与自定义算子](autograd.md) · [Fuga IR 对象模型](../ir/model.md)
 
-API：[张量与数据交换](../API/张量与数据交换.md) · [基础运算](../API/基础运算.md) · [设备与执行](../API/设备与执行.md)
+API：[张量与数据交换](../API/tensor.md) · [基础运算](../API/ops.md) · [设备与执行](../API/engine.md)
 
 <a id="tensor-model"></a>
 
 ## 1. `Tensor` 存储与待计算状态（`tensor.py` / `ops.py`）
 
-`ft.tensor(data, *, dtype=ft.fp32, engine=None, device=None)` 从规则嵌套数据推断形状，负责矩形校验与字节编解码；按尺寸创建使用 [`zeros`、`ones`、`empty`、`full`](../API/张量与数据交换.md#size-factories)。CPU 的 bool、i32、i64、f32、f16 输入使用紧凑的 `ctypes` 缓冲区；CUDA 另支持 bf16，输入直接编码为字节并上传到 [ASK `ExecutionSession`](../../../ask/docs/常驻运行时与多级缓存.md#execution-session) 管理的设备存储。六个类型对象对应 [ASK 的 6 种基础类型](../../../ask/docs/ASK-IR与数值语义.md#types-and-precision)；浮点表达式可通过 `ft.grad` 对指定输入求导。
+`ft.tensor(data, *, dtype=ft.fp32, engine=None, device=None)` 从规则嵌套数据推断形状，负责矩形校验与字节编解码；按尺寸创建使用 [`zeros`、`ones`、`empty`、`full`](../API/tensor.md#size-factories)。CPU 的 bool、i32、i64、f32、f16 输入使用紧凑的 `ctypes` 缓冲区；CUDA 另支持 bf16，输入直接编码为字节并上传到 [ASK `ExecutionSession`](../../../ask/docs/runtime.md#execution-session) 管理的设备存储。六个类型对象对应 [ASK 的 6 种基础类型](../../../ask/docs/ir.md#types-and-precision)；浮点表达式可通过 `ft.grad` 对指定输入求导。
 
 张量运算先返回待计算的 Tensor，记录形状、类型、Engine 和输入依赖。例如 `y = (x + 1).square()` 会记录加法和平方，减法、取负和平方由加乘基础算子组合。
 
 Tensor、TraceTensor 和 Triton 的 TensorSpec 返回 `DType` 单例与设备对象，内部 IR 和后端存储使用 `f32`、`f16` 等编码。框架按设备复用默认 Engine。
 
-[`reshape`](../API/张量与数据交换.md#reshape) 生成延迟执行的 `fuga.reshape`，保留输入依赖和表达式来源。降级后的 `ask.reshape` 和外部 kernel 元信息都使用目标形状。JVP 将切线改为输出形状，VJP 将余切恢复为输入形状。输出存储由执行计划分配，接口不保证与输入共享存储。
+[`reshape`](../API/tensor.md#reshape) 生成延迟执行的 `fuga.reshape`，保留输入依赖和表达式来源。降级后的 `ask.reshape` 和外部 kernel 元信息都使用目标形状。JVP 将切线改为输出形状，VJP 将余切恢复为输入形状。输出存储由执行计划分配，接口不保证与输入共享存储。
 
 `shape`、`dtype`、`device` 与 `repr` 只读取元信息。`.tolist()`、`.storage` 与 0-D 标量真值读取会触发计算；CUDA `.tolist()` 还会等待并下载结果。`ft.evaluate(y)` 返回原 Tensor；`ft.evaluate(a, b)` 可合并共享依赖，一起提交多个输出。
 
@@ -58,9 +58,9 @@ ft.evaluate(y)     # 合并依赖图后 JIT 编译执行
 
 自定义函数和外部算子回调每次调用时执行。相同追踪结果复用模板，配置或函数定义变化则形成新模板。
 
-执行时由 [C++ 依赖收集器](原生图分析与C++边界.md#lazy-collection) 从输出回溯到已有存储的输入，以模板投影、表达式连接、共享叶子、输出顺序和相关定义身份组成结构键。多输出需求合并、拓扑遍历、定义聚合与键构造在一次原生调用中完成。键包含输入形状、类型和图中常量，运行时元素值和内存地址留到执行时绑定。缓存未命中时拼接 Fuga IR、保存文本并编译；命中时绑定本次输入直接执行。每次调用校验活跃图中的函数定义。
+执行时由 [C++ 依赖收集器](native.md#lazy-collection) 从输出回溯到已有存储的输入，以模板投影、表达式连接、共享叶子、输出顺序和相关定义身份组成结构键。多输出需求合并、拓扑遍历、定义聚合与键构造在一次原生调用中完成。键包含输入形状、类型和图中常量，运行时元素值和内存地址留到执行时绑定。缓存未命中时拼接 Fuga IR、保存文本并编译；命中时绑定本次输入直接执行。每次调用校验活跃图中的函数定义。
 
-依赖收集、后端提交与结果发布之间直接传递存储对象。输入裁剪在编译准备时固定；保留全部输入的程序直接使用后端的执行入口。后端提交成功后，返回的存储写入请求的 Tensor，表达式来源保持连接，后续 `ft.grad` 仍可追溯求导。后续读取复用结果；中间 Tensor 按需保存存储。缓存和诊断接口见 [ASK 桥接与多后端执行](ASK桥接与多后端执行.md#cache-hierarchy)。
+依赖收集、后端提交与结果发布之间直接传递存储对象。输入裁剪在编译准备时固定；保留全部输入的程序直接使用后端的执行入口。后端提交成功后，返回的存储写入请求的 Tensor，表达式来源保持连接，后续 `ft.grad` 仍可追溯求导。后续读取复用结果；中间 Tensor 按需保存存储。缓存和诊断接口见 [ASK 桥接与多后端执行](backend.md#cache-hierarchy)。
 
 <a id="trace-context"></a>
 
@@ -68,13 +68,13 @@ ft.evaluate(y)     # 合并依赖图后 JIT 编译执行
 
 内置算子与 `ft.fun` 使用 `TraceContext` / `TraceTensor` 构造 Fuga IR。自定义函数的 `forward(self, ...)` 追踪为前向子函数；可选 `vjp(self, primals, outputs, cotangents)` 在求导时构造余切表达式，普通前向则使用原语微分规则。
 
-`TraceTensor` 是原生句柄，持有追踪上下文和 32 位值编号。节点、边和属性存入 C++ `TraceArena`，类型表共用不可变的 Fuga 类型对象。形状推导和类型规则复用 Python IR 的抽象求值函数；追踪结束时一次导出 Python `Module`，供验证、自动微分和降级使用。自定义 VJP 将已有 SSA 值导入为 arena 的输入，返回时把新节点一次追加到求导图中。实现边界见[原生追踪与参数绑定](原生图分析与C++边界.md#native-tracing)。
+`TraceTensor` 是原生句柄，持有追踪上下文和 32 位值编号。节点、边和属性存入 C++ `TraceArena`，类型表共用不可变的 Fuga 类型对象。形状推导和类型规则复用 Python IR 的抽象求值函数；追踪结束时一次导出 Python `Module`，供验证、自动微分和降级使用。自定义 VJP 将已有 SSA 值导入为 arena 的输入，返回时把新节点一次追加到求导图中。实现边界见[原生追踪与参数绑定](native.md#native-tracing)。
 
 追踪 Tensor 的 `detach()` 与 `ft.stop_gradient(...)` 生成 `fuga.stop_gradient`，可在前向和 VJP 中冻结局部微分依赖；数值仍由原表达式提供。运行时 `ft.grad` 在隔离追踪之外调用。
 
 追踪时，`.shape`、`.dtype` 与 `.device` 是可供 Python 分支读取的静态元信息。`x + 2.5` 按 `x.dtype` 生成常量，再用 `fuga.splat` 填成 `x.shape`。两个 Tensor 的二元运算要求形状、类型和设备相同。
 
-自定义函数不能捕获外部真实 Tensor 混入追踪，不能在方法中读取张量数据或创建真实 Tensor。运行时张量状态须作为显式输入传入。纯 VJP 参数、方法签名与定义变更检查见 [自定义函数](自动微分与自定义算子.md#custom-fun)。
+自定义函数不能捕获外部真实 Tensor 混入追踪，不能在方法中读取张量数据或创建真实 Tensor。运行时张量状态须作为显式输入传入。纯 VJP 参数、方法签名与定义变更检查见 [自定义函数](autograd.md#custom-fun)。
 
 <a id="graph-break"></a>
 

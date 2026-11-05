@@ -1,10 +1,10 @@
 # 权重格式与导出
 
-返回架构总览：[权重格式与导出](README.md#arch-weights) · 相关细节：[自动微分与自定义算子](自动微分与自定义算子.md) · [Fuga IR 降级到 ASK](../ir/降级到ASK.md)
+返回架构总览：[权重格式与导出](README.md#arch-weights) · 相关细节：[自动微分与自定义算子](autograd.md) · [Fuga IR 降级到 ASK](../ir/lowering.md)
 
 权重用 PyTree 表示：嵌套容器保存参数结构，Tensor 叶子保存数组。树的键由调用方命名，加载时按 dtype 选择设备：CPU 接收 bool、i32、i64、f32、f16，包含 bf16 的权重使用 CUDA。权重可跨会话和进程恢复。
 
-API：[权重读写](../API/权重读写.md)
+API：[权重读写](../API/weights.md)
 
 <a id="weight-goals"></a>
 
@@ -103,7 +103,7 @@ print(ft.weights.read_metadata("checkpoint"))  # {'run': 'demo'}
 ```
 
 - `save(directory, tree, *, metadata=None, overwrite=False)`：目标已存在时默认报错，`overwrite=True` 允许替换。返回目标 `Path`。
-- `load(directory, *, engine=None, device=None)`：跟随当前默认设备，也可用 `device` 或 `engine` 按[张量创建规则](../API/张量与数据交换.md#tensor-create)选择资源，两者同时给出时须匹配。bf16 权重选择 CUDA；浮点权重在后续表达式中通过 `ft.grad` 显式选择求导。
+- `load(directory, *, engine=None, device=None)`：跟随当前默认设备，也可用 `device` 或 `engine` 按[张量创建规则](../API/tensor.md#tensor-create)选择资源，两者同时给出时须匹配。bf16 权重选择 CUDA；浮点权重在后续表达式中通过 `ft.grad` 显式选择求导。
 - `read_manifest(directory)` 返回校验后的 manifest 副本，不读取大数组；`read_metadata(directory)` 只返回调用方 metadata。
 - `ft.save_weights` / `ft.load_weights` 是对应的顶层入口。
 

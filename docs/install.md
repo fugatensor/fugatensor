@@ -1,6 +1,6 @@
 # FugaTensor 安装
 
-返回文档目录：[文档目录](README.md) · 相关细节：[ASK 桥接与多后端执行](architecture/ASK桥接与多后端执行.md#bootstrap-and-config)
+返回文档目录：[文档目录](README.md) · 相关细节：[ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)
 
 安装已有 wheel 可直接看第 4 节。从源码构建时，先安装 ASK SDK，再构建 FugaTensor。文中的 `/absolute/path/...` 请替换为实际路径。
 
@@ -32,7 +32,7 @@ cmake --install build/core
 /absolute/path/to/ask-sdk/bin/ask-opt --capabilities
 ```
 
-FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。其他安装选项见 [ASK 安装](../../ask/docs/安装.md)。
+FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。其他安装选项见 [ASK 安装](../../ask/docs/install.md)。
 
 <a id="install-fuga-source"></a>
 <a id="build-fugatensor"></a>
@@ -161,7 +161,7 @@ ft.configure(
 )
 ```
 
-Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则要求宿主环境满足 Triton 的版本要求。也可用 `FUGATENSOR_TRITON_PYTHON` 指定解释器、`FUGATENSOR_TRITON_WORKER` 指定 worker。配置优先级见[配置规则](architecture/ASK桥接与多后端执行.md#bootstrap-and-config)，注册方法见 [README](../README.md)。
+Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则要求宿主环境满足 Triton 的版本要求。也可用 `FUGATENSOR_TRITON_PYTHON` 指定解释器、`FUGATENSOR_TRITON_WORKER` 指定 worker。配置优先级见[配置规则](architecture/backend.md#bootstrap-and-config)，注册方法见 [README](../README.md)。
 
 <a id="source-bootstrap"></a>
 
@@ -191,6 +191,6 @@ python3 /absolute/path/to/fugatensor/tools/bootstrap.py \
 
 `--llvm-root` 检查 `bin/llc` 与 ASK 的构建版本，`--compiler-python` 检查独立 worker 的 Triton 版本。使用默认 worker 时省略 `--compiler-python`。
 
-再次执行且没有工具/worker 参数时，脚本保留已有 `share/fugatensor/engine.json`。指定任一 `--llvm-root`、`--ptxas`、`--compiler-python` 会按本次参数整体重写配置，需同时传入仍要使用的其它工具；`--reset-config` 可清空旧配置。配置读取规则见 [ASK 桥接与多后端执行](architecture/ASK桥接与多后端执行.md#bootstrap-and-config)。
+再次执行且没有工具/worker 参数时，脚本保留已有 `share/fugatensor/engine.json`。指定任一 `--llvm-root`、`--ptxas`、`--compiler-python` 会按本次参数整体重写配置，需同时传入仍要使用的其它工具；`--reset-config` 可清空旧配置。配置读取规则见 [ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)。
 
-相关说明：[ASK 安装](../../ask/docs/安装.md)、[ASK 版本要求](../../ask/docs/前端接入与构建配置.md#version-contract)。
+相关说明：[ASK 安装](../../ask/docs/install.md)、[ASK 版本要求](../../ask/docs/build.md#version-contract)。

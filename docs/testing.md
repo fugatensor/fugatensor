@@ -1,10 +1,10 @@
-返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](安装.md) · 后端验证：[ASK 测试体系](../../ask/docs/工程结构与测试体系.md)
+返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](install.md) · 后端验证：[ASK 测试体系](../../ask/docs/testing.md)
 
 # 测试组织与覆盖矩阵
 
 测试位于 `tests/`，调用公开 API 检查数值、梯度和异常。输入生成与数值参考放在测试支持模块中。
 
-Fuga 与 Torch 的执行时间通过[独立性能记录脚本](PyTorch性能对照.md)对比，生成负载矩阵并在计时外检查数值。
+Fuga 与 Torch 的基准性能可通过独立 benchmark 脚本对比，生成负载矩阵并在计时外检查数值。
 
 <a id="running"></a>
 

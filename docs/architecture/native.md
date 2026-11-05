@@ -1,6 +1,6 @@
 # 原生图分析与 C++ 边界
 
-返回架构总览：[独立 Fuga IR 与 C++ 原生图分析](README.md#arch-ir-native) · 相关细节：[张量模型与追踪机制](张量模型与追踪机制.md) · [自动微分与自定义算子](自动微分与自定义算子.md) · [Fuga IR 对象模型](../ir/对象模型与验证.md)
+返回架构总览：[独立 Fuga IR 与 C++ 原生图分析](README.md#arch-ir-native) · 相关细节：[张量模型与追踪机制](tensor_model.md) · [自动微分与自定义算子](autograd.md) · [Fuga IR 对象模型](../ir/model.md)
 
 自动微分和输入裁剪都要计算 SSA 图的可达范围、活跃节点和反向遍历顺序。按需求值还要收集待计算 Tensor 的依赖并建立编译缓存键。这些分析由 C++17 扩展 `fugatensor._native` 完成，Python 层负责构建和变换 Fuga IR。
 
@@ -14,9 +14,9 @@
 | **FugaTensor C++ 扩展** | `cpp/graph.*`、`cpp/lazy.*`、`cpp/trace.cpp`、`cpp/primitive.cpp`、`cpp/compiler.cpp`、`cpp/ask_runtime.cpp`（`fugatensor._native`） | SSA 活跃性与逆拓扑分析；原语参数绑定、追踪节点与待计算节点的 arena 存储；输出需求传播、依赖收集、定义失效校验与结构键生成；绑定 ASK 具名编译结果和 `PreparedProgram`，通过原生计划提交执行。 |
 | **ASK C++ 编译与运行时** | ASK C++ SDK 的 `ASK::Compiler` / `ASK::Runtime` 共享库 | `ask` dialect 校验与优化、CPU / 自有 CUDA 原生 LLVM IR 代码生成、图切分、原生执行计划、缓冲区与事件复用、CUDA Graph replay；FugaTensor 的私有 `_ask/` 负责图转换、worker 调用、产物验证和磁盘缓存。 |
 
-`ir/transforms.py` 调用 `_native` 做图分析；编译和执行绑定也通过这个扩展调用 ASK 共享库。构建流程见[安装文档](../安装.md#build-fugatensor)。
+`ir/transforms.py` 调用 `_native` 做图分析；编译和执行绑定也通过这个扩展调用 ASK 共享库。构建流程见[安装文档](../install.md#build-fugatensor)。
 
-`cpp/compiler.cpp` 绑定 ASK `PrepareResult`、`PartitionResult`、`CodegenResult`；内部 Python Compiler 将版本化 JSON 字段解码成对应阶段的具名结果，编译输入来自独立契约字段。CLI 完整报告在桥接入口做同样拆分。字段用途见[编译阶段结果](ASK桥接与多后端执行.md#compiler-results)。执行绑定由 `cpp/ask_runtime.cpp` 调用 `PreparedProgram.run` / `submit`，缓冲区、调度与在途资源由 ASK 管理。
+`cpp/compiler.cpp` 绑定 ASK `PrepareResult`、`PartitionResult`、`CodegenResult`；内部 Python Compiler 将版本化 JSON 字段解码成对应阶段的具名结果，编译输入来自独立契约字段。CLI 完整报告在桥接入口做同样拆分。字段用途见[编译阶段结果](backend.md#compiler-results)。执行绑定由 `cpp/ask_runtime.cpp` 调用 `PreparedProgram.run` / `submit`，缓冲区、调度与在途资源由 ASK 管理。
 
 CUDA 端口描述在准备时保存为原生 `CUDAProgramPorts`。每次提交在一个原生入口中冻结输入序列、检查端口类型、提取设备缓冲区并包装输出；输入别名和重复输出复用同一存储句柄。Python 保留会话锁、关闭状态和外部内存的所有权管理，动态外部描述及生产者 stream 在提交前检查。
 
@@ -44,7 +44,7 @@ C++ 层检查值编号和拓扑顺序，`bindings.cpp` 同时拒绝用 Python `b
 
 含控制流区域的图先经 `specialize` 展开，再做平坦图分析。
 
-`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 和 [`engine.py` 的输入裁剪](ASK桥接与多后端执行.md#engine-lifecycle) 共用这些函数。
+`ir/differentiate.py`、`ir/jvp.py`、`autograd.py` 和 [`engine.py` 的输入裁剪](backend.md#engine-lifecycle) 共用这些函数。
 
 <a id="lazy-collection"></a>
 
@@ -66,7 +66,7 @@ C++ 层检查值编号和拓扑顺序，`bindings.cpp` 同时拒绝用 Python `b
 
 `cpp/trace.cpp` 使用预留容量的连续容器存储追踪节点、值编号、输入边和属性原子。节点记录为 POD，类型表持有共享的不可变 Fuga 类型，`CallSpec` / `ExternalSpec` 放在独立的 Python 对象表中。`TraceTensor` 只持追踪上下文和值编号。
 
-追踪 builder 复用 `ir/core.py` 的原语构建方法与抽象类型规则，将推导结果写入 arena。`TraceContext.finish` 导出一次 Python IR 并验证；自定义 VJP 的导出入口把新增操作追加到已有求导图。公开 Python IR、自动微分规则和 ASK 降级继续共用同一套语义。调用方式见[内部追踪](张量模型与追踪机制.md#trace-context)。
+追踪 builder 复用 `ir/core.py` 的原语构建方法与抽象类型规则，将推导结果写入 arena。`TraceContext.finish` 导出一次 Python IR 并验证；自定义 VJP 的导出入口把新增操作追加到已有求导图。公开 Python IR、自动微分规则和 ASK 降级继续共用同一套语义。调用方式见[内部追踪](tensor_model.md#trace-context)。
 
 <a id="gil-and-concurrency"></a>
 
