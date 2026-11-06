@@ -4,7 +4,7 @@
 
 FugaTensor 默认管理设备的全局常驻引擎（Engine）。张量通过延迟图（Lazy Graph）构建，仅在显式求值或消费数值时触发编译与执行。
 
-<a id="devices"></a>
+<a id="devices"></a><a id="default-device"></a>
 
 ## 设备对象与默认设备
 

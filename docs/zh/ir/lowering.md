@@ -1,8 +1,8 @@
 # 降级到 ASK
 
-返回 IR 总览：[降级到 ASK IR 与跨层溯源](README.md#ir-lowering-boundary) · 相关细节：[对象模型与验证](model.md) · [控制流与可组合变换](transforms.md) · [ASK 桥接与多后端执行](../architecture/backend.md) · [ASK IR 与数值语义](../../../ask/docs/ir.md)
+返回 IR 总览：[降级到 ASK IR 与跨层溯源](README.md#ir-lowering-boundary) · 相关细节：[对象模型与验证](model.md) · [控制流与可组合变换](transforms.md) · [ASK 桥接与多后端执行](../architecture/backend.md) · [ASK IR 与数值语义](../../../../ask/docs/zh/ir.md)
 
-[`lower_to_ask`](../../src/fugatensor/lowering.py) 接收 Fuga `Module` 和目标设备，返回内部 `_ask.Module`。其 `to_mlir()` 方法生成提交给 ASK C++ 的文本，`source_map` 参数可接收逐值映射。
+[`lower_to_ask`](../../../src/fugatensor/lowering.py) 接收 Fuga `Module` 和目标设备，返回内部 `_ask.Module`。其 `to_mlir()` 方法生成提交给 ASK C++ 的文本，`source_map` 参数可接收逐值映射。
 
 降级后的图由内部 Compiler 桥接层提交给 ASK。准备结果分别保存 `ir`、`shape_snapshot`、`external_requests` 和 `diagnostics`；分区结果再提供 `execution_plan` 与 `step_sources`，代码生成结果按目标提供 `abi` 或 `cuda_artifact`。图转换、编译契约与诊断各自通过对应字段传递，字段用途见[编译阶段结果](../architecture/backend.md#compiler-results)。
 
@@ -31,7 +31,7 @@ API：[IR 与降级](../API/ir.md)
 | --- | --- | --- |
 | `ScalarType(dtype)` | 内部 `ScalarType(dtype)` | 对应 MLIR 标量类型；`bool` 编码为 `i1`。 |
 | `TensorType(shape, dtype)` | 内部 `TensorType(shape, dtype)` | 保留静态形状；0-D 张量 `()` 与标量类型分别表示，空张量也保留维度。 |
-| `fuga.constant` | `graph.constant(value, dtype=...)` | 按[单步 RNE 规则](../../../ask/docs/ir.md#types-and-precision)编码浮点常量。 |
+| `fuga.constant` | `graph.constant(value, dtype=...)` | 按[单步 RNE 规则](../../../../ask/docs/zh/ir.md#types-and-precision)编码浮点常量。 |
 | `fuga.splat` | `graph.splat(scalar, shape)` | 将标量填充为指定形状张量，包括 0-D 张量。 |
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | 要求形状、类型相同。 |
 | `div`、`exp/log/sqrt`、`compare/select`、`broadcast_in_dim/transpose`、`reduce_sum/reduce_max`、`matmul` | 同名 `ask` 操作 | 从统一原语类型规则取得结果类型，桥接层保留静态属性。 |
@@ -44,7 +44,7 @@ API：[IR 与降级](../API/ir.md)
 
 ## 3. 外部实现绑定与跨层溯源
 
-`fuga.external` 的 `ExternalSpec` 会转成 `ask.semantics`、`ask.implementation` 和引用它们的 `ask.external`，字段见 [ASK 外部声明](../../../ask/docs/ir.md#external-declaration)。
+`fuga.external` 的 `ExternalSpec` 会转成 `ask.semantics`、`ask.implementation` 和引用它们的 `ask.external`，字段见 [ASK 外部声明](../../../../ask/docs/zh/ir.md#external-declaration)。
 
 - 目标须与实现声明兼容，CUDA 实现要求具体整数架构号。所选设备在此补齐 Triton 的 `arch`。
 - `same_as` 形状规则保留，Fuga 的 `explicit` 规则转换为 ASK 的 `fixed`；每个输出类型由已验证的 Fuga 类型确定。

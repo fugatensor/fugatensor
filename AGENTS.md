@@ -5,7 +5,7 @@
 1. 完成一组代码或文档修改并通过相关验证后，创建本地 Git 提交（使用仓库已配置的 Git 身份），便于回退。未完成的检查点需在提交说明中标明状态。
 2. 第三方 SDK、构建产物（`build/`、`dist/`、`*.egg-info/`）、Python 虚拟环境（`.venv/`）和缓存（`.cache/`、`__pycache__/`）不纳入 Git；保留依赖锁记录。
 3. 文档用直接的中文说明用途、做法和必要条件。删去重复铺垫、历史对比和无关的“无需／不需要”说明；限制放在相关接口处，规划与当前行为分开写。
-4. 修改接口、IR 规则、构建参数或测试结构时，同步更新 `README.md`、`docs/API/`、`docs/architecture/`、`docs/ir/` 中的示例，并保持双向链接锚点有效。
+4. 修改接口、IR 规则、构建参数或测试结构时，同步更新 `README.md`、`README.zh.md`、`docs/zh/` 与 `docs/en/` 中的示例，并保持双向链接锚点有效。
 5. 示例只写在文档中，提供合法、简洁的 API 用法，可用 `print` 展示结果；不另外维护演示脚本。测试位于 `tests/`，必须使用断言验证行为，不能依赖示例脚本或以打印结果代替验证。可复用算子实现属于 `src/fugatensor/`，测试参考与输入生成属于测试支持模块。第三方 kernel 源码中的算法约束保留。
 
 ---
@@ -50,13 +50,13 @@
 - **构建指令**：
   - 两个项目分别构建：先安装 ASK 0.1.0 的 C++ SDK，再用它构建 FugaTensor；ASK 不发布 Python 包，FugaTensor wheel 自带配套 ASK 共享库。
   - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
-  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`。安装详情见 [`docs/install.md`](docs/install.md)。
+  - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`。安装详情见 [`docs/zh/install.md`](docs/zh/install.md) 与 [`docs/en/install.md`](docs/en/install.md)。
   - 包要求 Python 3.10+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试组织**：
   - 使用 pytest fixture、原生 `assert`、`pytest.raises` 与参数化。输入生成和独立数值参考位于 `tests/support/`，资源 fixture 位于 `tests/conftest.py`；数值矩阵复用 Engine，状态测试独立初始化。
   - 默认矩阵用生成式两两组合和定向边界分层覆盖 dtype、shape、layout 与图组合；`--exhaustive` 展开完整组合。因素对覆盖与更高阶交互分别陈述，不以缩减矩阵代替生命周期、定义失效、物化、并发和数值边界断言。
   - FP32 CPU matmul 按 OpenBLAS 的 f32 累加误差界校验，CUDA FP32 matmul 按 TF32 输入与 f32 累加误差界校验；FP16 CPU 保留逐 K 累加规则。参考以高精度点积和绝对乘积和确定尺度化容差。
-  - 测试命令、筛选与新增覆盖方式见 [`docs/testing.md`](docs/testing.md)。
+  - 测试命令、筛选与新增覆盖方式见 [`docs/zh/testing.md`](docs/zh/testing.md) 与 [`docs/en/testing.md`](docs/en/testing.md)。
 - **测试运行**：
   - 测试依赖：`python -m pip install -e '.[pure,test]'`；Triton 环境用 `'.[all,test]'`。
   - CPU、IR 与原生图分析：`.venv/bin/python -m pytest -q`。
@@ -70,9 +70,9 @@
 
 ## 文档与双向链接
 
-- 文档分设 `docs/API/`（按类型组织的接口用法）、`docs/architecture/`（系统架构与运行时）和 `docs/ir/`（Fuga IR 对象模型、变换与降级），由 `docs/README.md` 索引，并与同级 `../ask/docs/` 跨仓互链。跨仓链接仅供源码浏览，并列目录不是构建或运行依赖：
-  - 文件名按主题命名，不带数字序号前缀；
+- 文档分为中文 `docs/zh/` 与英文 `docs/en/` 双语目录（包含 `API/`、`architecture/` 和 `ir/`），由根目录 `docs/README.md` 语言导航索引，并与同级 `../ask/docs/`（`zh/` 与 `en/`）跨仓互链。跨仓链接仅供源码浏览，并列目录不是构建或运行依赖：
+  - 文件名按主题命名，不带数字序号前缀，中英文目录结构保持镜像对齐；
   - API 分类文档说明签名、参数、返回值、示例与支持边界，首行链接分类目录和相关接口；实现原理链接架构或 IR 专题，避免重复；
-  - 总览文档（`docs/architecture/README.md`、`docs/ir/README.md`）每节设置 `<a id="..."></a>` 锚点，节末以 `工程细节：...` 指向专题文档；
-  - 专题文档首行以 `返回架构总览 / 返回 IR 总览：... · 相关细节：...` 链回总览与关联文档，内部小节提供 `<a id="..."></a>` 锚点。
+  - 总览文档（`architecture/README.md`、`ir/README.md`）每节设置 `<a id="..."></a>` 锚点，节末以 `工程细节：...` 指向专题文档；
+  - 专题文档首行以 `返回架构总览 / 返回 IR 总览：... · 相关细节：...` 链回总览与关联文档，内部小节提供 `<a id="..."></a>` 锚点；中英文锚点 ID 保持完全一致；
 - 修改文档标题、文件名或锚点后，校验 `fugatensor` 与同级 `ask` 仓库中的 Markdown 相对链接和 `#anchor` 引用。

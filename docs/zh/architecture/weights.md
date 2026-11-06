@@ -79,7 +79,7 @@ checkpoint/
 - `producer` 记录生成工具及版本，供诊断使用。
 - 数组的 `nbytes` 必须等于 `prod(shape) * element_width`；`sha256` 是数据文件的摘要，`array` ID 还会覆盖 dtype/shape 布局头。
 
-字段约束见 [`schemas/weights-manifest-v1.schema.json`](../../schemas/weights-manifest-v1.schema.json)。dtype 使用字符串标签，新类型可由加载器扩展。
+字段约束见 [`schemas/weights-manifest-v1.schema.json`](../../../schemas/weights-manifest-v1.schema.json)。dtype 使用字符串标签，新类型可由加载器扩展。
 
 <a id="weight-api"></a>
 

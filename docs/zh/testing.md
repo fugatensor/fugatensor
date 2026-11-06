@@ -1,4 +1,4 @@
-返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](install.md) · 后端验证：[ASK 测试体系](../../ask/docs/testing.md)
+返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](install.md) · 后端验证：[ASK 测试体系](../../../ask/docs/zh/testing.md)
 
 # 测试组织与覆盖矩阵
 
@@ -49,9 +49,9 @@ wheel 安装测试为 pure、all 分别创建虚拟环境并通过 pip 安装依
 
 ## 基础 API 组合矩阵
 
-[`tests/support/ops_matrix.py`](../tests/support/ops_matrix.py) 的 `OPERATIONS` 注册每个 API 的调用方式、独立参考表达式和适用类型。`plan_matrix()` 自动生成按序组合，再与 dtype、shape、求导阶数交叉。默认在全部形状检查单算子，在矩阵形状检查全部连续两层组合；`--exhaustive` 将组合展开到全部形状。默认生成 666 个 dtype/shape/算子配置，完整组合为 2,350 个；共同输入为两个张量，每一层消费前一层结果及第二个输入，单输入算子只消费前一层结果。
+[`tests/support/ops_matrix.py`](../../tests/support/ops_matrix.py) 的 `OPERATIONS` 注册每个 API 的调用方式、独立参考表达式和适用类型。`plan_matrix()` 自动生成按序组合，再与 dtype、shape、求导阶数交叉。默认在全部形状检查单算子，在矩阵形状检查全部连续两层组合；`--exhaustive` 将组合展开到全部形状。默认生成 666 个 dtype/shape/算子配置，完整组合为 2,350 个；共同输入为两个张量，每一层消费前一层结果及第二个输入，单输入算子只消费前一层结果。
 
-[`tests/test_ops_matrix.py`](../tests/test_ops_matrix.py) 检查形状、类型、前向值、一阶偏导和包含混合项的二阶偏导，也覆盖常数路径及未使用输入的梯度。参考结果通过二元多项式和精确分数求导计算。相同精度和形状的组合批量求值，以减少编译和提交次数。形状轴覆盖标量、向量、矩阵、单例维度和空张量；reshape 使用当前 shape 自动生成往返变换。
+[`tests/test_ops_matrix.py`](../../tests/test_ops_matrix.py) 检查形状、类型、前向值、一阶偏导和包含混合项的二阶偏导，也覆盖常数路径及未使用输入的梯度。参考结果通过二元多项式和精确分数求导计算。相同精度和形状的组合批量求值，以减少编译和提交次数。形状轴覆盖标量、向量、矩阵、单例维度和空张量；reshape 使用当前 shape 自动生成往返变换。
 
 | 环境变量 | 可选值与默认行为 |
 | --- | --- |
@@ -83,7 +83,7 @@ GPU 参数 ABI 探针在 `tests/backend/support/scalar_abi.py` 生成独立 PTX�
 
 ## 注意力矩阵
 
-[`tests/test_attention.py`](../tests/test_attention.py) 调用 [attention API](API/attention.md)，从 fp16/bf16、三类形状和因果模式生成 6 个两两直接调用配置，再按每种精度加入尾块、因果模式与前后缩放组合，共 8 个配置。`--exhaustive` 展开全部 24 个配置。每个配置检查前向值、Q/K/V 一阶梯度、形状、精度和执行计划；数值参考和反向公式见 [`tests/support/attention.py`](../tests/support/attention.py)。
+[`tests/test_attention.py`](../../tests/test_attention.py) 调用 [attention API](API/attention.md)，从 fp16/bf16、三类形状和因果模式生成 6 个两两直接调用配置，再按每种精度加入尾块、因果模式与前后缩放组合，共 8 个配置。`--exhaustive` 展开全部 24 个配置。每个配置检查前向值、Q/K/V 一阶梯度、形状、精度和执行计划；数值参考和反向公式见 [`tests/support/attention.py`](../../tests/support/attention.py)。
 
 | 环境变量 | 可选值与默认行为 |
 | --- | --- |
@@ -112,9 +112,9 @@ FUGATENSOR_TEST_ATTENTION_COMPOSITIONS=scaled \
 
 矩阵乘法从浮点 dtype、批形状、M/N/K 与转置标志生成两两代表组合，并定向加入每种 dtype 的空 M/N/K、零批次及全部转置标志。默认 CPU 51 项、CUDA 67 项；`--exhaustive` 分别展开为 160 和 240 项。独立索引参考验证数值，梯度矩阵覆盖转置、批维度和交叉二阶导数。CUDA 检查库调用步骤、矩阵乘法两侧逐元素融合，以及普通 stream 和 Graph 执行。
 
-[`tests/test_host_matmul.py`](../tests/test_host_matmul.py) 从 CPU FP32/FP16、批形状、行列块边界、K、转置和共享输出的 1,536 种组合中生成 26 项，覆盖全部 204 个因素对取值。另有 6 项 FP32 抵消误差、3 项 FP16 累加顺序和 18 项 NaN/Inf 行列尾部边界，共 53 项。`tests/test_case_selection.py` 独立核对两两覆盖；`--exhaustive` 展开为 1,563 项。
+[`tests/test_host_matmul.py`](../../tests/test_host_matmul.py) 从 CPU FP32/FP16、批形状、行列块边界、K、转置和共享输出的 1,536 种组合中生成 26 项，覆盖全部 204 个因素对取值。另有 6 项 FP32 抵消误差、3 项 FP16 累加顺序和 18 项 NaN/Inf 行列尾部边界，共 53 项。`tests/test_case_selection.py` 独立核对两两覆盖；`--exhaustive` 展开为 1,563 项。
 
-FP32 CPU matmul 以 OpenBLAS 的 f32 累加误差界校验，FP16 保留逐 K 的 f32 累加顺序。CUDA FP32 使用 TF32 容差，独立高精度点积参考结合输入舍入、归约长度及绝对乘积和计算误差界；非精确 TF32 输入、抵消和 NaN/Inf 由 [`tests/test_matmul_precision.py`](../tests/test_matmul_precision.py) 定向检查。输入先按实际存储类型取值，避免将输入编码误差误判为乘法误差。
+FP32 CPU matmul 以 OpenBLAS 的 f32 累加误差界校验，FP16 保留逐 K 的 f32 累加顺序。CUDA FP32 使用 TF32 容差，独立高精度点积参考结合输入舍入、归约长度及绝对乘积和计算误差界；非精确 TF32 输入、抵消和 NaN/Inf 由 [`tests/test_matmul_precision.py`](../../tests/test_matmul_precision.py) 定向检查。输入先按实际存储类型取值，避免将输入编码误差误判为乘法误差。
 
 ```bash
 .venv/bin/python -m pytest tests/test_tensor_primitives.py --cuda -q
@@ -124,7 +124,7 @@ FP32 CPU matmul 以 OpenBLAS 的 f32 累加误差界校验，FP16 保留逐 K �
 
 CPU 临时区接入矩阵交叉 4 种可归约 dtype、3 种行数、2 种列数、2 种归约扩展深度、转置布局和中间值公开输出，默认生成 27 项两两组合和定向生存期交互，完整组合为 192 项，覆盖空张量和单元素 SSA。另有 5 × 5 种类型转换与标量提前捕获组合，共 50 项，验证跨类型槽位和 SSA 保活。独立 Python 数值参考验证完整用户 API 路径。GPU 原生分支矩阵交叉分支数、链深度和 stream/Graph 模式，检查数值、已保留输出、变址重放、依赖边数及内部工作区容量；ASK 的原生矩阵补充静态非法计划和 cuBLASLt scratch 覆盖。
 
-[`tests/test_cuda_reduction_max.py`](../tests/test_cuda_reduction_max.py) 的 CUDA `amax` 矩阵交叉五种数值 dtype、十种形状和两种物理布局，默认生成 50 组两两输入组合，完整组合为 100 组；每组从秩生成全部七种非空归约轴组合，并检查直接、前后逐元素组合，默认共 580 个有效输出与 60 项空归约域拒绝，完整组合为 1,160 和 120 项。归约宽度覆盖 0、1、31、32、33、63、64、65，包含全张量归约为标量和保留维度为空的输出。浮点逐项校验 NaN、正负无穷和零符号；整数包含极值与 i64 高 32 位变化。另有默认 10 组、完整 20 组嵌套归约、归约扩展及不同形状公开输出。输入和独立 IEEE maximum 参考位于 [`tests/support/reduction_max.py`](../tests/support/reduction_max.py)。
+[`tests/test_cuda_reduction_max.py`](../../tests/test_cuda_reduction_max.py) 的 CUDA `amax` 矩阵交叉五种数值 dtype、十种形状和两种物理布局，默认生成 50 组两两输入组合，完整组合为 100 组；每组从秩生成全部七种非空归约轴组合，并检查直接、前后逐元素组合，默认共 580 个有效输出与 60 项空归约域拒绝，完整组合为 1,160 和 120 项。归约宽度覆盖 0、1、31、32、33、63、64、65，包含全张量归约为标量和保留维度为空的输出。浮点逐项校验 NaN、正负无穷和零符号；整数包含极值与 i64 高 32 位变化。另有默认 10 组、完整 20 组嵌套归约、归约扩展及不同形状公开输出。输入和独立 IEEE maximum 参考位于 [`tests/support/reduction_max.py`](../../tests/support/reduction_max.py)。
 
 ```bash
 .venv/bin/python -m pytest tests/test_cuda_reduction_max.py --cuda -q
@@ -134,9 +134,9 @@ CPU 临时区接入矩阵交叉 4 种可归约 dtype、3 种行数、2 种列数
 
 ## 延迟图与缓存绑定矩阵
 
-[`tests/test_lazy_schedule.py`](../tests/test_lazy_schedule.py) 按 fp32/int32、标量/矩阵、共享/独立输入、直接/detach 输出和三个返回值的非空子集生成 112 项。每项更换输入数据再次求值，检查数值、输出类型、缓存命中、实际执行次数、未请求输出与已保留结果。另覆盖输出顺序、同一值多次返回、直接返回输入、常量图输入载体、物化后的导数来源，以及超过 Python 递归深度的算术链和 alias 链。
+[`tests/test_lazy_schedule.py`](../../tests/test_lazy_schedule.py) 按 fp32/int32、标量/矩阵、共享/独立输入、直接/detach 输出和三个返回值的非空子集生成 112 项。每项更换输入数据再次求值，检查数值、输出类型、缓存命中、实际执行次数、未请求输出与已保留结果。另覆盖输出顺序、同一值多次返回、直接返回输入、常量图输入载体、物化后的导数来源，以及超过 Python 递归深度的算术链和 alias 链。
 
-图与数值参考放在 [`tests/support/lazy_graphs.py`](../tests/support/lazy_graphs.py)。定义变更、失效分支、冷/热调用参数和编译失败的结果发布由 `tests/test_jit.py` 与 `tests/test_autodiff.py` 检查。
+图与数值参考放在 [`tests/support/lazy_graphs.py`](../../tests/support/lazy_graphs.py)。定义变更、失效分支、冷/热调用参数和编译失败的结果发布由 `tests/test_jit.py` 与 `tests/test_autodiff.py` 检查。
 
 ```bash
 .venv/bin/python -m pytest tests/test_lazy_schedule.py -q
@@ -146,13 +146,13 @@ CPU 临时区接入矩阵交叉 4 种可归约 dtype、3 种行数、2 种列数
 
 ## 原生节点池与结构身份
 
-[`tests/test_native_arena.py`](../tests/test_native_arena.py) 从 dtype × shape × layout × 输入共享 × 输出顺序 × 物化位置生成 96 项，校验数值、类型、形状和更换数据后的缓存命中。输入与独立参考位于 [`tests/support/arena_graphs.py`](../tests/support/arena_graphs.py)。
+[`tests/test_native_arena.py`](../../tests/test_native_arena.py) 从 dtype × shape × layout × 输入共享 × 输出顺序 × 物化位置生成 96 项，校验数值、类型、形状和更换数据后的缓存命中。输入与独立参考位于 [`tests/support/arena_graphs.py`](../../tests/support/arena_graphs.py)。
 
 状态用例检查下游先构图、父节点后物化时的存储边界，利用借用输入的值变化区分已保存结果与重算。整数常量 `-1`、`-2` 的相同哈希构成真实碰撞，验证不同图仍使用各自的编译结果。寿命用例检查中间 Python 薄壳释放后的求导、关闭 Engine 后的回收，以及重复构图时槽位容量稳定且旧输出保留来源。
 
-[`tests/test_arena_ownership.py`](../tests/test_arena_ownership.py) 交叉自动/显式 VJP 定义与保留/释放待计算根，检查 Engine 存活时临时函数实例及模板引用的回收，并覆盖同一 Engine 的并发冷构图。
+[`tests/test_arena_ownership.py`](../../tests/test_arena_ownership.py) 交叉自动/显式 VJP 定义与保留/释放待计算根，检查 Engine 存活时临时函数实例及模板引用的回收，并覆盖同一 Engine 的并发冷构图。
 
-[`tests/test_primitive_binding.py`](../tests/test_primitive_binding.py) 从 dtype、形状、归约种类、keepdims 和轴集合生成 32 组配置，再派生正负整数、tuple、list、generator 与全轴表示，共 208 次调用。更换输入数据后验证等价参数复用数值程序；默认广播与显式维度交叉形状表示验证 12 项自动广播调用，另检查预热后的非法参数错误。
+[`tests/test_primitive_binding.py`](../../tests/test_primitive_binding.py) 从 dtype、形状、归约种类、keepdims 和轴集合生成 32 组配置，再派生正负整数、tuple、list、generator 与全轴表示，共 208 次调用。更换输入数据后验证等价参数复用数值程序；默认广播与显式维度交叉形状表示验证 12 项自动广播调用，另检查预热后的非法参数错误。
 
 ```bash
 .venv/bin/python -m pytest tests/test_native_arena.py tests/test_arena_ownership.py tests/test_primitive_binding.py -q

@@ -8,7 +8,7 @@ API：[张量与数据交换](../API/tensor.md) · [基础运算](../API/ops.md)
 
 ## 1. `Tensor` 存储与待计算状态（`tensor.py` / `ops.py`）
 
-`ft.tensor(data, *, dtype=ft.fp32, engine=None, device=None)` 从规则嵌套数据推断形状，负责矩形校验与字节编解码；按尺寸创建使用 [`zeros`、`ones`、`empty`、`full`](../API/tensor.md#size-factories)。CPU 的 bool、i32、i64、f32、f16 输入使用紧凑的 `ctypes` 缓冲区；CUDA 另支持 bf16，输入直接编码为字节并上传到 [ASK `ExecutionSession`](../../../ask/docs/runtime.md#execution-session) 管理的设备存储。六个类型对象对应 [ASK 的 6 种基础类型](../../../ask/docs/ir.md#types-and-precision)；浮点表达式可通过 `ft.grad` 对指定输入求导。
+`ft.tensor(data, *, dtype=ft.fp32, engine=None, device=None)` 从规则嵌套数据推断形状，负责矩形校验与字节编解码；按尺寸创建使用 [`zeros`、`ones`、`empty`、`full`](../API/tensor.md#size-factories)。CPU 的 bool、i32、i64、f32、f16 输入使用紧凑的 `ctypes` 缓冲区；CUDA 另支持 bf16，输入直接编码为字节并上传到 [ASK `ExecutionSession`](../../../../ask/docs/zh/runtime.md#execution-session) 管理的设备存储。六个类型对象对应 [ASK 的 6 种基础类型](../../../../ask/docs/zh/ir.md#types-and-precision)；浮点表达式可通过 `ft.grad` 对指定输入求导。
 
 张量运算先返回待计算的 Tensor，记录形状、类型、Engine 和输入依赖。例如 `y = (x + 1).square()` 会记录加法和平方，减法、取负和平方由加乘基础算子组合。
 

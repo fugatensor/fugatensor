@@ -32,7 +32,7 @@ cmake --install build/core
 /absolute/path/to/ask-sdk/bin/ask-opt --capabilities
 ```
 
-FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。其他安装选项见 [ASK 安装](../../ask/docs/install.md)。
+FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。其他安装选项见 [ASK 安装](../../../ask/docs/zh/install.md)。
 
 <a id="install-fuga-source"></a>
 <a id="build-fugatensor"></a>
@@ -142,7 +142,7 @@ print((x * 2 + 1).tolist())  # [3.0, 5.0]
 
 all 默认用当前 Python 环境运行包内 Triton worker。图中含 ASK 自有计算时，另按上一节配置 `llc` / `ptxas`。
 
-支持 Triton 3.9.x 稳定版，已验证 3.9.0。版本基线和 ABI 见 [`triton.dependencies.lock.json`](../src/fugatensor/triton.dependencies.lock.json)，缓存记录实际编译器和工具信息。
+支持 Triton 3.9.x 稳定版，已验证 3.9.0。版本基线和 ABI 见 [`triton.dependencies.lock.json`](../../src/fugatensor/triton.dependencies.lock.json)，缓存记录实际编译器和工具信息。
 
 使用独立 Python 3.11+ 环境编译 Triton 时：
 
@@ -161,7 +161,7 @@ ft.configure(
 )
 ```
 
-Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则要求宿主环境满足 Triton 的版本要求。也可用 `FUGATENSOR_TRITON_PYTHON` 指定解释器、`FUGATENSOR_TRITON_WORKER` 指定 worker。配置优先级见[配置规则](architecture/backend.md#bootstrap-and-config)，注册方法见 [README](../README.md)。
+Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则要求宿主环境满足 Triton 的版本要求。也可用 `FUGATENSOR_TRITON_PYTHON` 指定解释器、`FUGATENSOR_TRITON_WORKER` 指定 worker。配置优先级见[配置规则](architecture/backend.md#bootstrap-and-config)，注册方法见 [README](../../README.zh.md)。
 
 <a id="source-bootstrap"></a>
 
@@ -184,4 +184,4 @@ Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则�
 
 配置优先级与字段说明见 [ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)。
 
-相关说明：[ASK 安装](../../ask/docs/install.md)、[ASK 版本要求](../../ask/docs/build.md#version-contract)。
+相关说明：[ASK 安装](../../../ask/docs/zh/install.md)、[ASK 版本要求](../../../ask/docs/zh/build.md#version-contract)。
