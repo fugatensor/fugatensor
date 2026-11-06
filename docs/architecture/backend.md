@@ -119,7 +119,7 @@ ASK IR 文本摘要参与磁盘缓存键，文本变化会产生不同缓存项�
 
 <a id="bootstrap-and-config"></a>
 
-## 5. 安装后的配置与开发引导（`tools/bootstrap.py` / `_config.py`）
+## 5. 安装后的配置（`_config.py`）
 
 FugaTensor 构建时链接 ASK SDK 的 `ASK::Compiler` 和 `ASK::Runtime`，wheel 携带对应共享库，步骤见[安装文档](../install.md)。CPU 运行需 `cc` 链接目标文件，自有 CUDA 代码生成需 `llc` / `ptxas`，外部 kernel 的二进制由 worker 提供。
 
@@ -132,4 +132,4 @@ FugaTensor 构建时链接 ASK SDK 的 `ASK::Compiler` 和 `ASK::Runtime`，whee
 
 `cc` 通过 `ft.Engine(cc=...)` 或 `ft.configure(cc=...)` 设置。代码或环境变量指定 `ask_opt` 时，会隔离默认配置文件中的 SDK 和 worker 路径。
 
-开发安装可用 `tools/bootstrap.py --ask-prefix SDK目录`，默认选择 pure，`--variant all` 同时安装 Triton。配置保留和重置规则见[开发引导](../install.md#source-bootstrap)。
+开发安装使用 `CMAKE_PREFIX_PATH=SDK目录 pip install -e '.[pure]'`（或 `'.[all]'` 同时安装 Triton）。安装详情见[安装文档](../install.md)。

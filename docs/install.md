@@ -69,7 +69,7 @@ python -m pip check
 | 安装命令 | 依赖与用途 |
 | --- | --- |
 | `python -m pip install 'fugatensor[pure]'` | 基础依赖，适用于 CPU 和 ASK 自有 CUDA 计算；等同直接安装 `fugatensor`。 |
-| `python -m pip install 'fugatensor[all]'` | 自动安装 `triton>=3.9,<3.10`，用于用户 Triton 算子和内置 attention。Python 与平台须满足 Triton 要求。 |
+| `python -m pip install 'fugatensor[all]'` | 自动安装 `triton>=3.9,<3.10`，用于用户 Triton 算子。Python 与平台须满足 Triton 要求。 |
 
 两种选择共用 wheel，包含 C++ 扩展、ASK 共享库和适配器源码。已有 Triton 的环境可直接使用该编译器。all 在 Python 或平台不兼容时安装失败。
 
@@ -165,32 +165,23 @@ Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则�
 
 <a id="source-bootstrap"></a>
 
-## 8. 开发环境引导
+## 8. 持久化配置文件
 
-`tools/bootstrap.py` 使用 Python 3.11+ 和已安装的 ASK SDK，创建虚拟环境、安装构建依赖，再进行可编辑安装。默认选 pure，`--variant all` 同时安装 Triton。
+如需持久化 `llc`、`ptxas` 或独立 Triton 解释器路径，可直接在 Python 虚拟环境下的 `share/fugatensor/engine.json` 写入 JSON 配置：
 
-```bash
-python3 /absolute/path/to/fugatensor/tools/bootstrap.py \
-  --venv /absolute/path/to/fuga-dev-env \
-  --ask-prefix /absolute/path/to/ask-sdk \
-  --variant pure
+```json
+{
+  "schema_version": 1,
+  "llc": "/path/to/llc",
+  "ptxas": "/path/to/ptxas",
+  "compilers": {
+    "triton": {
+      "python": "/path/to/triton-env/bin/python"
+    }
+  }
+}
 ```
 
-脚本检查 SDK 版本和编译能力，通过 `CMAKE_PREFIX_PATH` 配置构建，最后运行 `pip check`，将工具配置写入 `share/fugatensor/engine.json`。
-
-同时配置 CUDA 工具和独立 worker 时：
-
-```bash
-python3 /absolute/path/to/fugatensor/tools/bootstrap.py \
-  --venv /absolute/path/to/fuga-dev-env \
-  --ask-prefix /absolute/path/to/ask-sdk \
-  --llvm-root /absolute/path/to/llvm-sdk \
-  --ptxas /absolute/path/to/cuda/bin/ptxas \
-  --compiler-python triton=/absolute/path/to/triton-env/bin/python
-```
-
-`--llvm-root` 检查 `bin/llc` 与 ASK 的构建版本，`--compiler-python` 检查独立 worker 的 Triton 版本。使用默认 worker 时省略 `--compiler-python`。
-
-再次执行且没有工具/worker 参数时，脚本保留已有 `share/fugatensor/engine.json`。指定任一 `--llvm-root`、`--ptxas`、`--compiler-python` 会按本次参数整体重写配置，需同时传入仍要使用的其它工具；`--reset-config` 可清空旧配置。配置读取规则见 [ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)。
+配置优先级与字段说明见 [ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)。
 
 相关说明：[ASK 安装](../../ask/docs/install.md)、[ASK 版本要求](../../ask/docs/build.md#version-contract)。
