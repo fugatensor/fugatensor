@@ -33,7 +33,7 @@ print("Result:", y.tolist())  # [4.0, 6.0, 8.0]
 | [基础算术与代数运算](ops.md) | 逐元素运算、逻辑比较、几何变换、归约与矩阵乘法 | `add`, `multiply`, `where`, `transpose`, `sum`, `mean`, `amax`, `matmul` |
 | [自动微分与自定义算子](autograd.md) | 函数式求导、梯度路径阻断与显式 VJP 算子 | `grad`, `stop_gradient`, `detach`, `fun` |
 | [设备管理与执行调度](engine.md) | 设备切换、默认设备配置、流同步与引擎生命周期 | `device`, `set_default_device`, `evaluate`, `synchronize`, `Engine` |
-| [注意力算子](attention.md) | 高性能内置注意力算子与因果掩码 | `nn.functional.scaled_dot_product_attention` |
+| [注意力算子](attention.md) | 高性能内置注意力算子、因果掩码与变长注意力 | `nn.functional.scaled_dot_product_attention`, `nn.functional.scaled_dot_product_attention_varlen` |
 | [Triton 算子接入](triton.md) | 外部 Triton 自定义 Kernel 绑定与配置回调 | `triton.kernel`, `triton.from_source`, `triton.from_jit` |
 | [权重持久化](weights.md) | 模型参数 PyTree 序列化与内容寻址校验 | `save_weights`, `load_weights`, `weights.manifest` |
 | [IR 与后端降级](ir.md) | Fuga IR 原语构建、控制流与 ASK 编译桥接 | `ir.Module`, `lower_to_ask` |

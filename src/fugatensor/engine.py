@@ -158,6 +158,8 @@ class Engine:
         self._closed = False
         self._lock = threading.RLock()
         self._graph_cache = {}
+        self._cudnn_handle = None
+        self._cudnn_plan_cache = {}
         self._arena = _native.RuntimeArena()
         self._jit_functions = weakref.WeakSet()
         self._tokens = contextvars.ContextVar(f'fugatensor_context_{id(self)}', default=())
@@ -258,9 +260,21 @@ class Engine:
         with self._lock:
             self._check_open()
             self._graph_cache.clear()
+            self._cudnn_plan_cache.clear()
             self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
             self.last_report = self.last_artifact_dir = None
             self.last_execution_plan = None
+
+    def _get_cudnn_handle(self):
+        with self._lock:
+            self._check_open()
+            if self._ordinal is None:
+                raise ValueError('cuDNN operations require a CUDA Engine')
+            if self._cudnn_handle is None:
+                import cudnn
+                self._cudnn_handle = cudnn.create_handle()
+                cudnn.set_stream(self._cudnn_handle, self.session.stream)
+            return self._cudnn_handle
 
     def _compile(self, fuga_module):
         with self._lock:
@@ -297,6 +311,20 @@ class Engine:
                         copied = _clone_operation(graph, op, tuple(values[value] for value in op.operands))
                         values.update(zip(op.results, copied.results))
                 flat = projected.verify()
+            has_cudnn = any(op.opcode == 'external' and op.attrs.get('spec', None)
+                            and getattr(op.attrs['spec'], 'compiler', None) == 'cudnn'
+                            for function in flat.functions for op in function.operations)
+            if has_cudnn:
+                if self._ordinal is None:
+                    raise NotImplementedError('cuDNN operations require a CUDA Engine')
+                artifacts = self.cache_dir / 'artifacts'
+                artifacts.mkdir(exist_ok=True)
+                directory = Path(tempfile.mkdtemp(prefix='cuda-cudnn-', dir=artifacts))
+                from ._cudnn import partition_and_compile_cudnn
+                executable = partition_and_compile_cudnn(self, flat, target, directory)
+                (executable.artifact_dir / 'fuga.ir').write_text(fuga_module.to_text(), encoding='utf-8')
+                self._stats['compilations'] += 1
+                return _InputProjection(executable, input_indices, len(arguments))
             external_count = sum(op.opcode == 'external' for function in flat.functions for op in function.operations)
             module = lower_to_ask(flat, target=target, source_map=source_map)
             source_map['input_bindings'] = [
@@ -353,6 +381,14 @@ class Engine:
         with self._lock:
             if self._closed:
                 return
+            if self._cudnn_handle is not None:
+                try:
+                    import cudnn
+                    cudnn.destroy_handle(self._cudnn_handle)
+                except Exception:
+                    pass
+                self._cudnn_handle = None
+            self._cudnn_plan_cache.clear()
             if self._session is not None:
                 self._session.close()
             self._closed = True

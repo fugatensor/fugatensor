@@ -12,7 +12,7 @@ from unittest import mock
 import fugatensor as ft
 from fugatensor._state import active_trace
 from fugatensor.tracing import TraceContext
-from tests._helpers import requires_triton
+from tests._helpers import requires_cuda
 from tests.support.attention import flatten, input_data, reference, reference_backward, attention_cases
 from tests.support.selection import select
 
@@ -95,12 +95,12 @@ class TestAttentionContract:
         context.finish(output).verify()
 
 
-@requires_triton
+@requires_cuda
 @pytest.mark.shared_engine
 @pytest.mark.usefixtures("engine_context")
 class TestAttentionCUDAExecution:
     device = 'cuda'
-    enable_triton = True
+    enable_triton = False
 
     def assert_values(self, actual, expected, *, dtype, backward=False):
         assert (len(actual)) == (len(expected))
@@ -138,7 +138,7 @@ class TestAttentionCUDAExecution:
         gradients = ft.grad(output, inputs, seed=seed)
         ft.evaluate(*gradients)
         backward_steps = [step['kind'] for step in self.engine.last_execution_plan['steps']]
-        assert (backward_steps.count('external')) == (5)
+        assert (backward_steps.count('external')) == (3)
         expected_gradients = reference_backward(*values,
             [output_scale * value for value in flatten(seed.tolist())], **parameters)
         expected_gradients = ([q_scale * value for value in expected_gradients[0]], *expected_gradients[1:])
@@ -165,3 +165,56 @@ class TestAttentionCUDAExecution:
         with mock.patch.object(self.engine, '_compile', side_effect=AssertionError('compiled before validation')):
             with pytest.raises(ValueError, match='external|derivative|VJP'):
                 ft.grad(first, q, seed=ft.ones_like(first))
+
+    def test_varlen_packed_thd_forward_backward(self):
+        seqlens = [16, 32, 24]
+        b = len(seqlens)
+        h = 4
+        d = 64
+        total_tokens = sum(seqlens)
+        max_s = max(seqlens)
+
+        cu_seqlens = [0]
+        for s in seqlens:
+            cu_seqlens.append(cu_seqlens[-1] + s)
+
+        q_val = [[[0.01 * ((i + j + k) % 13) for k in range(d)] for j in range(h)] for i in range(total_tokens)]
+        k_val = [[[0.01 * ((i + j + k) % 17) for k in range(d)] for j in range(h)] for i in range(total_tokens)]
+        v_val = [[[0.01 * ((i + j + k) % 19) for k in range(d)] for j in range(h)] for i in range(total_tokens)]
+
+        q = ft.tensor(q_val, dtype=ft.fp16, device='cuda')
+        k = ft.tensor(k_val, dtype=ft.fp16, device='cuda')
+        v = ft.tensor(v_val, dtype=ft.fp16, device='cuda')
+        cu_q = ft.tensor(cu_seqlens, dtype=ft.int32, device='cuda')
+        cu_kv = ft.tensor(cu_seqlens, dtype=ft.int32, device='cuda')
+
+        varlen_attention = ft.nn.functional.scaled_dot_product_attention_varlen
+        out = varlen_attention(q, k, v, cu_q, cu_kv, max_s, max_s, is_causal=True)
+        ft.evaluate(out)
+
+        assert out.shape == (total_tokens, h, d)
+        assert out.dtype is ft.fp16
+
+        # Check against sliced reference
+        for start, end in zip(cu_seqlens[:-1], cu_seqlens[1:]):
+            seq_len = end - start
+            sub_q = [q_val[idx] for idx in range(start, end)]
+            sub_k = [k_val[idx] for idx in range(start, end)]
+            sub_v = [v_val[idx] for idx in range(start, end)]
+            q_trans = [[[sub_q[s][head][dim] for dim in range(d)] for s in range(seq_len)] for head in range(h)]
+            k_trans = [[[sub_k[s][head][dim] for dim in range(d)] for s in range(seq_len)] for head in range(h)]
+            v_trans = [[[sub_v[s][head][dim] for dim in range(d)] for s in range(seq_len)] for head in range(h)]
+            ref_slice = reference(flatten([q_trans]), flatten([k_trans]), flatten([v_trans]),
+                                  batch=1, heads=h, m=seq_len, n=seq_len, d=d, dv=d, causal=True)
+            actual_sub = out.tolist()[start:end]
+            actual_trans = flatten([[[actual_sub[s][head][dim] for dim in range(d)] for s in range(seq_len)] for head in range(h)])
+            self.assert_values(actual_trans, ref_slice, dtype=ft.fp16)
+
+        # Backward
+        seed = ft.ones_like(out)
+        dq, dk, dv = ft.grad(out, (q, k, v), seed=seed)
+        ft.evaluate(dq, dk, dv)
+        assert dq.shape == q.shape
+        assert dk.shape == k.shape
+        assert dv.shape == v.shape
+        assert dq.dtype is ft.fp16
