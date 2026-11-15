@@ -4,7 +4,7 @@ Back to API Index: [Categories](README.md#categories) · Related Modules: [Tenso
 
 FugaTensor manages a global resident engine (Engine) per device by default. Tensors are constructed using lazy graphs; compilation and execution are triggered only upon explicit evaluation or when inspecting values.
 
-<a id="devices"></a><a id="default-device"></a><a id="default-device"></a>
+<a id="devices"></a><a id="default-device"></a>
 
 ## Device Objects and Default Device
 

@@ -12,7 +12,7 @@
   <a href="docs/zh/install.md#installation-variants"><img src="https://img.shields.io/badge/Triton-optional-8b5cf6" alt="Triton optional"></a>
 </p>
 
-FugaTensor 是基于 [ASK](../ask/README.zh.md) 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
+FugaTensor 是基于 ASK C++ SDK 的张量计算框架。张量运算先记录为 Fuga IR；读取结果、判断标量条件或调用 `ft.evaluate` 时，再编译并交给 CPU 或 CUDA 执行。
 
 ```python
 import fugatensor as ft
@@ -154,4 +154,4 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 本项目采用 [Apache-2.0](LICENSE) 许可证开源。
 
-[多 kernel 计划契约](../ask/docs/zh/partitioning.md) · [attention API](docs/zh/API/attention.md) · [权重格式与导出](docs/zh/architecture/weights.md)
+[ASK 桥接与多后端执行](docs/zh/architecture/backend.md) · [attention API](docs/zh/API/attention.md) · [权重格式与导出](docs/zh/architecture/weights.md)

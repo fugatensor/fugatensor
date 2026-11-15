@@ -1,8 +1,8 @@
 # FugaTensor Architecture Overview
 
-Navigation: [Documentation Index](../README.md) · API Usage: [API](../API/README.md) · Intermediate Representation: [Fuga IR Overview](../ir/README.md) · Underlying Engine: [ASK Core Concepts](../../../../ask/docs/en/concepts.md)
+Navigation: [Documentation Index](../README.md) · API Usage: [API](../API/README.md) · Intermediate Representation: [Fuga IR Overview](../ir/README.md)
 
-FugaTensor provides a Python tensor interface, constructs graphs and computes derivatives on Fuga IR, and hands them off to [ASK](../../../../ask/docs/en/concepts.md) for compilation and execution as CPU or CUDA code.
+FugaTensor provides a Python tensor interface, constructs graphs and computes derivatives on Fuga IR, and hands them off to the ASK C++ SDK for compilation and execution as CPU or CUDA code.
 
 ```mermaid
 flowchart TD
@@ -32,7 +32,7 @@ Fuga IR preserves framework-level control flow and automatic differentiation inf
 - FugaTensor manages Tensors, expression provenance, and functional differentiation, handling Python control flow, custom function tracing, JVP/VJP, and graph pruning, while invoking third-party workers and maintaining compilation caches.
 - ASK validates and optimizes the static graph, fuses owned elementwise computations, and generates machine code and execution plans. The C++ runtime handles argument binding, plan dispatch, buffers, events, and CUDA Graph replay.
 
-Engineering details: [Fuga IR Overview](../ir/README.md) · [ASK and FugaTensor Division of Labor](../../../../ask/docs/en/fugatensor.md#division-of-labor)
+Engineering details: [Fuga IR Overview](../ir/README.md) · [ASK Bridge and Multi-Backend Execution](backend.md)
 
 <a id="arch-tensor-trace"></a>
 
@@ -78,10 +78,10 @@ When a graph cache miss occurs, FugaTensor simplifies control flow, prunes input
 
 - CPU: ASK generates an object file, `HostBackend` links SDK-declared libraries according to the ABI, and invokes dynamic library functions via `ctypes`; fp32 matrix multiplication uses OpenBLAS. The `ask_opt` parameter selects the CLI entry point.
 - Owned CUDA: ASK generates LLVM IR, `llc` / `ptxas` produce the cubin, and `PreparedProgram::run` submits the whole-segment plan, defaulting to CUDA Graph.
-- Triton: The worker compiles source code and returns a cubin. ASK partitions owned regions and external nodes according to [Execution Plan v1](../../../../ask/docs/en/partitioning.md#plan-v1), dispatching them on the same stream.
+- Triton: The worker compiles source code and returns a cubin. ASK partitions owned regions and external nodes according to Execution Plan v1, dispatching them on the same stream.
 - Caching: The engine queries the structural cache first, before combining graphs and generating text; LLVM IR and cubin have separate disk caches. Standard Python logic executes every time.
 
-Engineering details: [ASK Bridge and Multi-Backend Execution](backend.md) · [Lowering Fuga IR to ASK](../ir/lowering.md) · [Multi-Kernel Execution Plan](../../../../ask/docs/en/partitioning.md)
+Engineering details: [ASK Bridge and Multi-Backend Execution](backend.md) · [Lowering Fuga IR to ASK](../ir/lowering.md)
 
 <a id="arch-weights"></a>
 

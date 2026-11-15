@@ -1,6 +1,6 @@
 # Lowering to ASK
 
-Back to IR Overview: [Lowering to ASK IR and Cross-Layer Provenance](README.md#ir-lowering-boundary) · Related topics: [Object Model and Verification](model.md) · [Control Flow and Composable Transformations](transforms.md) · [ASK Bridge and Multi-Backend Execution](../architecture/backend.md) · [ASK IR and Numerical Semantics](../../../../ask/docs/en/ir.md)
+Back to IR Overview: [Lowering to ASK IR and Cross-Layer Provenance](README.md#ir-lowering-boundary) · Related topics: [Object Model and Verification](model.md) · [Control Flow and Composable Transformations](transforms.md) · [ASK Bridge and Multi-Backend Execution](../architecture/backend.md)
 
 [`lower_to_ask`](../../../src/fugatensor/lowering.py) receives a Fuga `Module` and target device, returning an internal `_ask.Module`. Its `to_mlir()` method produces text submitted to ASK C++, and the `source_map` argument can receive value-by-value mappings.
 
@@ -31,7 +31,7 @@ The internal module `fugatensor._ask` generates ASK MLIR according to the follow
 | --- | --- | --- |
 | `ScalarType(dtype)` | Internal `ScalarType(dtype)` | Corresponds to MLIR scalar types; `bool` encodes as `i1`. |
 | `TensorType(shape, dtype)` | Internal `TensorType(shape, dtype)` | Preserves static shapes; 0-D tensors `()` and scalar types are represented separately, and empty tensors preserve dimensions. |
-| `fuga.constant` | `graph.constant(value, dtype=...)` | Encodes floating-point constants according to [single-step RNE rules](../../../../ask/docs/en/ir.md#types-and-precision). |
+| `fuga.constant` | `graph.constant(value, dtype=...)` | Encodes floating-point constants according to single-step RNE rules. |
 | `fuga.splat` | `graph.splat(scalar, shape)` | Splats a scalar into a tensor of specified shape, including 0-D tensors. |
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | Requires identical shapes and types. |
 | `div`, `exp/log/sqrt`, `compare/select`, `broadcast_in_dim/transpose`, `reduce_sum/reduce_max`, `matmul` | Identically named `ask` operations | Obtains result types from unified primitive type rules, with bridge layer preserving static attributes. |
@@ -44,7 +44,7 @@ The internal module `fugatensor._ask` generates ASK MLIR according to the follow
 
 ## 3. External Implementation Binding and Cross-Layer Provenance
 
-The `ExternalSpec` of `fuga.external` is converted into `ask.semantics`, `ask.implementation`, and an `ask.external` referencing them; see [ASK External Declarations](../../../../ask/docs/en/ir.md#external-declaration) for fields.
+The `ExternalSpec` of `fuga.external` is converted into `ask.semantics`, `ask.implementation`, and an `ask.external` referencing them.
 
 - Targets must be compatible with implementation declarations, and CUDA implementations require concrete integer architecture numbers. The selected device supplies Triton's `arch` here.
 - `same_as` shape rules are preserved, and Fuga's `explicit` rule converts to ASK's `fixed`; each output type is determined by verified Fuga types.

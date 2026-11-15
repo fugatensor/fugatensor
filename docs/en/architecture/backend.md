@@ -1,6 +1,6 @@
 # ASK Bridge and Multi-Backend Execution
 
-Back to Architecture Overview: [Lowering to ASK, Multi-Backend Execution, and Multi-Level Caching](README.md#arch-ask-backends) · Related topics: [Tensor Model and Tracing Mechanism](tensor_model.md) · [Lowering Fuga IR to ASK](../ir/lowering.md) · [ASK Resident Runtime and Multi-Level Caching](../../../../ask/docs/en/runtime.md)
+Back to Architecture Overview: [Lowering to ASK, Multi-Backend Execution, and Multi-Level Caching](README.md#arch-ask-backends) · Related topics: [Tensor Model and Tracing Mechanism](tensor_model.md) · [Lowering Fuga IR to ASK](../ir/lowering.md)
 
 API: [Device and Execution](../API/engine.md) · [Triton Operator Integration](../API/triton.md) · [attention](../API/attention.md)
 
@@ -10,7 +10,7 @@ When reading standard results, gradient results, or calling `ft.evaluate`, `Engi
 
 ## 1. `Engine` Lifecycle and Pruning of Unused Input Ports (`engine.py`)
 
-`Engine` connects to the [ASK compiler and runtime](../../../../ask/docs/en/build.md#python-sdk), managing the following state:
+`Engine` connects to the ASK compiler and runtime, managing the following state:
 
 - **Engines and Devices**: Default engines are created and reused per device, and shut down upon process exit or `ft.shutdown()`. `ft.set_default_device` uses a `ContextVar` to store the default device for subsequent tensors, while existing tensors retain their original device and engine; explicit `device=` takes precedence. An isolated `Engine`'s context can temporarily override the default selection. After an engine shuts down, reading or executing operations on its tensors raises an error; cross-device operations raise `RuntimeError`, and cross-engine operations on the same device raise `ValueError`.
 - **Pruning Unused Physical Input Ports**:
@@ -21,7 +21,7 @@ When reading standard results, gradient results, or calling `ft.evaluate`, `Engi
 
 ### Compilation Stage Results
 
-The internal `fugatensor._ask.Compiler` invokes the [ASK `ask::compiler` API](../../../../ask/docs/en/api.md#compiler-api) via `_native`, returning the following types by stage:
+The internal `fugatensor._ask.Compiler` invokes the ASK `ask::compiler` API via `_native`, returning the following types by stage:
 
 | Stage and Result | Compilation Contract Fields |
 | --- | --- |
@@ -37,7 +37,7 @@ When `ask_opt` is explicitly selected, the CLI still outputs a full JSON report.
 
 ## 2. CPU Backend: Object File Generation and `ctypes` Invocation (`backends/host.py`)
 
-The CPU execution path (`HostBackend`) invokes [ASK Host Shared Loop Lowering](../../../../ask/docs/en/codegen.md#host-codegen):
+The CPU execution path (`HostBackend`) invokes ASK Host Shared Loop Lowering:
 
 ```text
 Fuga Module -> lower_to_ask -> ASK::Compiler native code generation (graph.o + ABI contract)
@@ -47,25 +47,25 @@ Fuga Module -> lower_to_ask -> ASK::Compiler native code generation (graph.o + A
 - **Compilation Entry**: Defaults to calling ASK C++ `ask::compiler::codegen` via `_native`; the `ask_opt` parameter can select the CLI path.
 - **ABI Binding**: Reads shapes, dtypes, and byte counts of entry points and ports from `CodegenResult.abi` and writes them separately to `abi.json`; `report.json` stores compilation diagnostics. Subsequent calls validate inputs, allocate `HostStorage` outputs, and invoke the loaded function pointer.
 - **Library Dependencies**: `link_libraries` in the ABI declares required library names, and `host_link_libraries` in compiler capabilities provides corresponding installed library paths; HostBackend links against them and configures search paths accordingly. fp32 matrix multiplication calls single-threaded OpenBLAS bundled with the ASK SDK, with libraries and symbols using ASK prefixes.
-- **Reduction Reuse**: Scratch spaces are managed by ASK-generated functions; allocations and lifetimes are documented in [Host Codegen](../../../../ask/docs/en/codegen.md#host-codegen).
+- **Reduction Reuse**: Scratch spaces are managed by ASK-generated functions; allocation and lifetime follow ASK's compile-time slot reuse plan.
 
 <a id="cuda-and-triton"></a>
 
 ## 3. Owned CUDA and User Triton Operator Execution (`engine.py` / `triton.py`)
 
-The GPU engine creates an [ASK `ExecutionSession`](../../../../ask/docs/en/runtime.md#execution-session) when uploading a Tensor for the first time or accessing `engine.session`. When compiling graphs or querying `engine.capability`, it queries the target architecture, after which ASK partitions the graph into owned, external, and library call steps:
+The GPU engine creates an ASK `ExecutionSession` when uploading a Tensor for the first time or accessing `engine.session`. When compiling graphs or querying `engine.capability`, it queries the target architecture, after which ASK partitions the graph into owned, external, and library call steps:
 
 1. **Pure Owned Computation Graph → ASK Owned CUDA Lowering**:
-   `Engine` passes the ASK graph and `arch` to the [ASK CUDA Backend](../../../../ask/docs/en/codegen.md#owned-cuda) to generate a cubin. Once the session loads it, it prepares a C++ `PreparedProgram`, and the engine calls the bridge layer `prepared.run(inputs)` to dispatch onto a CUDA stream. Supports multi-input, multi-output with heterogeneous shapes and types, 0-D, and empty tensors.
+   `Engine` passes the ASK graph and `arch` to the ASK CUDA Backend to generate a cubin. Once the session loads it, it prepares a C++ `PreparedProgram`, and the engine calls the bridge layer `prepared.run(inputs)` to dispatch onto a CUDA stream. Supports multi-input, multi-output with heterogeneous shapes and types, 0-D, and empty tensors.
 2. **Mixed Graphs Containing `ft.triton.kernel` → Dependency Scheduling of Owned and External Kernels**:
    - Register `@triton.jit` code via `ft.triton.kernel("kernels.py", entry=..., input=... or inputs=..., output=..., output_shape=..., output_dtype=..., constants=..., grid=..., options=...)` or `ft.triton.from_source(...)`.
    - Registration captures UTF-8 source code and configuration snapshots; subsequent file modifications require re-registration.
    - Each invocation executes `constants`, `scalars`, and `grid` callbacks, passing `TensorSpec(shape, dtype, device, numel)`. `shape` uses reshaped dimensions, while `dtype` and `device` use public objects. Returned configurations freeze with the node, and closure changes only affect subsequent calls. During lowering, the target GPU's `arch` is bound, generating `ask.implementation` and `ask.external`.
-   - [`_triton_worker.py`](../../../src/fugatensor/_triton_worker.py) invokes Triton within the selected interpreter, returning `asm["cubin"]` and launch metadata, integrating into the [worker interface](../../../../ask/docs/en/artifacts.md#worker-interface) and [execution plan](../../../../ask/docs/en/partitioning.md#program-runtime).
+   - [`_triton_worker.py`](../../../src/fugatensor/_triton_worker.py) invokes Triton within the selected interpreter, returning `asm["cubin"]` and launch metadata, integrating into the ASK worker interface and execution plan.
 
 Matrix multiplication generates `library="cublaslt"` steps, where the plan stores dtype, M/N/K, batch_count, and transpose flags; the runtime selects the algorithm and manages scratch space during the preparation phase.
 
-ASK partitions graphs in MLIR, fuses owned regions, and schedules external nodes and matrix multiplications separately into [Execution Plan JSON v1](../../../../ask/docs/en/partitioning.md#plan-v1). The bridge layer obtains the plan from `PartitionResult.execution_plan`, compiles each step via `step_sources`, and routes workers via `external_requests`. The `execution_plan` field of GPU compilation artifacts independently stores partition plans, while `report` preserves diagnostics and caching information. When reduction results are reused via broadcast, they materialize at the boundary to avoid repeating the entire reduction for each output. Elementwise operations and index transformations within a partition remain fused; derivative graphs follow the same rules. Steps transfer data via device buffers; standard streams launch in sequence, while Graph schedules according to actual dependencies. Invalid graphs, corrupted artifacts, and compilation failures raise errors.
+ASK partitions graphs in MLIR, fuses owned regions, and schedules external nodes and matrix multiplications separately into Execution Plan JSON v1. The bridge layer obtains the plan from `PartitionResult.execution_plan`, compiles each step via `step_sources`, and routes workers via `external_requests`. The `execution_plan` field of GPU compilation artifacts independently stores partition plans, while `report` preserves diagnostics and caching information. When reduction results are reused via broadcast, they materialize at the boundary to avoid repeating the entire reduction for each output. Elementwise operations and index transformations within a partition remain fused; derivative graphs follow the same rules. Steps transfer data via device buffers; standard streams launch in sequence, while Graph schedules according to actual dependencies. Invalid graphs, corrupted artifacts, and compilation failures raise errors.
 
 When installing all, the engine discovers Triton from the current environment's installation metadata and launches workers using that interpreter. Isolated environments are selected via `ft.triton.environment(python=...)`. The worker verifies the version, strips constexprs in JIT argument order, fills in scratch parameters for the CUDA ABI, and reads dynamic shared memory size. Global scratch, tensor descriptors, clusters, cooperative, or PDL launches are currently unsupported. Versions and ABIs are recorded in [`triton.dependencies.lock.json`](../../../src/fugatensor/triton.dependencies.lock.json).
 
@@ -87,15 +87,13 @@ For syntax regarding multiple inputs, multiple outputs, configuration callbacks,
 
 GPU JIT uses CUDA Graph for both single-kernel and mixed plans. The initial submission creates a graph executable, whose execution slots are reused upon completion while updating changed input/output addresses. In-flight calls each use a separate set of intermediate buffers and graph instances, returning a completion event per submission.
 
-ASK derives node dependencies from read/write ports during preparation, statically checking the access order of each read and shared slot. Independent branches retain concurrency opportunities, each holding scratch spaces still in use; port interfaces submitted by Fuga remain consistent. CPU materialized scratch spaces are also reused by ASK at compile time based on actual read lifetimes; layouts are documented in [Host Codegen](../../../../ask/docs/en/codegen.md#host-codegen).
+ASK derives node dependencies from read/write ports during preparation, statically checking the access order of each read and shared slot. Independent branches retain concurrency opportunities, each holding scratch spaces still in use; port interfaces submitted by Fuga remain consistent. CPU materialized scratch spaces are also reused by ASK at compile time based on actual read lifetimes.
 
 The C++ plan retains kernels and in-flight buffers. Fuga's C++ port objects store shape/dtype during preparation, validate actual tensors at submission, establish external stream dependencies, and retain ownership; the ASK native plan validates device placement, byte counts, write permissions, and aliases before dispatching all steps in a single submission. Underlying CUDA events can be recycled after completion, while user-held Events remain completed.
 
 In the bridge layer, `prepared.run(inputs)` allocates outputs via the native plan, asynchronously returning a list of device tensors; duplicate outputs and input aliases retain identical tensor handles. `prepared.submit_many(inputs, outputs)` uses caller-provided outputs and returns a completion event. Both entry points uniformly validate ports, establish external stream dependencies, and retain ownership; completion events for automatic outputs are retained by the session, and external producers must synchronize the session before reusing input storages.
 
 ASK provides both standard stream submission and Graph replay. FugaTensor JIT defaults to the latter.
-
-For comparisons of latency and memory between dependency scheduling and CPU scratch space reuse, see [ASK Verification Report](../../../../ask/docs/en/workspace_report.md#fuga-profile).
 
 <a id="cache-hierarchy"></a>
 
@@ -115,7 +113,7 @@ For template freezing and structural key rules, see [Automatic Graph Fusion and 
 
 When owned CUDA LLVM IR contains `__nv_` math functions, compilation orchestration links libdevice using `llvm-link --only-needed` before generating PTX. The cache key records llvm-link and libdevice file digests; standard elementwise graphs only use llc and ptxas.
 
-The ASK IR text digest participates in disk cache keys; changes in text generate distinct cache entries. For verification and invalidation criteria, see [ASK Two-Tier Persistent Cache](../../../../ask/docs/en/runtime.md#two-tier-cache).
+The ASK IR text digest participates in disk cache keys; changes in text generate distinct cache entries.
 
 <a id="bootstrap-and-config"></a>
 

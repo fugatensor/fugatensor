@@ -14,8 +14,3 @@ Welcome to the FugaTensor documentation. Please select your preferred language:
 - **[System Architecture](en/architecture/README.md)**: Division of responsibilities between FugaTensor and ASK, tensor storage, execution backends, and autograd.
 - **[Fuga IR](en/ir/README.md)**: Object model, transformations, control flow, and lowering to ASK.
 - **[Testing Matrix](en/testing.md)**: Unit tests, numerical validation, and hardware targets.
-
-## 底层引擎文档 / Lower-Level Engine Documentation
-
-- **[ASK Documentation Hub](../../ask/docs/README.md)**
-  - [English](en/README.md) · [简体中文](zh/README.md)

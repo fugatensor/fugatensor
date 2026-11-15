@@ -1,6 +1,6 @@
 # FugaTensor Documentation Index
 
-Browse documentation by API, architecture, and IR. For underlying compilation and execution, see [ASK Documentation](../../../ask/docs/en/README.md).
+Browse documentation by API, architecture, and IR.
 
 For environment setup, see [Installation and Build](install.md).
 
@@ -34,12 +34,3 @@ For running tests and extending test cases, see [Test Organization and Coverage 
 | [Object Model and Verification](ir/model.md) | `ScalarType`, `TensorType`, SSA `Value`, `Operation`, `Block`, `Region`, `Function`, `Module`, and structural verifier | `ir/types.py`, `ir/core.py` |
 | [Control Flow and Composable Transformations](ir/transforms.md) | `if`/`for`/`while` region semantics, primitive rules table (`abstract_eval` / `jvp` / `vjp`), and `jvp`/`vjp` graph transformations | `ir/primitives.py`, `ir/jvp.py`, `ir/differentiate.py` |
 | [Lowering to ASK](ir/lowering.md) | Static branch selection and bounded loop unrolling, type and operator mapping, external Triton architecture binding, and `fuga-to-ask.json` provenance | `lowering.py` |
-
-## Underlying Compilation Engine Documentation (`ask/docs/`)
-
-- [ASK Installation](../../../ask/docs/en/install.md)
-- [ASK Documentation Index](../../../ask/docs/en/README.md) · [ASK Core Concepts](../../../ask/docs/en/concepts.md)
-- [Graph Partitioning and Multi-Kernel Execution Plan](../../../ask/docs/en/partitioning.md) · [Multi-Kernel Plan JSON Contract](../../../ask/schemas/execution-plan-v1.schema.json)
-- [External Compiler Integration Specification](../../../ask/docs/en/compilers.md) · [Worker Request and Artifact Contracts](../../../ask/schemas/)
-- [ASK IR and Numerical Semantics](../../../ask/docs/en/ir.md) · [External Artifacts and Execution Interface](../../../ask/docs/en/artifacts.md)
-- [Resident Runtime and Multi-Level Caching](../../../ask/docs/en/runtime.md) · [FugaTensor Collaboration and Evolution Roadmap](../../../ask/docs/en/fugatensor.md)

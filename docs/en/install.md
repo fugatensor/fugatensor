@@ -32,7 +32,7 @@ cmake --install build/core
 /absolute/path/to/ask-sdk/bin/ask-opt --capabilities
 ```
 
-FugaTensor links against `libask_compiler.so` and `libask_runtime.so` in the SDK, and bundles `libask_openblas.so.0` used for CPU fp32 matrix multiplication. For other installation options, see [ASK Installation](../../../ask/docs/en/install.md).
+FugaTensor links against `libask_compiler.so` and `libask_runtime.so` in the SDK, and bundles `libask_openblas.so.0` used for CPU fp32 matrix multiplication.
 
 <a id="install-fuga-source"></a>
 <a id="build-fugatensor"></a>
@@ -184,4 +184,4 @@ To persist paths for `llc`, `ptxas`, or an isolated Triton interpreter, write JS
 
 For configuration precedence and field descriptions, see [ASK Bridge and Multi-Backend Execution](architecture/backend.md#bootstrap-and-config).
 
-Related notes: [ASK Installation](../../../ask/docs/en/install.md), [ASK Version Contract](../../../ask/docs/en/build.md#version-contract).
+Related notes: [Testing Matrix](testing.md), [ASK Bridge and Multi-Backend Execution](architecture/backend.md)

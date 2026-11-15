@@ -1,6 +1,6 @@
 # Fuga IR Overview
 
-Navigation: [Documentation Index](../README.md) · API Usage: [IR and Lowering API](../API/ir.md) · System Architecture: [Architecture Overview](../architecture/README.md) · Underlying Engine: [ASK IR and Numerical Semantics](../../../../ask/docs/en/ir.md)
+Navigation: [Documentation Index](../README.md) · API Usage: [IR and Lowering API](../API/ir.md) · System Architecture: [Architecture Overview](../architecture/README.md)
 
 Fuga IR (`src/fugatensor/ir/`) represents tensor programs using types, SSA values, operations, and nested regions. Pending execution graphs and isolated trace nodes of Tensors are stored in native arenas, from which these IR objects are exported upon a compilation miss or when tracing concludes, for use in analysis, differentiation, and lowering.
 
@@ -8,7 +8,7 @@ Fuga IR (`src/fugatensor/ir/`) represents tensor programs using types, SSA value
 
 ## 1. Design Responsibilities and Device Independence
 
-Fuga IR preserves three categories of information prior to lowering to the [ASK Static Computation Graph](../../../../ask/docs/en/ir.md):
+Fuga IR preserves three categories of information prior to lowering to the ASK Static Computation Graph:
 
 - Structured control flow: `fuga.if`, `fuga.for`, `fuga.while` are represented using nested `Region`s and block arguments.
 - Custom differentiation: [`ft.fun`](../architecture/autograd.md#custom-fun) is traced into `fuga.call`; the VJP stage uses primitive rules from the forward subgraph or explicit `vjp` rules, with primals and forward public outputs passed as SSA values.

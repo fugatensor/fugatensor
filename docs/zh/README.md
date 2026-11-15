@@ -1,6 +1,6 @@
 # FugaTensor 文档目录
 
-按 API、架构和 IR 查找文档。底层编译与执行见 [ASK 文档](../../../ask/docs/zh/README.md)。
+按 API、架构和 IR 查找文档。
 
 环境准备见[安装与构建](install.md)。
 
@@ -34,12 +34,3 @@
 | [对象模型与验证](ir/model.md) | `ScalarType`、`TensorType`、SSA `Value`、`Operation`、`Block`、`Region`、`Function`、`Module` 及结构化校验器 | `ir/types.py`、`ir/core.py` |
 | [控制流与可组合变换](ir/transforms.md) | `if`/`for`/`while` 区域语义、原语规则表（`abstract_eval` / `jvp` / `vjp`）及 `jvp`/`vjp` 图变换 | `ir/primitives.py`、`ir/jvp.py`、`ir/differentiate.py` |
 | [降级到 ASK](ir/lowering.md) | 静态分支选择与有界循环展开、类型与算子映射、外部 Triton 架构绑定及 `fuga-to-ask.json` 溯源 | `lowering.py` |
-
-## 底层编译引擎文档（`ask/docs/`）
-
-- [ASK 安装](../../../ask/docs/zh/install.md)
-- [ASK 文档目录](../../../ask/docs/zh/README.md) · [ASK 核心思想](../../../ask/docs/zh/concepts.md)
-- [图切分与多 Kernel 执行计划](../../../ask/docs/zh/partitioning.md) · [多 kernel 计划 JSON 契约](../../../ask/schemas/execution-plan-v1.schema.json)
-- [外部编译器适配接入规范](../../../ask/docs/zh/compilers.md) · [worker 请求与 artifact 契约](../../../ask/schemas/)
-- [ASK IR 与数值语义](../../../ask/docs/zh/ir.md) · [外部产物与执行接口](../../../ask/docs/zh/artifacts.md)
-- [常驻运行时与多级缓存](../../../ask/docs/zh/runtime.md) · [FugaTensor 协同与演进路线](../../../ask/docs/zh/fugatensor.md)

@@ -12,7 +12,7 @@
   <a href="docs/en/install.md#installation-variants"><img src="https://img.shields.io/badge/Triton-optional-8b5cf6" alt="Triton optional"></a>
 </p>
 
-FugaTensor is a tensor computing framework based on [ASK](../ask/README.md). Tensor operations are initially recorded into Fuga IR; reading results, evaluating scalar conditions, or calling `ft.evaluate` triggers JIT compilation and execution on CPU or CUDA.
+FugaTensor is a tensor computing framework based on the ASK C++ SDK. Tensor operations are initially recorded into Fuga IR; reading results, evaluating scalar conditions, or calling `ft.evaluate` triggers JIT compilation and execution on CPU or CUDA.
 
 ```python
 import fugatensor as ft
@@ -154,4 +154,4 @@ Numerical tests generate representative combinations covering operators, precisi
 
 This project is licensed under the [Apache-2.0](LICENSE) License.
 
-[Multi-Kernel Plan Contract](../ask/docs/en/partitioning.md) · [Attention API](docs/en/API/attention.md) · [Weight Format & Export](docs/en/architecture/weights.md)
+[ASK Bridge & Execution](docs/en/architecture/backend.md) · [Attention API](docs/en/API/attention.md) · [Weight Format & Export](docs/en/architecture/weights.md)

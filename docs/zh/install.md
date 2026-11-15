@@ -32,7 +32,7 @@ cmake --install build/core
 /absolute/path/to/ask-sdk/bin/ask-opt --capabilities
 ```
 
-FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。其他安装选项见 [ASK 安装](../../../ask/docs/zh/install.md)。
+FugaTensor 链接 SDK 中的 `libask_compiler.so` 和 `libask_runtime.so`，并携带 CPU f32 矩阵乘法所用的 `libask_openblas.so.0`。
 
 <a id="install-fuga-source"></a>
 <a id="build-fugatensor"></a>
@@ -184,4 +184,4 @@ Python 3.10 的宿主可通过上述配置使用独立 worker；`from_jit` 则�
 
 配置优先级与字段说明见 [ASK 桥接与多后端执行](architecture/backend.md#bootstrap-and-config)。
 
-相关说明：[ASK 安装](../../../ask/docs/zh/install.md)、[ASK 版本要求](../../../ask/docs/zh/build.md#version-contract)。
+相关说明：[测试矩阵](testing.md)、[ASK 桥接与多后端执行](architecture/backend.md)。

@@ -1,4 +1,4 @@
-返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](install.md) · 后端验证：[ASK 测试体系](../../../ask/docs/zh/testing.md)
+返回文档目录：[文档目录](README.md) · 相关接口：[API](API/README.md) · 环境准备：[安装与配置](install.md)
 
 # 测试组织与覆盖矩阵
 

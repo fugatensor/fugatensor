@@ -1,4 +1,4 @@
-Back to Documentation Index: [Documentation Index](README.md) · Related API: [API](API/README.md) · Environment Setup: [Installation and Configuration](install.md) · Backend Verification: [ASK Testing System](../../../ask/docs/en/testing.md)
+Back to Documentation Index: [Documentation Index](README.md) · Related API: [API](API/README.md) · Environment Setup: [Installation and Configuration](install.md)
 
 # Test Organization and Coverage Matrix
 
