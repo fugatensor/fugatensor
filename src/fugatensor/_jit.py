@@ -48,8 +48,20 @@ class JITFunction:
                for parameter in self._signature.parameters.values()):
             raise TypeError('tracing templates need explicit parameters')
         self._names = tuple(self._signature.parameters)
+        params = tuple(self._signature.parameters.values())
         self._positional_count = sum(parameter.kind != parameter.KEYWORD_ONLY
-                                     for parameter in self._signature.parameters.values())
+                                     for parameter in params)
+        self._required_positional = sum(
+            1 for parameter in params
+            if parameter.kind != parameter.KEYWORD_ONLY and parameter.default is inspect.Parameter.empty)
+        self._positional_defaults = tuple(
+            parameter.default for parameter in params
+            if parameter.kind != parameter.KEYWORD_ONLY)
+        self._keyword_defaults = tuple(
+            parameter.default for parameter in params
+            if parameter.kind == parameter.KEYWORD_ONLY)
+        self._has_all_kw_defaults = all(
+            value is not inspect.Parameter.empty for value in self._keyword_defaults)
         self._cache = weakref.WeakKeyDictionary()
         self._cache_enabled = cache
         self._lock = threading.RLock()
@@ -65,9 +77,14 @@ class JITFunction:
         return self._revision, getattr(function, '__code__', None), definition() if definition else None
 
     def __call__(self, *args, **kwargs):
-        bound = self._signature.bind(*args, **kwargs)
-        bound.apply_defaults()
-        return self._call(tuple(bound.arguments.values()))
+        if (not kwargs and self._has_all_kw_defaults
+                and self._required_positional <= len(args) <= self._positional_count):
+            values = args + self._positional_defaults[len(args):] + self._keyword_defaults
+        else:
+            bound = self._signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            values = tuple(bound.arguments.values())
+        return self._call(values)
 
     def _invoke(self, values):
         count = self._positional_count

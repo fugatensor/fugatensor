@@ -26,14 +26,8 @@ def defer_module(module, inputs, *, engine, dependencies=()):
     inputs = tuple(inputs)
     if not isinstance(module, Module) or len(module.functions) != 1:
         raise TypeError('deferred execution requires one Fuga function')
-    function = module.functions[0]
-    if len(function.inputs) != len(inputs):
-        raise ValueError('deferred graph input count differs from tensor bindings')
-    for spec, value in zip(function.inputs.values(), inputs):
-        engine._check_tensor(value)
-        if (spec.type.shape, spec.type.dtype) != (value.shape, value.dtype):
-            raise ValueError('deferred graph input type differs from tensor binding')
-    return _template(module).bind(inputs, engine, tuple(dependencies))
+    template = _template(module)
+    return _native.bind_template_checked(engine, Tensor, template, inputs, tuple(dependencies))
 
 
 def _source(tensor):
@@ -170,30 +164,57 @@ def _compose(roots, collected):
     return module.verify()
 
 
+_UNPATCHED_EXECUTE = None
+
+
+def _engine_unpatched_execute():
+    global _UNPATCHED_EXECUTE
+    if _UNPATCHED_EXECUTE is None:
+        from .engine import Engine
+        _UNPATCHED_EXECUTE = Engine._execute
+    return _UNPATCHED_EXECUTE
+
+
+def _run_and_publish(engine, roots, inputs, key):
+    program = engine._graph_cache.get(key)
+    if program is None:
+        module = _compose(roots, _native.describe_pending(roots))
+        fuga_text = module.to_text()
+        program = Program(engine._compile(module), fuga_text)
+        engine._graph_cache[key] = program
+        if getattr(engine, '_arena', None) is not None:
+            _native.register_cached_program(engine, key, program.executable, fuga_text)
+    else:
+        engine._stats['cache_hits'] += 1
+    outputs = engine._execute(program.executable, inputs)
+    # Publish only after the whole execution has succeeded. Histories stay
+    # attached to the original handles, independently of numerical buffers.
+    _native.publish_pending(roots, outputs)
+    executable = program.executable
+    engine.last_ir = engine.last_ask_ir = executable.source
+    engine.last_fuga_ir = program.fuga_text
+    engine.last_report, engine.last_artifact_dir = executable.report, executable.artifact_dir
+    engine.last_execution_plan = executable.execution_plan
+
+
 def materialize(engine, tensors):
     tensors = tuple(tensors)
-    for value in tensors:
-        engine._check_tensor(value)
-    roots = _native.pending_roots(tensors)
-    if roots:
-        inputs, key = _native.collect_pending(roots)
-        program = engine._graph_cache.get(key)
-        if program is None:
-            module = _compose(roots, _native.describe_pending(roots))
-            fuga_text = module.to_text()
-            program = Program(engine._compile(module), fuga_text)
-            engine._graph_cache[key] = program
-        else:
-            engine._stats['cache_hits'] += 1
-        outputs = engine._execute(program.executable, inputs)
-        # Publish only after the whole execution has succeeded. Histories stay
-        # attached to the original handles, independently of numerical buffers.
-        _native.publish_pending(roots, outputs)
-        executable = program.executable
-        engine.last_ir = engine.last_ask_ir = executable.source
-        engine.last_fuga_ir = program.fuga_text
-        engine.last_report, engine.last_artifact_dir = executable.report, executable.artifact_dir
-        engine.last_execution_plan = executable.execution_plan
+    if not tensors:
+        return tensors
+    res = (_native.materialize_cached(engine, tensors, _engine_unpatched_execute())
+           if getattr(engine, '_arena', None) is not None else False)
+    if res is None:
+        return tensors
+    if res is False:
+        for value in tensors:
+            engine._check_tensor(value)
+        roots = _native.pending_roots(tensors)
+        if roots:
+            inputs, key = _native.collect_pending(roots)
+            _run_and_publish(engine, roots, inputs, key)
+    else:
+        roots, inputs, key = res
+        _run_and_publish(engine, roots, inputs, key)
     for value in tensors:
         if value._storage is None:
             _native.publish_pending((value,), (_source(value)._storage,))

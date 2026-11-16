@@ -1,4 +1,6 @@
 #include "lazy.h"
+#include "ask_runtime.h"
+#include "cudnn_runtime.h"
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/vector.h>
 
@@ -88,6 +90,10 @@ struct TemplateInfo {
   nb::dict slices = nb::borrow<nb::dict>(nb::handle());
   nb::dict dependencies = nb::borrow<nb::dict>(nb::handle());
   std::vector<Id> outputs;
+  std::vector<Id> expectedInputs;
+  bool hasExpectedInputs = false;
+  std::vector<std::vector<Id>> neededInputsByPort;
+  std::vector<std::uint8_t> hasNeededInputs;
   Id full = 0, references = 0;
 };
 struct Binding {
@@ -112,6 +118,42 @@ struct DependencySelection {
       return mix(value.slice, reinterpret_cast<std::size_t>(value.dependencies));
     }
   };
+};
+struct CachedKey {
+  std::vector<Id> leaves;
+  std::vector<CanonicalNode> nodes;
+  std::vector<Binding> outputs;
+  Id dependencies = 0;
+  std::size_t fingerprint = 0;
+
+  bool operator==(const CachedKey &other) const {
+    return dependencies == other.dependencies && leaves == other.leaves &&
+           nodes == other.nodes && outputs == other.outputs;
+  }
+};
+struct CachedKeyHash {
+  std::size_t operator()(const CachedKey &k) const { return k.fingerprint; }
+};
+struct CachedPlan {
+  enum class Kind { AskCuda, Cudnn, CudnnComposite, PyCallable };
+  Kind kind = Kind::PyCallable;
+  std::size_t arity = 0;
+  std::vector<std::size_t> inputIndices;
+  bool identityProjection = true;
+  std::shared_ptr<ask::runtime::PreparedProgram> askProgram;
+  const ask_rt::ProgramPorts *askPorts = nullptr;
+  nb::object askPortsKeepAlive;
+  ask_rt::CUDASessionQueue *rt = nullptr;
+  nb::object sessionObj;
+  nb::object deviceTensorType;
+  std::shared_ptr<cudnn_rt::CudnnExecutable> cudnnExe;
+  std::shared_ptr<cudnn_rt::CudnnCompositeExecutable> cudnnComp;
+  nb::object pyRun;
+  nb::object source;
+  nb::object fugaText;
+  nb::object report;
+  nb::object artifactDir;
+  nb::object executionPlan;
 };
 struct ArenaOwner;
 struct ExpressionView;
@@ -140,6 +182,19 @@ class RuntimeArena : public std::enable_shared_from_this<RuntimeArena> {
   std::uint64_t epoch = 1;
   std::size_t liveValues = 0, liveExpressions = 0, liveEdges = 0;
   bool cleared = false;
+  nb::object emptyFrozen;
+  std::size_t emptyFrozenHash = 0;
+  std::unordered_map<CachedKey, CachedPlan, CachedKeyHash> programCache;
+
+  void clearProgramCache() {
+    if (!cleared) {
+      for (const auto &entry : programCache) {
+        for (const auto &node : entry.first.nodes) releaseExact(node.key);
+        releaseExact(entry.first.dependencies);
+      }
+    }
+    programCache.clear();
+  }
 
   Id exact(nb::handle key) {
     auto found = lookup(exactIds, key);
@@ -360,13 +415,24 @@ class RuntimeArena : public std::enable_shared_from_this<RuntimeArena> {
     for (const auto &value : slices) { if (int result = walk(value.owner)) return result; if (int result = walk(value.indices)) return result; }
     for (const auto *objects : {&storages, &dependencies, &exactKeys})
       for (const auto &value : *objects) if (int result = walk(value)) return result;
+    for (const auto &entry : programCache) {
+      const auto &cp = entry.second;
+      for (nb::handle obj : {nb::handle(cp.askPortsKeepAlive), nb::handle(cp.sessionObj),
+                             nb::handle(cp.deviceTensorType), nb::handle(cp.pyRun),
+                             nb::handle(cp.source), nb::handle(cp.fugaText),
+                             nb::handle(cp.report), nb::handle(cp.artifactDir),
+                             nb::handle(cp.executionPlan)}) {
+        if (int result = walk(obj)) return result;
+      }
+    }
     return 0;
   }
   void clear() {
     if (cleared) return;
+    programCache.clear();
     cleared = true;
     storages.clear();dependencies.clear();templates.clear();slices.clear();types.clear();exactKeys.clear();
-    typeIds.clear();exactIds.clear();tensorType = {};
+    typeIds.clear();exactIds.clear();tensorType = {};emptyFrozen = {};
   }
   nb::dict stats() const {
     nb::dict result;
@@ -468,8 +534,43 @@ class Collection {
  public:
   Collection(std::shared_ptr<RuntimeArena> arena, nb::object engine)
       : arena(std::move(arena)), engine(std::move(engine)) {}
+
   nb::tuple collect(nb::sequence roots, bool exposeDetails) {
     for (nb::handle root : roots) requested.push_back(arena->source(nb::cast<TensorHandle &>(root).value));
+    CachedKey ckey;
+    std::vector<nb::object> leafStorages;
+    nb::object details = runCore(exposeDetails, ckey, leafStorages);
+    if (exposeDetails) return nb::cast<nb::tuple>(details);
+    nb::tuple leafObjects = nb::cast<nb::tuple>(checked(PyTuple_New(leaves.size())));
+    for (std::size_t index = 0; index < leaves.size(); ++index) {
+      auto object = std::move(leafStorages[index]);
+      PyTuple_SET_ITEM(leafObjects.ptr(), index, object.release().ptr());
+    }
+    PlanKey key = toPlanKey(std::move(ckey), nb::borrow<nb::object>(engine.attr("_arena")), arena);
+    key.pin();
+    return nb::make_tuple(leafObjects, nb::cast(std::move(key)));
+  }
+
+  void collectFast(std::vector<Id> req, CachedKey &outKey, std::vector<nb::object> &outLeafStorages) {
+    requested = std::move(req);
+    runCore(false, outKey, outLeafStorages);
+  }
+
+  const std::vector<Id> &collectedRequested() const { return requested; }
+  const std::vector<Id> &collectedLeaves() const { return leaves; }
+
+  static PlanKey toPlanKey(CachedKey ckey, nb::object arenaObj, std::shared_ptr<RuntimeArena> arenaPtr) {
+    PlanKey key(std::move(arenaObj), std::move(arenaPtr));
+    key.leaves = std::move(ckey.leaves);
+    key.nodes = std::move(ckey.nodes);
+    key.outputs = std::move(ckey.outputs);
+    key.dependencies = ckey.dependencies;
+    key.fingerprint = ckey.fingerprint;
+    return key;
+  }
+
+ private:
+  nb::object runCore(bool exposeDetails, CachedKey &ckey, std::vector<nb::object> &leafStorages) {
     std::vector<Id> pending(requested.rbegin(), requested.rend());
     while (!pending.empty()) {
       Id value = arena->source(pending.back());pending.pop_back();
@@ -515,15 +616,23 @@ class Collection {
     if (leaves.empty()) { Id value = carrier();leafIndices.emplace(value, 0);leaves.push_back(value); }
     nb::dict definitions, projections;
     nb::list expressionObjects;
-    nb::tuple leafObjects = nb::cast<nb::tuple>(checked(PyTuple_New(leaves.size())));
     std::unordered_set<DependencySelection, DependencySelection::Hash> processedDependencies;
-    PlanKey key(nb::borrow<nb::object>(engine.attr("_arena")), arena);
+    nb::tuple detailLeafObjects;
+    if (exposeDetails) {
+      detailLeafObjects = nb::cast<nb::tuple>(checked(PyTuple_New(leaves.size())));
+    } else {
+      leafStorages.reserve(leaves.size());
+    }
+    ckey.leaves.reserve(leaves.size());
     for (std::size_t index = 0; index < leaves.size(); ++index) {
       const auto value = leaves[index];
-      auto object = exposeDetails ? arena->wrap(value, engine)
-                                 : arena->storages[arena->values[value].storage];
-      PyTuple_SET_ITEM(leafObjects.ptr(), index, object.release().ptr());
-      key.leaves.push_back(arena->values[value].type);
+      if (exposeDetails) {
+        auto object = arena->wrap(value, engine);
+        PyTuple_SET_ITEM(detailLeafObjects.ptr(), index, object.release().ptr());
+      } else {
+        leafStorages.push_back(arena->storages[arena->values[value].storage]);
+      }
+      ckey.leaves.push_back(arena->values[value].type);
     }
     for (Id id : ordered) {
       auto expression = arena->expressions[id];
@@ -551,7 +660,7 @@ class Collection {
       }
       // Python callbacks may append arena records; only retain IDs across them.
       const auto &selected = arena->slices[selectedId];
-      expressionIndices.emplace(id, Id(key.nodes.size()));
+      expressionIndices.emplace(id, Id(ckey.nodes.size()));
       CanonicalNode canonical{selected.key, {}};
       bool full = selectedId == arena->templates[expression.metadata].full;
       for (Id input : selected.inputs) {
@@ -567,20 +676,29 @@ class Collection {
         if (full) { arena->expressions[id].fingerprint = fingerprint;arena->expressions[id].epoch = arena->epoch; }
       }
       hashes.emplace(id, std::make_pair(fingerprint, full));
-      key.nodes.push_back(std::move(canonical));
+      ckey.nodes.push_back(std::move(canonical));
     }
-    nb::list dependencyItems;
-    for (auto [definition, version] : definitions) {
-      if (different(definition.attr("_definition_key")(), version)) changedDefinition();
-      dependencyItems.append(nb::make_tuple(definition, version));
+    if (!definitions.empty()) {
+      nb::list dependencyItems;
+      for (auto [definition, version] : definitions) {
+        if (different(definition.attr("_definition_key")(), version)) changedDefinition();
+        dependencyItems.append(nb::make_tuple(definition, version));
+      }
+      if (exposeDetails) return nb::make_tuple(detailLeafObjects, expressionObjects, projections);
+      auto dependencySet = checked(PyFrozenSet_New(dependencyItems.ptr()));
+      ckey.dependencies = arena->exact(dependencySet);
+      ckey.fingerprint = objectHash(dependencySet);
+    } else {
+      if (exposeDetails) return nb::make_tuple(detailLeafObjects, expressionObjects, projections);
+      if (!arena->emptyFrozen) {
+        arena->emptyFrozen = checked(PyFrozenSet_New(nullptr));
+        arena->emptyFrozenHash = objectHash(arena->emptyFrozen);
+      }
+      ckey.dependencies = arena->exact(arena->emptyFrozen);
+      ckey.fingerprint = arena->emptyFrozenHash;
     }
-    if (exposeDetails) return nb::make_tuple(leafObjects, expressionObjects, projections);
-    auto dependencySet = checked(PyFrozenSet_New(dependencyItems.ptr()));
-    key.dependencies = arena->exact(dependencySet);
-    key.fingerprint = objectHash(dependencySet);
-    for (Id root : requested) { key.outputs.push_back(binding(root));key.fingerprint = mix(key.fingerprint, valueHash(root)); }
-    key.pin();
-    return nb::make_tuple(leafObjects, nb::cast(std::move(key)));
+    for (Id root : requested) { ckey.outputs.push_back(binding(root));ckey.fingerprint = mix(ckey.fingerprint, valueHash(root)); }
+    return nb::none();
   }
  private:
   struct Selection { std::vector<Id> required;Id slice = 0; };
@@ -714,6 +832,530 @@ nb::object bindValues(nb::handle engine, nb::handle tensorType, nb::handle metad
   arena->release(id, true);
   return result;
 }
+
+namespace {
+
+inline std::uint64_t gradKeyOfNode(Id valueId, ValueNode node) {
+  if (node.origin != 0) {
+    return (std::uint64_t(1) << 63) | (std::uint64_t(node.origin) << 31) | std::uint64_t(node.port);
+  }
+  return std::uint64_t(valueId);
+}
+
+inline std::uint64_t gradKeyOfExprPort(Id exprId, Id port) {
+  return (std::uint64_t(1) << 63) | (std::uint64_t(exprId) << 31) | std::uint64_t(port);
+}
+
+inline PyObject *internCStr(const char *s) {
+  PyObject *p = PyUnicode_InternFromString(s);
+  if (!p) throw nb::python_error();
+  return p;
+}
+
+void setAttrFast(PyObject *obj, PyObject *attr, PyObject *val) {
+  if (PyObject_SetAttr(obj, attr, val) < 0) throw nb::python_error();
+}
+
+void bumpStat(PyObject *statsDict, PyObject *key) {
+  PyObject *cur = PyDict_GetItemWithError(statsDict, key);
+  if (!cur && PyErr_Occurred()) throw nb::python_error();
+  long v = cur ? PyLong_AsLong(cur) : 0;
+  if (v == -1 && PyErr_Occurred()) throw nb::python_error();
+  nb::object next = nb::steal<nb::object>(PyLong_FromLong(v + 1));
+  if (!next.ptr() || PyDict_SetItem(statsDict, key, next.ptr()) < 0) throw nb::python_error();
+}
+
+nb::object materializeCached(nb::handle engine, nb::handle tensorsObj, nb::handle unpatchedExecute) {
+  static PyObject *kExecute = internCStr("_execute");
+  static PyObject *kDict = internCStr("__dict__");
+  PyObject *tpDict = Py_TYPE(engine.ptr())->tp_dict;
+  if (!tpDict) return nb::bool_(false);
+  PyObject *clsExec = PyDict_GetItemWithError(tpDict, kExecute);
+  if (!clsExec && PyErr_Occurred()) throw nb::python_error();
+  if (clsExec != unpatchedExecute.ptr()) return nb::bool_(false);
+  nb::object instDictObj = nb::steal<nb::object>(PyObject_GetAttr(engine.ptr(), kDict));
+  if (!instDictObj.ptr()) {
+    PyErr_Clear();
+    return nb::bool_(false);
+  }
+  if (PyDict_Check(instDictObj.ptr())) {
+    PyObject *instExec = PyDict_GetItemWithError(instDictObj.ptr(), kExecute);
+    if (instExec) return nb::bool_(false);
+    if (PyErr_Occurred()) throw nb::python_error();
+  }
+
+  auto arena = arenaOf(engine);
+  static PyTypeObject *thType = []() -> PyTypeObject * {
+    auto t = nb::type<TensorHandle>();
+    return t.is_valid() ? reinterpret_cast<PyTypeObject *>(t.ptr()) : nullptr;
+  }();
+  nb::tuple tensors = nb::cast<nb::tuple>(tensorsObj);
+  const std::size_t nTensors = tensors.size();
+  std::vector<TensorHandle *> handles;
+  handles.reserve(nTensors);
+  std::vector<Id> requested;
+  std::unordered_set<Id> seenRoots;
+
+  for (std::size_t i = 0; i < nTensors; ++i) {
+    PyObject *ptr = tensors[i].ptr();
+    if (!thType || !PyObject_TypeCheck(ptr, thType)) return nb::bool_(false);
+    auto *th = nb::inst_ptr<TensorHandle>(ptr);
+    if (th->arena != arena) return nb::bool_(false);
+    handles.push_back(th);
+    Id src = arena->source(th->value);
+    if (!arena->values[src].storage && seenRoots.insert(src).second) {
+      requested.push_back(src);
+    }
+  }
+
+  if (!requested.empty()) {
+    Collection collector(arena, nb::borrow<nb::object>(engine));
+    CachedKey lookupKey;
+    std::vector<nb::object> leafStorages;
+    collector.collectFast(requested, lookupKey, leafStorages);
+
+    auto it = arena->programCache.find(lookupKey);
+    if (it == arena->programCache.end()) {
+      const auto &req = collector.collectedRequested();
+      nb::tuple rootsTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(req.size())));
+      if (!rootsTuple.ptr()) throw nb::python_error();
+      for (std::size_t i = 0; i < req.size(); ++i) {
+        PyTuple_SET_ITEM(rootsTuple.ptr(), static_cast<Py_ssize_t>(i),
+                         arena->wrap(req[i], engine).release().ptr());
+      }
+      nb::tuple leafTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(leafStorages.size())));
+      if (!leafTuple.ptr()) throw nb::python_error();
+      for (std::size_t i = 0; i < leafStorages.size(); ++i) {
+        PyTuple_SET_ITEM(leafTuple.ptr(), static_cast<Py_ssize_t>(i),
+                         leafStorages[i].release().ptr());
+      }
+      PlanKey pyKey = Collection::toPlanKey(std::move(lookupKey),
+                                            nb::borrow<nb::object>(engine.attr("_arena")), arena);
+      pyKey.pin();
+      return nb::make_tuple(rootsTuple, leafTuple, nb::cast(std::move(pyKey)));
+    }
+
+    const CachedPlan &cached = it->second;
+    if (leafStorages.size() != cached.arity)
+      throw std::invalid_argument("input count differs from the original Fuga graph");
+
+    std::vector<nb::object> outputsVec;
+    if (cached.kind == CachedPlan::Kind::AskCuda) {
+      outputsVec = cached.askPorts->runProjected(
+          *cached.askProgram, cached.sessionObj, cached.rt,
+          leafStorages, cached.inputIndices, cached.identityProjection,
+          cached.deviceTensorType);
+    } else {
+      const std::size_t projCount = cached.identityProjection ? leafStorages.size() : cached.inputIndices.size();
+      nb::tuple projTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(projCount)));
+      if (!projTuple.ptr()) throw nb::python_error();
+      for (std::size_t i = 0; i < projCount; ++i) {
+        nb::handle h = leafStorages[cached.identityProjection ? i : cached.inputIndices[i]];
+        Py_INCREF(h.ptr());
+        PyTuple_SET_ITEM(projTuple.ptr(), static_cast<Py_ssize_t>(i), h.ptr());
+      }
+      nb::object resObj;
+      if (cached.kind == CachedPlan::Kind::Cudnn) {
+        resObj = cached.cudnnExe->run(projTuple);
+      } else if (cached.kind == CachedPlan::Kind::CudnnComposite) {
+        resObj = cached.cudnnComp->run(projTuple);
+      } else {
+        resObj = cached.pyRun(projTuple);
+      }
+      for (nb::handle item : resObj) outputsVec.push_back(nb::borrow<nb::object>(item));
+    }
+
+    if (outputsVec.size() != requested.size())
+      throw std::runtime_error("ASK returned an unexpected number of graph results");
+    for (std::size_t i = 0; i < requested.size(); ++i) {
+      arena->publish(requested[i], outputsVec[i]);
+    }
+
+    static PyObject *kStats = internCStr("_stats");
+    static PyObject *kCacheHits = internCStr("cache_hits");
+    static PyObject *kExecutions = internCStr("executions");
+    static PyObject *kLastIr = internCStr("last_ir");
+    static PyObject *kLastAskIr = internCStr("last_ask_ir");
+    static PyObject *kLastFugaIr = internCStr("last_fuga_ir");
+    static PyObject *kLastReport = internCStr("last_report");
+    static PyObject *kLastArtifactDir = internCStr("last_artifact_dir");
+    static PyObject *kLastExecutionPlan = internCStr("last_execution_plan");
+
+    nb::object statsDict = nb::steal<nb::object>(PyObject_GetAttr(engine.ptr(), kStats));
+    if (!statsDict.ptr()) throw nb::python_error();
+    bumpStat(statsDict.ptr(), kCacheHits);
+    bumpStat(statsDict.ptr(), kExecutions);
+
+    setAttrFast(engine.ptr(), kLastIr, cached.source.ptr());
+    setAttrFast(engine.ptr(), kLastAskIr, cached.source.ptr());
+    setAttrFast(engine.ptr(), kLastFugaIr, cached.fugaText.ptr());
+    setAttrFast(engine.ptr(), kLastReport, cached.report.ptr());
+    setAttrFast(engine.ptr(), kLastArtifactDir, cached.artifactDir.ptr());
+    setAttrFast(engine.ptr(), kLastExecutionPlan, cached.executionPlan.ptr());
+  }
+
+  for (TensorHandle *th : handles) {
+    if (!arena->values[th->value].storage) {
+      Id src = arena->source(th->value);
+      Id stSlot = arena->values[src].storage;
+      if (stSlot) arena->publish(th->value, arena->storages[stSlot]);
+    }
+  }
+  return nb::none();
+}
+
+void registerCachedProgram(nb::handle engine, nb::handle keyObj,
+                           nb::handle executableObj, nb::object fugaTextObj) {
+  auto arena = arenaOf(engine);
+  const auto &pyKey = nb::cast<const PlanKey &>(keyObj);
+  CachedKey ckey;
+  ckey.leaves = pyKey.leaves;
+  ckey.nodes = pyKey.nodes;
+  ckey.outputs = pyKey.outputs;
+  ckey.dependencies = pyKey.dependencies;
+  ckey.fingerprint = pyKey.fingerprint;
+
+  CachedPlan entry;
+  entry.fugaText = std::move(fugaTextObj);
+  entry.source = nb::borrow<nb::object>(executableObj.attr("source"));
+  entry.report = nb::borrow<nb::object>(executableObj.attr("report"));
+  entry.artifactDir = nb::borrow<nb::object>(executableObj.attr("artifact_dir"));
+  entry.executionPlan = nb::borrow<nb::object>(executableObj.attr("execution_plan"));
+
+  nb::object inner = nb::borrow<nb::object>(executableObj);
+  if (PyObject_HasAttrString(executableObj.ptr(), "indices") &&
+      PyObject_HasAttrString(executableObj.ptr(), "arity") &&
+      PyObject_HasAttrString(executableObj.ptr(), "executable")) {
+    entry.inputIndices = nb::cast<std::vector<std::size_t>>(executableObj.attr("indices"));
+    entry.arity = nb::cast<std::size_t>(executableObj.attr("arity"));
+    entry.identityProjection = (entry.inputIndices.size() == entry.arity);
+    if (entry.identityProjection) {
+      for (std::size_t i = 0; i < entry.arity; ++i) {
+        if (entry.inputIndices[i] != i) {
+          entry.identityProjection = false;
+          break;
+        }
+      }
+    }
+    inner = nb::borrow<nb::object>(executableObj.attr("executable"));
+  } else {
+    entry.arity = ckey.leaves.size();
+    entry.identityProjection = true;
+  }
+
+  std::shared_ptr<cudnn_rt::CudnnExecutable> cudnnExePtr;
+  std::shared_ptr<cudnn_rt::CudnnCompositeExecutable> cudnnCompPtr;
+  if (nb::try_cast<std::shared_ptr<cudnn_rt::CudnnExecutable>>(inner, cudnnExePtr) && cudnnExePtr) {
+    entry.kind = CachedPlan::Kind::Cudnn;
+    entry.cudnnExe = std::move(cudnnExePtr);
+  } else if (nb::try_cast<std::shared_ptr<cudnn_rt::CudnnCompositeExecutable>>(inner, cudnnCompPtr) &&
+             cudnnCompPtr) {
+    entry.kind = CachedPlan::Kind::CudnnComposite;
+    entry.cudnnComp = std::move(cudnnCompPtr);
+  } else if (PyObject_HasAttrString(inner.ptr(), "prepared")) {
+    nb::object prepared = inner.attr("prepared");
+    nb::object nativeObj = prepared.attr("_native");
+    nb::object portsObj = prepared.attr("_ports");
+    nb::object sessionObj = prepared.attr("_session");
+    nb::object tensorTypeObj = prepared.attr("_tensor_type");
+    std::shared_ptr<ask::runtime::PreparedProgram> askProgPtr;
+    const ask_rt::ProgramPorts *portsPtr = nullptr;
+    ask_rt::CUDASessionQueue *rt = ask_rt::extractSessionQueue(sessionObj);
+    if (rt != nullptr &&
+        nb::try_cast<std::shared_ptr<ask::runtime::PreparedProgram>>(nativeObj, askProgPtr) &&
+        nb::try_cast<const ask_rt::ProgramPorts *>(portsObj, portsPtr) &&
+        askProgPtr && portsPtr) {
+      entry.kind = CachedPlan::Kind::AskCuda;
+      entry.askProgram = std::move(askProgPtr);
+      entry.askPorts = portsPtr;
+      entry.askPortsKeepAlive = std::move(portsObj);
+      entry.rt = rt;
+      entry.sessionObj = std::move(sessionObj);
+      entry.deviceTensorType = std::move(tensorTypeObj);
+    } else {
+      entry.kind = CachedPlan::Kind::PyCallable;
+      entry.pyRun = nb::borrow<nb::object>(executableObj.attr("run"));
+    }
+  } else {
+    entry.kind = CachedPlan::Kind::PyCallable;
+    entry.pyRun = nb::borrow<nb::object>(executableObj.attr("run"));
+  }
+
+  for (const auto &node : ckey.nodes) arena->retainExact(node.key);
+  arena->retainExact(ckey.dependencies);
+  auto [it, inserted] = arena->programCache.emplace(std::move(ckey), std::move(entry));
+  if (!inserted) {
+    for (const auto &node : it->first.nodes) arena->releaseExact(node.key);
+    arena->releaseExact(it->first.dependencies);
+    it->second = std::move(entry);
+  }
+}
+
+void clearProgramCache(nb::handle engine) {
+  arenaOf(engine)->clearProgramCache();
+}
+
+const std::vector<Id> &neededInputsCached(RuntimeArena &arena,
+                                          Id exprId,
+                                          Id port,
+                                          nb::handle neededInputsFn) {
+  Id metaId = arena.expressions[exprId].metadata;
+  auto &meta = arena.templates[metaId];
+  if (port >= meta.hasNeededInputs.size() || !meta.hasNeededInputs[port]) {
+    nb::object moduleObj = nb::borrow<nb::object>(meta.owner.attr("module"));
+    nb::sequence deps = nb::cast<nb::sequence>(neededInputsFn(moduleObj, port));
+    std::vector<Id> indices;
+    indices.reserve(nb::len(deps));
+    for (nb::handle h : deps) indices.push_back(nb::cast<Id>(h));
+    // Re-index after Python callback!
+    auto &metaAfter = arena.templates[metaId];
+    if (metaAfter.hasNeededInputs.size() <= port) {
+      metaAfter.hasNeededInputs.resize(port + 1, 0);
+      metaAfter.neededInputsByPort.resize(port + 1);
+    }
+    metaAfter.neededInputsByPort[port] = std::move(indices);
+    metaAfter.hasNeededInputs[port] = 1;
+  }
+  return arena.templates[metaId].neededInputsByPort[port];
+}
+
+nb::tuple activeAutogradGraph(nb::handle engine,
+                              nb::sequence outputsSeq,
+                              nb::sequence inputsSeq,
+                              nb::handle neededInputsFn) {
+  auto arena = arenaOf(engine);
+  std::vector<Id> outputVals, inputVals;
+  outputVals.reserve(nb::len(outputsSeq));
+  inputVals.reserve(nb::len(inputsSeq));
+  for (nb::handle h : outputsSeq) outputVals.push_back(nb::cast<TensorHandle &>(h).value);
+  for (nb::handle h : inputsSeq) inputVals.push_back(nb::cast<TensorHandle &>(h).value);
+
+  std::unordered_set<std::uint64_t> targets;
+  targets.reserve(inputVals.size());
+  for (Id vid : inputVals) targets.insert(gradKeyOfNode(vid, arena->values[vid]));
+
+  // Pass 1: reachability from outputs to targets + cycle detection.
+  struct ReachFrame { Id valId; bool finish; };
+  std::vector<ReachFrame> reachStack;
+  reachStack.reserve(outputVals.size() * 2);
+  for (auto it = outputVals.rbegin(); it != outputVals.rend(); ++it) {
+    reachStack.push_back({*it, false});
+  }
+  std::unordered_map<std::uint64_t, std::uint8_t> active;
+  std::unordered_set<std::uint64_t> visiting;
+  while (!reachStack.empty()) {
+    auto frame = reachStack.back();
+    reachStack.pop_back();
+    ValueNode node = arena->values[frame.valId];
+    std::uint64_t key = gradKeyOfNode(frame.valId, node);
+    if (active.find(key) != active.end()) continue;
+    if (node.origin == 0) {
+      if (frame.finish) {
+        visiting.erase(key);
+        active.emplace(key, targets.count(key) ? 1 : 0);
+      } else {
+        if (visiting.count(key)) throw std::runtime_error("Tensor expressions contain a cycle");
+        visiting.insert(key);
+        reachStack.push_back({frame.valId, true});
+      }
+      continue;
+    }
+    const auto &needed = neededInputsCached(*arena, node.origin, node.port, neededInputsFn);
+    Id edgeBase = arena->expressions[node.origin].edge;
+    if (frame.finish) {
+      visiting.erase(key);
+      bool isAct = targets.count(key) > 0;
+      if (!isAct) {
+        for (Id idx : needed) {
+          Id pVal = arena->edges[edgeBase + idx];
+          std::uint64_t pKey = gradKeyOfNode(pVal, arena->values[pVal]);
+          if (active[pKey]) {
+            isAct = true;
+            break;
+          }
+        }
+      }
+      active.emplace(key, isAct ? 1 : 0);
+      continue;
+    }
+    if (visiting.count(key)) throw std::runtime_error("Tensor expressions contain a cycle");
+    visiting.insert(key);
+    reachStack.push_back({frame.valId, true});
+    for (auto it = needed.rbegin(); it != needed.rend(); ++it) {
+      reachStack.push_back({arena->edges[edgeBase + *it], false});
+    }
+  }
+
+  // Pass 2: collect active output ports & input edges per expression.
+  struct ExprSel {
+    std::vector<Id> ports;
+    std::vector<Id> edges;
+  };
+  std::unordered_map<Id, ExprSel> exprSels;
+  std::unordered_set<std::uint64_t> reached;
+  std::vector<Id> walkStack(outputVals.begin(), outputVals.end());
+  while (!walkStack.empty()) {
+    Id valId = walkStack.back();
+    walkStack.pop_back();
+    ValueNode node = arena->values[valId];
+    std::uint64_t key = gradKeyOfNode(valId, node);
+    if (!reached.insert(key).second || !active[key] || node.origin == 0) continue;
+
+    Id exprId = node.origin;
+    const auto &needed = neededInputsCached(*arena, exprId, node.port, neededInputsFn);
+    Id edgeBase = arena->expressions[exprId].edge;
+    std::vector<Id> selected;
+    for (Id idx : needed) {
+      Id pVal = arena->edges[edgeBase + idx];
+      std::uint64_t pKey = gradKeyOfNode(pVal, arena->values[pVal]);
+      if (active[pKey]) selected.push_back(idx);
+    }
+    if (selected.empty()) continue;
+
+    auto &sel = exprSels[exprId];
+    auto pPos = std::lower_bound(sel.ports.begin(), sel.ports.end(), node.port);
+    if (pPos == sel.ports.end() || *pPos != node.port) sel.ports.insert(pPos, node.port);
+    for (Id idx : selected) {
+      auto ePos = std::lower_bound(sel.edges.begin(), sel.edges.end(), idx);
+      if (ePos == sel.edges.end() || *ePos != idx) sel.edges.insert(ePos, idx);
+      walkStack.push_back(arena->edges[edgeBase + idx]);
+    }
+  }
+
+  // Pass 3: topological post-order sort of active expressions.
+  std::unordered_set<Id> completeExpr, visitingExpr;
+  std::vector<Id> topoExprs;
+  topoExprs.reserve(exprSels.size());
+  struct ExprFrame { Id exprId; bool finish; };
+  std::vector<ExprFrame> exprStack;
+  exprStack.reserve(exprSels.size() * 2);
+  for (const auto &kv : exprSels) exprStack.push_back({kv.first, false});
+  while (!exprStack.empty()) {
+    auto ef = exprStack.back();
+    exprStack.pop_back();
+    if (completeExpr.count(ef.exprId)) continue;
+    if (ef.finish) {
+      visitingExpr.erase(ef.exprId);
+      completeExpr.insert(ef.exprId);
+      topoExprs.push_back(ef.exprId);
+      continue;
+    }
+    if (visitingExpr.count(ef.exprId)) throw std::runtime_error("Tensor expressions contain a cycle");
+    visitingExpr.insert(ef.exprId);
+    exprStack.push_back({ef.exprId, true});
+    const auto &edgesVec = exprSels.at(ef.exprId).edges;
+    Id edgeBase = arena->expressions[ef.exprId].edge;
+    for (auto it = edgesVec.rbegin(); it != edgesVec.rend(); ++it) {
+      Id inVal = arena->edges[edgeBase + *it];
+      Id srcExpr = arena->values[inVal].origin;
+      if (srcExpr != 0 && exprSels.count(srcExpr)) {
+        exprStack.push_back({srcExpr, false});
+      }
+    }
+  }
+
+  nb::list exprRecords;
+  for (auto it = topoExprs.rbegin(); it != topoExprs.rend(); ++it) {
+    Id exprId = *it;
+    const auto expr = arena->expressions[exprId];
+    const auto &sel = exprSels.at(exprId);
+    const auto &meta = arena->templates[expr.metadata];
+
+    nb::tuple portsTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(sel.ports.size())));
+    nb::tuple outKeysTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(sel.ports.size())));
+    for (std::size_t i = 0; i < sel.ports.size(); ++i) {
+      PyTuple_SET_ITEM(portsTuple.ptr(), static_cast<Py_ssize_t>(i),
+                       PyLong_FromUnsignedLong(sel.ports[i]));
+      PyTuple_SET_ITEM(outKeysTuple.ptr(), static_cast<Py_ssize_t>(i),
+                       PyLong_FromUnsignedLongLong(gradKeyOfExprPort(exprId, sel.ports[i])));
+    }
+
+    nb::tuple edgesTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(sel.edges.size())));
+    nb::tuple inKeysTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(sel.edges.size())));
+    for (std::size_t i = 0; i < sel.edges.size(); ++i) {
+      Id edgeIdx = sel.edges[i];
+      Id inVal = arena->edges[expr.edge + edgeIdx];
+      PyTuple_SET_ITEM(edgesTuple.ptr(), static_cast<Py_ssize_t>(i),
+                       PyLong_FromUnsignedLong(edgeIdx));
+      PyTuple_SET_ITEM(inKeysTuple.ptr(), static_cast<Py_ssize_t>(i),
+                       PyLong_FromUnsignedLongLong(gradKeyOfNode(inVal, arena->values[inVal])));
+    }
+
+    nb::tuple inputsTuple = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(expr.count)));
+    for (Id i = 0; i < expr.count; ++i) {
+      PyTuple_SET_ITEM(inputsTuple.ptr(), static_cast<Py_ssize_t>(i),
+                       arena->wrap(arena->edges[expr.edge + i], engine).release().ptr());
+    }
+
+    exprRecords.append(nb::make_tuple(
+        meta.owner,
+        arena->dependencies[expr.dependencies],
+        portsTuple,
+        edgesTuple,
+        inputsTuple,
+        outKeysTuple,
+        inKeysTuple));
+  }
+
+  nb::tuple outGradKeys = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(outputVals.size())));
+  for (std::size_t i = 0; i < outputVals.size(); ++i) {
+    Id vid = outputVals[i];
+    PyTuple_SET_ITEM(outGradKeys.ptr(), static_cast<Py_ssize_t>(i),
+                     PyLong_FromUnsignedLongLong(gradKeyOfNode(vid, arena->values[vid])));
+  }
+  nb::tuple inGradKeys = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(inputVals.size())));
+  for (std::size_t i = 0; i < inputVals.size(); ++i) {
+    Id vid = inputVals[i];
+    PyTuple_SET_ITEM(inGradKeys.ptr(), static_cast<Py_ssize_t>(i),
+                     PyLong_FromUnsignedLongLong(gradKeyOfNode(vid, arena->values[vid])));
+  }
+
+  return nb::make_tuple(exprRecords, outGradKeys, inGradKeys);
+}
+
+nb::tuple bindTemplateChecked(nb::handle engine,
+                              nb::handle tensorType,
+                              nb::handle templateObj,
+                              nb::tuple inputs,
+                              nb::tuple dependencies) {
+  auto arena = arenaOf(engine);
+  const Id metaId = arena->metadata(templateObj);
+  if (!arena->templates[metaId].hasExpectedInputs) {
+    nb::object vals = templateObj.attr("module").attr("functions")[0].attr("inputs").attr("values")();
+    std::vector<Id> expected;
+    for (nb::handle spec : vals) {
+      auto t = spec.attr("type");
+      expected.push_back(arena->type(t.attr("shape"), t.attr("dtype")));
+    }
+    auto &metaAfter = arena->templates[metaId];
+    metaAfter.expectedInputs = std::move(expected);
+    metaAfter.hasExpectedInputs = true;
+  }
+  const auto &expected = arena->templates[metaId].expectedInputs;
+  if (inputs.size() != expected.size())
+    throw nb::value_error("deferred graph input count differs from tensor bindings");
+
+  std::vector<Id> valueIds;
+  valueIds.reserve(expected.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    nb::handle item = inputs[i];
+    if (!nb::isinstance<TensorHandle>(item)) {
+      engine.attr("_check_tensor")(item);
+      throw nb::value_error("deferred tensor belongs to a different FugaTensor Engine");
+    }
+    auto &th = nb::cast<TensorHandle &>(item);
+    if (th.arena != arena) {
+      engine.attr("_check_tensor")(item);
+      throw nb::value_error("deferred tensor belongs to a different FugaTensor Engine");
+    }
+    if (th.typeId() != expected[i])
+      throw nb::value_error("deferred graph input type differs from tensor binding");
+    valueIds.push_back(th.value);
+  }
+  return nb::cast<nb::tuple>(bindValues(engine, tensorType, templateObj, valueIds, dependencies, true));
+}
+
+} // namespace
 } // namespace fuga::lazy
 
 void bindLazy(nb::module_ &module) {
@@ -805,4 +1447,9 @@ void bindLazy(nb::module_ &module) {
     auto &root = nb::cast<TensorHandle &>(roots[0]);
     return Collection(root.arena, root.engine).collect(roots, true);
   });
+  module.def("materialize_cached", &materializeCached);
+  module.def("register_cached_program", &registerCachedProgram);
+  module.def("clear_program_cache", &clearProgramCache);
+  module.def("active_autograd_graph", &activeAutogradGraph);
+  module.def("bind_template_checked", &bindTemplateChecked);
 }

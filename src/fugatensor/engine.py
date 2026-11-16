@@ -158,8 +158,7 @@ class Engine:
         self._closed = False
         self._lock = threading.RLock()
         self._graph_cache = {}
-        self._cudnn_handle = None
-        self._cudnn_plan_cache = {}
+        self._cudnn_state = None
         self._arena = _native.RuntimeArena()
         self._jit_functions = weakref.WeakSet()
         self._tokens = contextvars.ContextVar(f'fugatensor_context_{id(self)}', default=())
@@ -260,21 +259,24 @@ class Engine:
         with self._lock:
             self._check_open()
             self._graph_cache.clear()
-            self._cudnn_plan_cache.clear()
+            _native.clear_program_cache(self)
+            if self._cudnn_state is not None:
+                self._cudnn_state.clear_cache()
             self.last_ir = self.last_ask_ir = self.last_fuga_ir = None
             self.last_report = self.last_artifact_dir = None
             self.last_execution_plan = None
 
-    def _get_cudnn_handle(self):
+    def _get_cudnn_state(self):
         with self._lock:
             self._check_open()
             if self._ordinal is None:
                 raise ValueError('cuDNN operations require a CUDA Engine')
-            if self._cudnn_handle is None:
-                import cudnn
-                self._cudnn_handle = cudnn.create_handle()
-                cudnn.set_stream(self._cudnn_handle, self.session.stream)
-            return self._cudnn_handle
+            if self._cudnn_state is None:
+                rt = getattr(self.session, '_rt', None)
+                if rt is None:
+                    raise RuntimeError('native CUDA session queue is unavailable')
+                self._cudnn_state = _native.CudnnSessionState(rt)
+            return self._cudnn_state
 
     def _compile(self, fuga_module):
         with self._lock:
@@ -381,20 +383,19 @@ class Engine:
         with self._lock:
             if self._closed:
                 return
-            if self._cudnn_handle is not None:
+            if self._cudnn_state is not None:
                 try:
-                    import cudnn
-                    cudnn.destroy_handle(self._cudnn_handle)
+                    self._cudnn_state.close()
                 except Exception:
                     pass
-                self._cudnn_handle = None
-            self._cudnn_plan_cache.clear()
+                self._cudnn_state = None
             if self._session is not None:
                 self._session.close()
             self._closed = True
             functions = tuple(self._jit_functions)
             self._jit_functions.clear()
             self._graph_cache.clear()
+            _native.clear_program_cache(self)
             self.last_execution_plan = None
         for function in functions:
             function._drop_engine(self)

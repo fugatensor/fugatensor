@@ -11,6 +11,7 @@ namespace nb = nanobind;
 using namespace nb::literals;
 void bindCompiler(nb::module_ &module);
 void bindAskRuntime(nb::module_ &module);
+void bindCudnnRuntime(nb::module_ &module);
 void bindLazy(nb::module_ &module);
 void bindTrace(nb::module_ &module);
 void bindPrimitive(nb::module_ &module);
@@ -91,6 +92,7 @@ NB_MODULE(_native, module) {
   module.doc() = "Fuga's SSA analysis and thin ASK native execution bridge";
   bindCompiler(module);
   bindAskRuntime(module);
+  bindCudnnRuntime(module);
   bindLazy(module);
   bindTrace(module);
   bindPrimitive(module);

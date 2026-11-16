@@ -15,8 +15,8 @@ find_package(nanobind 3.1.0 EXACT CONFIG REQUIRED PATHS "${FUGA_NANOBIND_CMAKE_D
 find_package(ASK 0.1.0 EXACT CONFIG REQUIRED COMPONENTS Compiler Runtime)
 nanobind_add_module(_native NB_STATIC cpp/bindings.cpp cpp/graph.cpp cpp/lazy.cpp
   cpp/trace.cpp cpp/primitive.cpp
-  cpp/compiler.cpp cpp/ask_runtime.cpp)
-target_link_libraries(_native PRIVATE ASK::Compiler ASK::Runtime)
+  cpp/compiler.cpp cpp/ask_runtime.cpp cpp/cudnn_runtime.cpp)
+target_link_libraries(_native PRIVATE ASK::Compiler ASK::Runtime ${CMAKE_DL_LIBS})
 set_target_properties(_native PROPERTIES INSTALL_RPATH "$ORIGIN/_lib")
 foreach(component Compiler Runtime)
   install(FILES $<TARGET_FILE:ASK::${component}> DESTINATION fugatensor/_lib

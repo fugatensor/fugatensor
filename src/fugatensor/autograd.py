@@ -17,6 +17,7 @@ _cache_lock = threading.RLock()
 @dataclass(frozen=True)
 class _Plan:
     derivative: object
+    template: object
     dependencies: tuple
 
 
@@ -55,12 +56,11 @@ def _validate_definitions(module):
             _validate_definitions(project_outputs(spec.forward, selected))
 
 
-def _plan(expression, output_indices, input_indices, engine):
-    from ._lazy import _template
-    template = _template(expression.module)
+def _plan_from_template(template, expression_dependencies, output_indices, input_indices, engine):
+    module = template.module
     has_defs = bool(template.definitions)
     if has_defs:
-        source_dependencies = template.live_dependencies(template.project(output_indices), expression.dependencies)
+        source_dependencies = template.live_dependencies(template.project(output_indices), expression_dependencies)
         if any(definition._definition_key() != version for definition, version in source_dependencies):
             raise ValueError("function definition changed after tracing; retrace the forward call")
     else:
@@ -68,10 +68,11 @@ def _plan(expression, output_indices, input_indices, engine):
     key = input_indices, output_indices
     with _cache_lock:
         by_module = _cache.setdefault(engine, weakref.WeakKeyDictionary())
-        plans = by_module.setdefault(expression.module, {})
+        plans = by_module.setdefault(module, {})
         plan = plans.get(key)
         if plan is None:
-            projected = project_outputs(expression.module, output_indices)
+            from ._lazy import _template
+            projected = project_outputs(module, output_indices)
             if has_defs:
                 _validate_definitions(projected)
             from .tracing import TraceContext
@@ -81,7 +82,8 @@ def _plan(expression, output_indices, input_indices, engine):
                 derivative = vjp(projected, argnums=input_indices)
             finally:
                 active_trace.reset(token)
-            plan = _Plan(derivative, (*source_dependencies, *context.dependencies.items()))
+            plan = _Plan(derivative, _template(derivative),
+                         (*source_dependencies, *context.dependencies.items()))
             plans[key] = plan
         if has_defs or plan.dependencies:
             # A derivative can prune all calls; validate its captured definitions too.
@@ -90,6 +92,12 @@ def _plan(expression, output_indices, input_indices, engine):
             if any(definition._definition_key() != version for definition, version in plan.dependencies):
                 raise ValueError("custom VJP definition changed after tracing; retrace the forward call")
         return plan
+
+
+def _plan(expression, output_indices, input_indices, engine):
+    from ._lazy import _template
+    return _plan_from_template(_template(expression.module), expression.dependencies,
+                               output_indices, input_indices, engine)
 
 
 def _key(tensor):
@@ -210,29 +218,24 @@ def grad(outputs, inputs, *, seed=None):
         if value.dtype not in FLOAT_DTYPES:
             raise TypeError("grad outputs and inputs must have floating dtype")
     seeds = _seeds(outputs, seed, single_output, engine)
-    expressions, ports, edges = _active_graph(outputs, inputs)
-    plans = {expression: _plan(expression, tuple(sorted(ports[expression])),
-                                tuple(sorted(edges[expression])), engine)
-             for expression in expressions}
-    from ._lazy import Result, defer_module
+    from . import _native
     from .ops import add, zeros_like
+    from .tensor import Tensor
+
+    records, out_keys, in_keys = _native.active_autograd_graph(engine, outputs, inputs, _needed_inputs)
+    plans = [_plan_from_template(template, deps, ports, edges, engine)
+             for template, deps, ports, edges, _, _, _ in records]
     adjoints = {}
 
-    def contribute(key, value):
+    for key, value in zip(out_keys, seeds):
         adjoints[key] = add(adjoints[key], value) if key in adjoints else value
-
-    for output, value in zip(outputs, seeds):
-        contribute(_key(output), value)
-    for expression in reversed(expressions):
-        plan = plans[expression]
-        bindings = (*expression.inputs,
-                    *(adjoints[Result(expression, index)] for index in sorted(ports[expression])))
-        gradients = defer_module(plan.derivative, bindings, engine=engine,
-                                 dependencies=plan.dependencies)
-        for index, value in zip(sorted(edges[expression]), gradients):
-            contribute(_key(expression.inputs[index]), value)
-    result = tuple(adjoints[_key(value)] if _key(value) in adjoints else zeros_like(value)
-                   for value in inputs)
+    for (_, _, _, _, expr_inputs, res_keys, edge_keys), plan in zip(records, plans):
+        bindings = (*expr_inputs, *(adjoints[key] for key in res_keys))
+        gradients = _native.bind_template_checked(engine, Tensor, plan.template, bindings, plan.dependencies)
+        for key, value in zip(edge_keys, gradients):
+            adjoints[key] = add(adjoints[key], value) if key in adjoints else value
+    result = tuple(adjoints[key] if key in adjoints else zeros_like(value)
+                   for key, value in zip(in_keys, inputs))
     return result[0] if single_input else result
 
 

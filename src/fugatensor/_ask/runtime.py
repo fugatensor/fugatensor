@@ -24,6 +24,13 @@ _CAI_TYPES = {"|b1": "bool", "<i4": "i32", "<i8": "i64", "<f4": "f32", "<f2": "f
 _TYPESTR = {dtype: typestr for typestr, dtype in _CAI_TYPES.items()}
 _DESCRIPTOR_STREAM = object()
 
+try:
+    from .. import _native as _rt_native
+    _DeviceTensorBase = _rt_native.NativeDeviceTensor
+except ImportError:
+    _rt_native = None
+    _DeviceTensorBase = object
+
 
 def _require(condition, message):
     if not condition:
@@ -117,7 +124,7 @@ def _decode(data, dtype):
     return [decode_float(data[index:index+width], dtype) for index in range(0, len(data), width)]
 
 
-class DeviceTensor:
+class DeviceTensor(_DeviceTensorBase):
     """Contiguous storage plus shape/dtype; construction goes through a session.
 
     The native allocation keeps its context alive. A tensor cannot submit/copy
@@ -126,36 +133,46 @@ class DeviceTensor:
     """
     def __init__(self, session, buffer, shape, dtype, *, owner=None, snapshot=None,
                  producer_stream=_DESCRIPTOR_STREAM):
-        self._session_ref = weakref.ref(session)
-        self._buffer = buffer
-        self._shape, self._dtype = shape, dtype
-        self._owner, self._snapshot = owner, snapshot
-        self._producer_stream = producer_stream
+        weak_ref = getattr(session, "_weakref", None)
+        if weak_ref is None:
+            weak_ref = weakref.ref(session)
+        if _DeviceTensorBase is not object:
+            rt = getattr(session, "_rt", None)
+            session_ptr = rt.session_ptr if rt is not None else id(session)
+            super().__init__(buffer, tuple(shape), str(dtype), owner is not None,
+                             session_ptr, weak_ref, owner, snapshot, producer_stream)
+        else:
+            self._session_ref = weak_ref
+            self._buffer = buffer
+            self._shape, self._dtype = shape, dtype
+            self._owner, self._snapshot = owner, snapshot
+            self._producer_stream = producer_stream
 
     def _session(self):
         session = self._session_ref()
         _require(session is not None and not session.closed, "device tensor's execution session is closed")
         return session
 
-    @property
-    def shape(self):
-        return self._shape
+    if _DeviceTensorBase is object:
+        @property
+        def shape(self):
+            return self._shape
 
-    @property
-    def dtype(self):
-        return self._dtype
+        @property
+        def dtype(self):
+            return self._dtype
 
-    @property
-    def nbytes(self):
-        return self._buffer.nbytes
+        @property
+        def nbytes(self):
+            return self._buffer.nbytes
 
-    @property
-    def data_ptr(self):
-        return self._buffer.data_ptr
+        @property
+        def data_ptr(self):
+            return self._buffer.data_ptr
 
-    @property
-    def readonly(self):
-        return self._buffer.readonly
+        @property
+        def readonly(self):
+            return self._buffer.readonly
 
     @property
     def __cuda_array_interface__(self):
@@ -266,6 +283,11 @@ class ExecutionSession:
         self._lock = threading.RLock()
         self._pending = []
         self._native = _native.CUDASession.create(device)
+        self._weakref = weakref.ref(self)
+        if hasattr(_native, "CUDASessionQueue") and isinstance(self._native, _native.CUDASession):
+            self._rt = _native.CUDASessionQueue(self._native, self._weakref, _DESCRIPTOR_STREAM)
+        else:
+            self._rt = None
 
     @property
     def closed(self):
@@ -296,6 +318,9 @@ class ExecutionSession:
         shape, dtype = _shape_dtype(shape, dtype)
         self._native.check_types([dtype])
         buffer = self._native.allocate(math.prod(shape) * _WIDTH[dtype])
+        rt = getattr(self, "_rt", None)
+        if rt is not None:
+            return rt.make_tensor(DeviceTensor, buffer, list(shape), dtype)
         return DeviceTensor(self, buffer, shape, dtype)
 
     @_serialized
@@ -384,8 +409,14 @@ class ExecutionSession:
     def reap(self):
         # A native event holds native resources; its Python peer additionally
         # owns external framework tensors. Drop both only after GPU completion.
-        self._pending[:] = [event for event in self._pending if not event.query()]
-        self._native.reap()
+        rt = getattr(self, "_rt", None)
+        if rt is not None:
+            rt.reap()
+        pending = getattr(self, "_pending", None)
+        if pending:
+            pending[:] = [event for event in pending if not event.query()]
+        if rt is None:
+            self._native.reap()
 
     @_serialized
     def synchronize(self):
@@ -400,6 +431,9 @@ class ExecutionSession:
             self._native.close()
             # A failed close keeps owners retained for an explicit retry. After
             # success the owned stream is complete, even if callers kept Events.
+            rt = getattr(self, "_rt", None)
+            if rt is not None:
+                rt.clear_pending()
             for event in self._pending:
                 event._references = ()
             self._pending.clear()
