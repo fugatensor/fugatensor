@@ -15,19 +15,20 @@ Fuga IR 是独立于后端的纯静态 SSA 中间表示。图构建、图变换�
 | `ft.ir.ScalarType(dtype)` | 标量类型。dtype 接收 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`。 |
 | `ft.ir.TensorType(shape, dtype)` | 张量类型。`shape` 为维度 tuple，允许 `None` 占位，静态降级时须为确定尺寸。 |
 | `ft.ir.Type` | `ScalarType | TensorType` 的类型别名。 |
-| `ft.ir.DTYPES`、`ft.ir.FLOAT_DTYPES` | IR 支持的数据类型编码 tuple（内部使用 `"i32"`、`"f32"` 等统一编码）与浮点可微编码集合。 |
+| `ft.ir.DTYPES`、`ft.ir.FLOAT_DTYPES`、`ft.ir.INT_DTYPES` | IR 支持的数据类型编码 tuple（内部归一化为 `"i32"`、`"f32"` 等）、浮点可微编码集合以及有符号整数编码集合（`("i32", "i64")`）。 |
 | `ft.ir.Module()` | 创建空的 Fuga IR 模块容器。 |
 | `module.graph(name, *, inputs, results=None)` | 在模块内创建并返回 `Function` 构建器。`inputs` 为有序 dict（变量名 $\to$ `ft.ir.Type`），`results` 可选指定返回值类型列表。 |
 | `graph.inputs[name]` | 获取命名输入 SSA `Value`。 |
 | `graph.constant(value, *, dtype=..., id=None)` | 构造标量常量 SSA 值。 |
 | `graph.splat(value, shape, *, id=None)` | 将标量广播为指定 shape 的张量 SSA 值。 |
-| `graph.add(a, b)` / `sub` / `mul` / `div` | 基础逐元素二元运算，支持同形状/类型的 SSA 值。 |
-| `graph.exp(x)` / `log` / `sqrt` | 初等数学函数。 |
+| `graph.iota(shape, dimension, *, dtype='f32', id=None)` | 生成数值张量沿 `dimension` 轴的坐标索引。 |
+| `graph.add` / `sub` / `mul` / `div` / `floordiv` / `mod` / `pow` / `maximum` / `minimum` | 逐元素二元算术与极值操作。 |
+| `graph.exp` / `log` / `sqrt` / `sin` / `cos` / `tanh` / `erf` / `abs` / `floor` / `ceil` / `round` | 初等数学与取整 SSA 操作。 |
+| `graph.bitwise_not` / `bitwise_and` / `bitwise_or` / `bitwise_xor` / `shift_left` / `shift_right` | 整数/布尔按位运算与位移操作。 |
 | `graph.cast(value, *, dtype, id=None)` | 显式类型转换。 |
-| `graph.reshape(value, shape, *, id=None)` | 改变张量形状，元素总数和次序保持不变。 |
-| `graph.transpose(value, permutation, *, id=None)` | 张量维度置换。 |
-| `graph.broadcast_in_dim(x, shape, dimensions)` | 显式维度对齐与广播扩展。 |
-| `graph.reduce_sum(x, axes)` / `reduce_max` | 沿指定轴归约。全归约生成 `ScalarType`。 |
+| `graph.reshape` / `transpose` / `broadcast_in_dim` / `slice` / `pad` / `concatenate` | 布局重排、切片、填充与变长拼接原语。 |
+| `graph.gather(params, indices, axis)` / `scatter_add(base, indices, updates, axis)` | 沿 `axis` 聚集查找与原子散布累加原语。 |
+| `graph.reduce_sum` / `reduce_max` / `reduce_min` / `reduce_prod` / `reduce_any` / `reduce_all` / `argmax` / `argmin` | 归约与极值位置查找；全标量归约产生 `ScalarType`。 |
 | `graph.matmul(a, b, transpose_a=False, transpose_b=False)` | 二维及以上矩阵乘法。 |
 | `graph.stop_gradient(value, *, id=None)` | 截断梯度流动标记；降级到 ASK 时直接映射为前向输入。 |
 | `graph.return_(*values)` | 终止函数构建并指定返回值 SSA 列表。 |

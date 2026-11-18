@@ -264,7 +264,8 @@ class Graph:
         return values[0] if len(values) == 1 else values
 
     def primitive(self, opcode, operands, result_type, attrs, *, id=None, value_id=None):
-        arrays = {'shape', 'dimensions', 'permutation', 'axes'}
+        arrays = {'shape', 'dimensions', 'permutation', 'axes', 'starts', 'stops', 'steps',
+                  'pad_low', 'pad_high', 'interior'}
         attributes = {name: _array_i64(value) if name in arrays else _attribute(value)
                       for name, value in attrs.items()}
         return self._emit('ask.' + opcode, operands, result_type, attributes, id=id, value_id=value_id)

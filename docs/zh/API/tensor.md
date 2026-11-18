@@ -78,13 +78,36 @@ f = ft.full((2, 2), 3.14)
 print(f.tolist())  # [[3.14, 3.14], [3.14, 3.14]]
 ```
 
-### `ft.zeros_like(x)` / `ft.ones_like(x)`
-创建与输入张量 `x` 形状、精度和设备一致的全零或全一张量。
+### `ft.zeros_like(x)` / `ft.ones_like(x)` / `ft.full_like(x, fill_value, *, dtype=None, device=None)`
+创建与输入张量 `x` 形状（及默认精度、设备）一致的全零、全一或指定常数填充张量。`full_like` 同样支持在 `ft.fun` 追踪体内使用。
 
 ```python
 x = ft.tensor([1, 2, 3], dtype=ft.int32)
 z = ft.zeros_like(x)
-print(z.tolist(), z.dtype)  # [0, 0, 0] int32
+f = ft.full_like(x, 7)
+print(z.tolist(), f.tolist())  # [0, 0, 0] [7, 7, 7]
+```
+
+<a id="range-factories"></a>
+
+## 坐标、序列与对角工厂
+
+零输入创建算子通过 ASK `iota` 图直接在目标设备生成数据，同样可在自定义追踪函数内组合使用，无需先回传主机：
+
+| 函数 | 说明 |
+| --- | --- |
+| `ft.arange(start, stop=None, step=1, *, dtype=None, device=None)` | 一维半开等差序列；起止与步长全为整数时默认 `ft.int64`，否则默认 `ft.fp32`。 |
+| `ft.linspace(start, stop, steps, *, dtype=ft.fp32, device=None)` | 在 `[start, stop]` 上均匀采样 `steps` 个元素；`steps > 1` 时严格锚定端点。 |
+| `ft.eye(n, m=None, *, dtype=ft.fp32, device=None)` | 主对角线为 `1`、其余元素为 `0` 的 `(n, m)` 二维矩阵。 |
+| `ft.iota(shape, *, dimension=0, dtype=ft.fp32, device=None)` | 按指定 `shape` 生成沿 `dimension` 维递增坐标 `0, 1, ...` 的数值张量。 |
+
+```python
+import fugatensor as ft
+
+print(ft.arange(0, 8, 2).tolist())              # [0, 2, 4, 6]
+print(ft.linspace(-1.0, 1.0, 3).tolist())       # [-1.0, 0.0, 1.0]
+print(ft.eye(2, 3, dtype=ft.int32).tolist())    # [[1, 0, 0], [0, 1, 0]]
+print(ft.iota((2, 3), dimension=1).tolist())    # [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]
 ```
 
 <a id="interop"></a>

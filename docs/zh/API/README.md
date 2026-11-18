@@ -29,10 +29,11 @@ print("Result:", y.tolist())  # [4.0, 6.0, 8.0]
 
 | 模块 | 说明 | 核心接口 |
 | --- | --- | --- |
-| [张量创建与数据交换](tensor.md) | 张量构建、尺寸工厂、类型系统与内存互操作 | `tensor`, `zeros`, `ones`, `empty`, `full`, `from_buffer`, `reshape`, `astype` |
-| [基础算术与代数运算](ops.md) | 逐元素运算、逻辑比较、几何变换、归约与矩阵乘法 | `add`, `multiply`, `where`, `transpose`, `sum`, `mean`, `amax`, `matmul` |
+| [张量创建与数据交换](tensor.md) | 张量构建、坐标/对角工厂、类型系统与内存互操作 | `tensor`, `zeros`, `ones`, `empty`, `full`, `full_like`, `arange`, `linspace`, `eye`, `iota`, `from_buffer`, `reshape`, `astype` |
+| [基础算术与代数运算](ops.md) | 逐元素数学、逻辑/位运算、切片/填充/拼接、聚集/散布累加、归约与矩阵乘法 | `add`, `sin`, `where`, `slice`, `pad`, `cat`, `gather`, `scatter_add`, `sum`, `amax`, `amin`, `prod`, `argmax`, `matmul` |
 | [自动微分与自定义算子](autograd.md) | 函数式求导、梯度路径阻断与显式 VJP 算子 | `grad`, `stop_gradient`, `detach`, `fun` |
 | [设备管理与执行调度](engine.md) | 设备切换、默认设备配置、流同步与引擎生命周期 | `device`, `set_default_device`, `evaluate`, `synchronize`, `Engine` |
+| [神经网络算子](nn.md) | 常用激活函数、归一化、词嵌入查找与交叉熵损失 | `nn.functional.relu`, `gelu`, `softmax`, `layer_norm`, `rms_norm`, `embedding`, `cross_entropy` |
 | [注意力算子](attention.md) | 高性能内置注意力算子、因果掩码与变长注意力 | `nn.functional.scaled_dot_product_attention`, `nn.functional.scaled_dot_product_attention_varlen` |
 | [Triton 算子接入](triton.md) | 外部 Triton 自定义 Kernel 绑定与配置回调 | `triton.kernel`, `triton.from_source`, `triton.from_jit` |
 | [权重持久化](weights.md) | 模型参数 PyTree 序列化与内容寻址校验 | `save_weights`, `load_weights`, `weights.manifest` |

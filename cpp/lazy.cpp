@@ -613,7 +613,10 @@ class Collection {
           stack.push_back({arena->edges[expression.edge + *input], 0});
       }
     }
-    if (leaves.empty()) { Id value = carrier();leafIndices.emplace(value, 0);leaves.push_back(value); }
+    if (leaves.empty()) {
+      Id value = carrier();
+      if (value) { leafIndices.emplace(value, 0);leaves.push_back(value); }
+    }
     nb::dict definitions, projections;
     nb::list expressionObjects;
     std::unordered_set<DependencySelection, DependencySelection::Hash> processedDependencies;
@@ -732,7 +735,7 @@ class Collection {
         for (Id index = expression.count; index; --index) pending.push_back(arena->edges[expression.edge + index - 1]);
       }
     }
-    if (!fallback) throw nb::value_error("a constant-only deferred graph needs a materialized input carrier");
+    if (!fallback) return 0;
     return fallback;
   }
 };

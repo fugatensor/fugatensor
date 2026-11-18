@@ -49,7 +49,7 @@
 
 - **构建指令**：
   - 两个项目分别构建：先安装 ASK 0.1.0 的 C++ SDK，再用它构建 FugaTensor；ASK 不发布 Python 包，FugaTensor wheel 自带配套 ASK 共享库。
-  - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展使用 `ASK::Compiler` / `ASK::Runtime` 的公开接口，不读取 ASK 源码，也不需要 LLVM SDK。
+  - FugaTensor 构建：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip wheel --no-deps . --wheel-dir dist`。原生扩展仅链接 `ASK::Compiler` / `ASK::Runtime` 的公开接口（常规修改不推荐读取 ASK 源码），构建时不读取 ASK 源码，也不需要 LLVM SDK。
   - 开发安装：`CMAKE_PREFIX_PATH=/path/to/ask-sdk python3 -m pip install -e '.[pure]'`，使用 Triton 时改为 `'.[all]'`，随后执行 `python3 -m pip check`。安装详情见 [`docs/zh/install.md`](docs/zh/install.md) 与 [`docs/en/install.md`](docs/en/install.md)。
   - 包要求 Python 3.10+；CPU JIT 运行还需 `cc` 链接器，CUDA 另需显式配置 `llc` / `ptxas` 与驱动。
 - **测试组织**：

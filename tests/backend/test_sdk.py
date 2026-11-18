@@ -331,7 +331,13 @@ class TestNativeCompilerAndBinding:
 
         if os.environ.get("ASK_OPT"):
             cli = Compiler(os.environ["ASK_OPT"])
-            assert (native.capabilities()) == (cli.capabilities())
+            native_caps, cli_caps = native.capabilities(), cli.capabilities()
+            assert ({k: v for k, v in native_caps.items() if k != "host_link_libraries"}
+                    == {k: v for k, v in cli_caps.items() if k != "host_link_libraries"})
+            assert set(native_caps["host_link_libraries"]) == set(cli_caps["host_link_libraries"])
+            for lib_name, lib_path in native_caps["host_link_libraries"].items():
+                assert Path(lib_path).is_file()
+                assert Path(lib_path).name == Path(cli_caps["host_link_libraries"][lib_name]).name
             assert (native.prepare(mixed_f16_module())) == (cli.prepare(mixed_f16_module()))
 
         from fugatensor._ask import _native

@@ -15,19 +15,20 @@ Fuga IR is a backend-independent, purely static SSA intermediate representation.
 | `ft.ir.ScalarType(dtype)` | Scalar type. `dtype` accepts `ft.bool`, `ft.int32`, `ft.int64`, `ft.fp32`, `ft.fp16`, `ft.bf16`. |
 | `ft.ir.TensorType(shape, dtype)` | Tensor type. `shape` is a tuple of dimensions; `None` is permitted as a placeholder, but static lowering requires concrete dimensions. |
 | `ft.ir.Type` | Type alias for `ScalarType | TensorType`. |
-| `ft.ir.DTYPES`, `ft.ir.FLOAT_DTYPES` | Tuple of supported IR data type encodings (internally normalized to `"i32"`, `"f32"`, etc.) and set of differentiable floating-point encodings. |
+| `ft.ir.DTYPES`, `ft.ir.FLOAT_DTYPES`, `ft.ir.INT_DTYPES` | Tuple of supported IR data type encodings (normalized to `"i32"`, `"f32"`, etc.), differentiable float encodings, and signed integer encodings (`("i32", "i64")`). |
 | `ft.ir.Module()` | Creates an empty Fuga IR module container. |
 | `module.graph(name, *, inputs, results=None)` | Creates and returns a `Function` builder within the module. `inputs` is an ordered dict (variable name $\to$ `ft.ir.Type`); `results` optionally specifies the list of return types. |
 | `graph.inputs[name]` | Retrieves the named input SSA `Value`. |
 | `graph.constant(value, *, dtype=..., id=None)` | Constructs a scalar constant SSA value. |
 | `graph.splat(value, shape, *, id=None)` | Broadcasts a scalar into a tensor SSA value of the given shape. |
-| `graph.add(a, b)` / `sub` / `mul` / `div` | Basic element-wise binary operations for SSA values of matching shape and type. |
-| `graph.exp(x)` / `log` / `sqrt` | Elementary mathematical functions. |
+| `graph.iota(shape, dimension, *, dtype='f32', id=None)` | Generates coordinate indices along `dimension` for numeric tensors. |
+| `graph.add(a, b)` / `sub` / `mul` / `div` / `floordiv` / `mod` / `pow` / `maximum` / `minimum` | Element-wise binary arithmetic and extremum ops. |
+| `graph.exp` / `log` / `sqrt` / `sin` / `cos` / `tanh` / `erf` / `abs` / `floor` / `ceil` / `round` | Elementary math and rounding SSA operations. |
+| `graph.bitwise_not` / `bitwise_and` / `bitwise_or` / `bitwise_xor` / `shift_left` / `shift_right` | Integer/bool bitwise and shift operations. |
 | `graph.cast(value, *, dtype, id=None)` | Explicit type casting. |
-| `graph.reshape(value, shape, *, id=None)` | Reshapes a tensor while preserving the total number of elements and their ordering. |
-| `graph.transpose(value, permutation, *, id=None)` | Permutes tensor dimensions. |
-| `graph.broadcast_in_dim(x, shape, dimensions)` | Explicit dimension alignment and broadcast expansion. |
-| `graph.reduce_sum(x, axes)` / `reduce_max` | Reduces along specified axes. Full reduction produces a `ScalarType`. |
+| `graph.reshape` / `transpose` / `broadcast_in_dim` / `slice` / `pad` / `concatenate` | Layout, slicing, padding, and variadic concatenation primitives. |
+| `graph.gather(params, indices, axis)` / `scatter_add(base, indices, updates, axis)` | Indexed lookup and atomic scatter accumulation primitives along `axis`. |
+| `graph.reduce_sum` / `reduce_max` / `reduce_min` / `reduce_prod` / `reduce_any` / `reduce_all` / `argmax` / `argmin` | Reductions and arg-extrema; full scalar reductions yield `ScalarType`. |
 | `graph.matmul(a, b, transpose_a=False, transpose_b=False)` | Matrix multiplication for 2D and higher dimensions. |
 | `graph.stop_gradient(value, *, id=None)` | Truncates gradient propagation; maps directly to the forward input during lowering to ASK. |
 | `graph.return_(*values)` | Terminates function construction and specifies the list of return SSA values. |

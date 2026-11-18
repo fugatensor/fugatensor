@@ -11,7 +11,7 @@ For environment setup, see [Installation and Build](install.md).
 - [Tensor and Data Exchange](API/tensor.md) · [Basic Operations](API/ops.md)
 - [Device and Execution](API/engine.md) · [Automatic Differentiation and Custom Functions](API/autograd.md)
 - [Triton Operator Integration](API/triton.md) · [Weight Reading and Writing](API/weights.md)
-- [IR and Lowering](API/ir.md) · [attention](API/attention.md)
+- [IR and Lowering](API/ir.md) · [Neural Network Ops](API/nn.md) · [Attention Operators](API/attention.md)
 
 For running tests and extending test cases, see [Test Organization and Coverage Matrix](testing.md).
 

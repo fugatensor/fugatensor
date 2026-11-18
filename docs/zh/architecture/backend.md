@@ -75,7 +75,9 @@ ASK 在 MLIR 中切分图，融合自有区域，将外部节点和矩阵乘法�
 
 `required_element_types` 记录端口存储类型。Triton 和 `ptxas` 检查内部指令的架构要求，ASK 检查产物与实际设备是否兼容。
 
-张量端口与标量在 `PreparedCUDAProgram` 构建时转换为原生 `PlanStep`。cubin/PTX 载入时提交完整的 `parameter_types`，ASK 用驱动报告的参数布局核对类型宽度。准备完成后，Python 每次只传入输入输出缓冲区，原生计划负责地址绑定和启动。参数 schema、产物摘要与文件内容在准备阶段校验。
+张量端口、标量以及可选的步骤 `pre_copy` 元数据（取自 `ask.scatter_add` 输出的 `cuda_lowering.pre_copy`）在 `PreparedCUDAKernel` 与 `PreparedCUDAProgram` 构建时转换为原生 `PlanStep`。cubin/PTX 载入时提交完整的 `parameter_types`，ASK 用驱动报告的参数布局核对类型宽度。准备完成后，Python 每次只传入输入输出缓冲区，原生计划负责基底缓冲预拷贝、地址绑定与启动。参数 schema、产物摘要与文件内容在准备阶段校验。
+
+针对 `ft.arange`、`ft.iota`、`ft.eye`、`ft.linspace` 等零输入 Fuga 图，`cpp/lazy.cpp` 保留空载体绑定（`carrier == 0`），计算完全在目标设备侧完成。
 
 多输入、多输出、配置回调、按值标量和 constexpr 的写法见 [Triton 接入](../API/triton.md#registration-arguments)。每个外部节点保留独立启动步骤；物理输出由 kernel 契约确定，前端只消费部分结果时仍分配全部物理输出。
 

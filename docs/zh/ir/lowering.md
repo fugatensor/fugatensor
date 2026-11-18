@@ -34,7 +34,8 @@ API：[IR 与降级](../API/ir.md)
 | `fuga.constant` | `graph.constant(value, dtype=...)` | 按单步 RNE 规则编码浮点常量。 |
 | `fuga.splat` | `graph.splat(scalar, shape)` | 将标量填充为指定形状张量，包括 0-D 张量。 |
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | 要求形状、类型相同。 |
-| `div`、`exp/log/sqrt`、`compare/select`、`broadcast_in_dim/transpose`、`reduce_sum/reduce_max`、`matmul` | 同名 `ask` 操作 | 从统一原语类型规则取得结果类型，桥接层保留静态属性。 |
+| `div`、`exp/log/sqrt`、`sin/cos/tanh/erf`、`abs/floor/ceil/round`、`pow/floordiv/mod/maximum/minimum`、`bitwise_*/shift_*`、`compare/select`、`broadcast_in_dim/transpose`、`slice/pad/concatenate/gather/scatter_add`、`reduce_sum/max/min/prod/any/all`、`argmax/argmin`、`matmul` | 同名 `ask` 操作 | 从统一原语类型规则取得结果类型，桥接层保留静态属性。 |
+| `fuga.iota` | `ask.iota`（保留 `dimension`） | 将目标形状与 dtype 直接编码到 ASK 结果 `TensorType` 中，移除 `shape`/`dtype` 属性。 |
 | `fuga.cast` | `graph.cast(operand, dtype=...)` | 生成 `ask.cast`，保留原标量或张量形状。 |
 | `fuga.reshape` | `graph.reshape(operand, shape)` | 生成 `ask.reshape` 和目标 `shape`；保留 dtype、元素数和连续元素次序。 |
 | `fuga.stop_gradient` | 输入的 ASK 值 | 微分边界在 Fuga IR 阶段处理；数值降级直接复用输入映射，保持原值。 |

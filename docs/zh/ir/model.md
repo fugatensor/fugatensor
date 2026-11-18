@@ -30,15 +30,21 @@ Module (functions)
 
 | 类别 | 操作名 | 语义与属性 / 区域 |
 | --- | --- | --- |
-| **常量与广播** | `constant` | 无操作数，产生 `ScalarType` 值，`attrs["value"]` 已按声明精度舍入；浮点文本打印使用十六进制 `float.hex()` 保持精确值。 |
+| **常量与坐标工厂** | `constant` | 无操作数，产生 `ScalarType` 值，`attrs["value"]` 已按声明精度舍入；浮点文本打印使用十六进制 `float.hex()` 保持精确值。 |
 | | `splat` | 将标量操作数填充到 `attrs["shape"]` 指定的张量形状。 |
-| **基础逐元素** | `add`、`mul` | 接收两个类型完全一致且非 `bool` 的标量或张量，产生同类型结果。 |
-| | `div`、`exp`、`log`、`sqrt` | 浮点逐元素运算，输入和结果保持相同类型。 |
+| | `iota` | 无操作数；生成具有 `attrs["shape"]` / `attrs["dtype"]`、沿 `attrs["dimension"]` 填充坐标下标的数值张量。 |
+| **基础逐元素与位运算** | `add`、`mul`、`pow`、`floordiv`、`mod` | 接收同形状、同数值类型的标量或张量；`pow` / `floordiv` / `mod` 同时接受整数和浮点类型。 |
+| | `div`、`exp`、`log`、`sqrt`、`sin`、`cos`、`tanh`、`erf`、`floor`、`ceil`、`round` | 浮点逐元素运算，输入与结果保持相同类型和形状。 |
+| | `abs`、`maximum`、`minimum` | `abs` 接受数值操作数；`maximum`/`minimum` 支持全部六种类型。 |
+| | `bitwise_not`、`bitwise_and`、`bitwise_or`、`bitwise_xor`、`shift_left`、`shift_right` | `bool`/`i32`/`i64` 按位逻辑运算与 `i32`/`i64` 上的确定性位移。 |
 | | `compare`、`select` | 比较由 `predicate` 指定，返回同形状 bool；选择的条件为 bool、两个值类型相同。 |
 | | `cast` | 转换为结果声明的 `dtype`，保留原标量或张量形状。 |
-| **形状变换** | `reshape` | 一个张量输入，`attrs["shape"]` 给出具体目标形状；保持 dtype、元素总数和连续元素次序，支持 0-D 与空张量。 |
+| **形状、切片与索引** | `reshape` | 一个张量输入，`attrs["shape"]` 给出具体目标形状；保持 dtype、元素总数和连续元素次序，支持 0-D 与空张量。 |
 | | `broadcast_in_dim`、`transpose` | 广播保存 `shape/dimensions`，转置保存 `permutation`。 |
-| **归约** | `reduce_sum`、`reduce_max` | `axes` 为递增且唯一的轴；全归约产生 ScalarType，部分归约产生 TensorType。rank > 0 且 axes 为空时保持 TensorType。 |
+| | `slice`、`pad`、`concatenate` | `slice` 保存 `starts/stops/steps`；`pad` 接收 `(value, pad_value)`（标量或 0-D 张量）与 `pad_low/pad_high/interior`；`concatenate` 沿 `axis` 拼接 >= 1 个同类型操作数。 |
+| | `gather`、`scatter_add` | `gather` 沿 `axis` 用 `indices` 读取 `params`；`scatter_add` 由 `base` 初始化并沿 `axis` 在 `indices` 处累加 `updates`。 |
+| **归约** | `reduce_sum`、`reduce_max`、`reduce_min`、`reduce_prod`、`reduce_any`、`reduce_all` | `axes` 为递增且唯一的轴（`reduce_max/min` 要求非空域；`any/all` 接收 `bool`；全归约产生 `ScalarType`）。 |
+| | `argmax`、`argmin` | 沿非空单 `axis` 归约出 `i64` 首次极值索引（一维输入产生 `ScalarType`）。 |
 | **矩阵乘法** | `matmul` | 同批维度矩阵乘法，`transpose_a/b` 控制末两维转置；fp32 累加。 |
 | **微分边界** | `stop_gradient` | 一个标量或张量输入，前向原样返回数值、类型和形状；JVP 切线与 VJP 余切停止传播，数值降级时直接映射输入值。 |
 | **函数与外部算子** | `call` | `attrs["spec"]` 保存 `CallSpec` 及前向子图（如 [`ft.fun`](../architecture/autograd.md#custom-fun)），结果为公开前向输出，求导规则接收输入原值、前向输出与余切。 |

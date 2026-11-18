@@ -179,6 +179,63 @@ class Tensor(_native.TensorHandle):
     def __rtruediv__(self, other):
         return _ops.divide(other, self)
 
+    def __floordiv__(self, other):
+        return _ops.floordiv(self, other)
+
+    def __rfloordiv__(self, other):
+        return _ops.floordiv(other, self)
+
+    def __mod__(self, other):
+        return _ops.mod(self, other)
+
+    def __rmod__(self, other):
+        return _ops.mod(other, self)
+
+    def __pow__(self, other):
+        return _ops.pow(self, other)
+
+    def __rpow__(self, other):
+        return _ops.pow(other, self)
+
+    def __abs__(self):
+        return _ops.abs(self)
+
+    def __and__(self, other):
+        return _ops.bitwise_and(self, other)
+
+    def __rand__(self, other):
+        return _ops.bitwise_and(other, self)
+
+    def __or__(self, other):
+        return _ops.bitwise_or(self, other)
+
+    def __ror__(self, other):
+        return _ops.bitwise_or(other, self)
+
+    def __xor__(self, other):
+        return _ops.bitwise_xor(self, other)
+
+    def __rxor__(self, other):
+        return _ops.bitwise_xor(other, self)
+
+    def __invert__(self):
+        return _ops.bitwise_not(self)
+
+    def __lshift__(self, other):
+        return _ops.shift_left(self, other)
+
+    def __rlshift__(self, other):
+        return _ops.shift_left(other, self)
+
+    def __rshift__(self, other):
+        return _ops.shift_right(self, other)
+
+    def __rrshift__(self, other):
+        return _ops.shift_right(other, self)
+
+    def __getitem__(self, key):
+        return _ops.getitem(self, key)
+
     def __matmul__(self, other):
         return _ops.matmul(self, other)
 
@@ -209,11 +266,61 @@ class Tensor(_native.TensorHandle):
     def amax(self, axis=None, *, keepdims=False):
         return _ops.amax(self, axis, keepdims=keepdims)
 
+    def amin(self, axis=None, *, keepdims=False):
+        return _ops.amin(self, axis, keepdims=keepdims)
+
+    def prod(self, axis=None, *, keepdims=False, dtype=None):
+        return _ops.prod(self, axis, keepdims=keepdims, dtype=dtype)
+
+    def any(self, axis=None, *, keepdims=False):
+        return _ops.any(self, axis, keepdims=keepdims)
+
+    def all(self, axis=None, *, keepdims=False):
+        return _ops.all(self, axis, keepdims=keepdims)
+
+    def argmax(self, axis=None, *, keepdims=False):
+        return _ops.argmax(self, axis, keepdims=keepdims)
+
+    def argmin(self, axis=None, *, keepdims=False):
+        return _ops.argmin(self, axis, keepdims=keepdims)
+
     def mean(self, axis=None, *, keepdims=False, dtype=None):
         return _ops.mean(self, axis, keepdims=keepdims, dtype=dtype)
 
+    def abs(self):
+        return _ops.abs(self)
+
+    def clamp(self, min=None, max=None):
+        return _ops.clamp(self, min=min, max=max)
+
+    def clip(self, min=None, max=None):
+        return _ops.clamp(self, min=min, max=max)
+
+    def squeeze(self, axis=None):
+        return _ops.squeeze(self, axis)
+
+    def unsqueeze(self, axis):
+        return _ops.unsqueeze(self, axis)
+
+    def flatten(self, start_dim=0, end_dim=-1):
+        return _ops.flatten(self, start_dim, end_dim)
+
+    def split(self, split_size_or_sections, axis=0):
+        return _ops.split(self, split_size_or_sections, axis=axis)
+
+    def chunk(self, chunks, axis=0):
+        return _ops.chunk(self, chunks, axis=axis)
+
     def transpose(self, permutation=None):
         return _ops.transpose(self, permutation)
+
+    @property
+    def ndim(self) -> int:
+        return len(self.shape)
+
+    @property
+    def numel(self) -> int:
+        return math.prod(self.shape)
 
     @property
     def T(self):

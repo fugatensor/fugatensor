@@ -1,4 +1,4 @@
-Back to API Index: [Categories](README.md#categories) · Related Modules: [Basic Operations](ops.md) · [Autograd](autograd.md)
+Back to API Index: [Categories](README.md#categories) · Related Modules: [Neural Network Ops](nn.md) · [Basic Operations](ops.md) · [Autograd](autograd.md)
 
 # Attention Operators
 

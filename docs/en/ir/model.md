@@ -30,15 +30,21 @@ List of currently supported `Operation.opcode`:
 
 | Category | Opcode | Semantics and Attributes / Regions |
 | --- | --- | --- |
-| **Constants & Broadcasting** | `constant` | No operands, produces a `ScalarType` value, `attrs["value"]` rounded to declared precision; floating-point text printing uses `float.hex()` to maintain exact precision. |
+| **Constants & Coordinate Factories** | `constant` | No operands, produces a `ScalarType` value, `attrs["value"]` rounded to declared precision; floating-point text printing uses `float.hex()` to maintain exact precision. |
 | | `splat` | Splats a scalar operand to the tensor shape specified by `attrs["shape"]`. |
-| **Basic Elementwise** | `add`, `mul` | Accepts two scalar or tensor operands of strictly identical types other than `bool`, producing a result of identical type. |
-| | `div`, `exp`, `log`, `sqrt` | Floating-point elementwise operations, inputs and results preserve identical types. |
+| | `iota` | No operands; produces a numeric tensor of `attrs["shape"]` / `attrs["dtype"]` holding coordinates along `attrs["dimension"]`. |
+| **Basic Elementwise & Bitwise** | `add`, `mul`, `pow`, `floordiv`, `mod` | Binary arithmetic on matching numeric scalar/tensor operands; `pow`/`floordiv`/`mod` accept integer and floating-point types. |
+| | `div`, `exp`, `log`, `sqrt`, `sin`, `cos`, `tanh`, `erf`, `floor`, `ceil`, `round` | Floating-point elementwise operations preserving type and shape. |
+| | `abs`, `maximum`, `minimum` | `abs` accepts numeric operands; `maximum`/`minimum` accept all six types. |
+| | `bitwise_not`, `bitwise_and`, `bitwise_or`, `bitwise_xor`, `shift_left`, `shift_right` | Bitwise logic on `bool`/`i32`/`i64`, and deterministic bit shifts on `i32`/`i64`. |
 | | `compare`, `select` | Comparison specified by `predicate`, returning `bool` of matching shape; `select` condition is `bool`, both value operands share identical type. |
 | | `cast` | Casts to `dtype` declared in result, preserving original scalar or tensor shape. |
-| **Shape Transformations** | `reshape` | One tensor input, `attrs["shape"]` provides concrete target shape; preserves dtype, total element count, and contiguous element order, supporting 0-D and empty tensors. |
+| **Shape, Slicing & Indexing** | `reshape` | One tensor input, `attrs["shape"]` provides concrete target shape; preserves dtype, total element count, and contiguous element order, supporting 0-D and empty tensors. |
 | | `broadcast_in_dim`, `transpose` | Broadcast stores `shape/dimensions`, transpose stores `permutation`. |
-| **Reductions** | `reduce_sum`, `reduce_max` | `axes` are strictly ascending and unique axes; full reduction produces ScalarType, partial reduction produces TensorType. When rank > 0 and axes is empty, preserves TensorType. |
+| | `slice`, `pad`, `concatenate` | `slice` stores `starts/stops/steps`; `pad` takes `(value, pad_value)` (scalar or 0-D tensor) and `pad_low/pad_high/interior`; `concatenate` joins >= 1 same-dtype operands along `axis`. |
+| | `gather`, `scatter_add` | `gather` indexes `params` by `indices` along `axis`; `scatter_add` initializes from `base` and accumulates `updates` at `indices` along `axis`. |
+| **Reductions** | `reduce_sum`, `reduce_max`, `reduce_min`, `reduce_prod`, `reduce_any`, `reduce_all` | `axes` are strictly ascending and unique axes (`reduce_max/min` require non-empty domains; `any/all` take `bool`; full reduction yields `ScalarType`). |
+| | `argmax`, `argmin` | Reduces non-empty single `axis` into `i64` first-extremum indices (`ScalarType` when rank == 1). |
 | **Matrix Multiplication** | `matmul` | Batch-aligned matrix multiplication, `transpose_a/b` controls transposition of the trailing two dimensions; fp32 accumulation. |
 | **Differentiation Boundary** | `stop_gradient` | One scalar or tensor input, forward returns value, type, and shape verbatim; JVP tangents and VJP cotangents halt propagation, and numerical lowering directly maps the input value. |
 | **Functions & External Ops** | `call` | `attrs["spec"]` stores `CallSpec` and forward subgraph (e.g. [`ft.fun`](../architecture/autograd.md#custom-fun)), results are public forward outputs, differentiation rules receive primals, forward outputs, and cotangents. |

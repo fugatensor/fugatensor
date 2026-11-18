@@ -45,15 +45,23 @@ class PrimitiveBinder {
         deviceType(std::move(deviceType)), cache(std::make_shared<Cache>()) {}
 
   nb::object bind(nb::tuple arguments, nb::handle definition) {
+    return bindCore(arguments, definition, nb::object());
+  }
+
+  nb::object bindWithEngine(nb::tuple arguments, nb::handle definition, nb::handle engineOverride) {
+    return bindCore(arguments, definition, nb::borrow<nb::object>(engineOverride));
+  }
+
+  nb::object bindCore(nb::tuple arguments, nb::handle definition, nb::object engine) {
     std::string signature;
     signature.reserve(nb::len(arguments) * 16);
     std::vector<std::uint32_t> values;
     values.reserve(nb::len(arguments));
-    nb::object engine;
+    bool hasTensorEngine = false;
     for (nb::handle argument : arguments) {
       if (nb::isinstance<TensorHandle>(argument)) {
         const auto &tensor = nb::cast<const TensorHandle &>(argument);
-        if (!engine.is_valid()) engine = tensor.engine;
+        if (!hasTensorEngine) { engine = tensor.engine; hasTensorEngine = true; }
         else if (!engine.is(tensor.engine)) engine.attr("_check_tensor")(argument);
         signature.push_back('t');
         word(signature, tensor.typeId());
@@ -64,7 +72,8 @@ class PrimitiveBinder {
         staticKey(signature, argument);
       }
     }
-    if (!engine.is_valid()) throw nb::type_error("an operation requires at least one Tensor argument");
+    if (!engine.is_valid() || engine.is_none())
+      throw nb::type_error("an operation requires at least one Tensor argument");
     // Keep a record alive across definition callbacks, which may clear caches.
     auto foundEngine = cache->engines.find(engine.ptr());
     Record record;
@@ -183,6 +192,7 @@ void bindPrimitive(nb::module_ &module) {
   nb::class_<PrimitiveBinder>(module, "PrimitiveBinder", nb::type_slots(slots))
       .def(nb::init<nb::object, nb::object, nb::object, nb::object>())
       .def("bind", &PrimitiveBinder::bind)
+      .def("bind_with_engine", &PrimitiveBinder::bindWithEngine)
       .def("drop_engine", &PrimitiveBinder::drop)
       .def("clear", &PrimitiveBinder::clear);
 }

@@ -346,6 +346,36 @@ class BlockBuilder:
     def div(self, lhs, rhs, *, id=None):
         return self.primitive('div', (lhs, rhs), id=id)
 
+    def floordiv(self, lhs, rhs, *, id=None):
+        return self.primitive('floordiv', (lhs, rhs), id=id)
+
+    def mod(self, lhs, rhs, *, id=None):
+        return self.primitive('mod', (lhs, rhs), id=id)
+
+    def pow(self, lhs, rhs, *, id=None):
+        return self.primitive('pow', (lhs, rhs), id=id)
+
+    def maximum(self, lhs, rhs, *, id=None):
+        return self.primitive('maximum', (lhs, rhs), id=id)
+
+    def minimum(self, lhs, rhs, *, id=None):
+        return self.primitive('minimum', (lhs, rhs), id=id)
+
+    def bitwise_and(self, lhs, rhs, *, id=None):
+        return self.primitive('bitwise_and', (lhs, rhs), id=id)
+
+    def bitwise_or(self, lhs, rhs, *, id=None):
+        return self.primitive('bitwise_or', (lhs, rhs), id=id)
+
+    def bitwise_xor(self, lhs, rhs, *, id=None):
+        return self.primitive('bitwise_xor', (lhs, rhs), id=id)
+
+    def shift_left(self, lhs, rhs, *, id=None):
+        return self.primitive('shift_left', (lhs, rhs), id=id)
+
+    def shift_right(self, lhs, rhs, *, id=None):
+        return self.primitive('shift_right', (lhs, rhs), id=id)
+
     def exp(self, value, *, id=None):
         return self.primitive('exp', (value,), id=id)
 
@@ -354,6 +384,33 @@ class BlockBuilder:
 
     def sqrt(self, value, *, id=None):
         return self.primitive('sqrt', (value,), id=id)
+
+    def sin(self, value, *, id=None):
+        return self.primitive('sin', (value,), id=id)
+
+    def cos(self, value, *, id=None):
+        return self.primitive('cos', (value,), id=id)
+
+    def tanh(self, value, *, id=None):
+        return self.primitive('tanh', (value,), id=id)
+
+    def erf(self, value, *, id=None):
+        return self.primitive('erf', (value,), id=id)
+
+    def abs(self, value, *, id=None):
+        return self.primitive('abs', (value,), id=id)
+
+    def floor(self, value, *, id=None):
+        return self.primitive('floor', (value,), id=id)
+
+    def ceil(self, value, *, id=None):
+        return self.primitive('ceil', (value,), id=id)
+
+    def round(self, value, *, id=None):
+        return self.primitive('round', (value,), id=id)
+
+    def bitwise_not(self, value, *, id=None):
+        return self.primitive('bitwise_not', (value,), id=id)
 
     def compare(self, lhs, rhs, predicate, *, id=None):
         return self.primitive('compare', (lhs, rhs), {'predicate': predicate}, id=id)
@@ -372,6 +429,44 @@ class BlockBuilder:
 
     def reduce_max(self, value, axes, *, id=None):
         return self.primitive('reduce_max', (value,), {'axes': tuple(axes)}, id=id)
+
+    def reduce_min(self, value, axes, *, id=None):
+        return self.primitive('reduce_min', (value,), {'axes': tuple(axes)}, id=id)
+
+    def reduce_prod(self, value, axes, *, id=None):
+        return self.primitive('reduce_prod', (value,), {'axes': tuple(axes)}, id=id)
+
+    def reduce_any(self, value, axes, *, id=None):
+        return self.primitive('reduce_any', (value,), {'axes': tuple(axes)}, id=id)
+
+    def reduce_all(self, value, axes, *, id=None):
+        return self.primitive('reduce_all', (value,), {'axes': tuple(axes)}, id=id)
+
+    def argmax(self, value, axis, *, id=None):
+        return self.primitive('argmax', (value,), {'axis': int(axis)}, id=id)
+
+    def argmin(self, value, axis, *, id=None):
+        return self.primitive('argmin', (value,), {'axis': int(axis)}, id=id)
+
+    def iota(self, shape, dimension, *, dtype='f32', id=None):
+        return self.primitive('iota', (), {'shape': tuple(shape), 'dimension': int(dimension), 'dtype': str(dtype)}, id=id)
+
+    def slice(self, value, starts, stops, steps, *, id=None):
+        return self.primitive('slice', (value,),
+                              {'starts': tuple(starts), 'stops': tuple(stops), 'steps': tuple(steps)}, id=id)
+
+    def pad(self, value, pad_value, pad_low, pad_high, interior, *, id=None):
+        return self.primitive('pad', (value, pad_value),
+                              {'pad_low': tuple(pad_low), 'pad_high': tuple(pad_high), 'interior': tuple(interior)}, id=id)
+
+    def concatenate(self, operands, axis, *, id=None):
+        return self.primitive('concatenate', tuple(operands), {'axis': int(axis)}, id=id)
+
+    def gather(self, params, indices, axis, *, id=None):
+        return self.primitive('gather', (params, indices), {'axis': int(axis)}, id=id)
+
+    def scatter_add(self, base, indices, updates, axis, *, id=None):
+        return self.primitive('scatter_add', (base, indices, updates), {'axis': int(axis)}, id=id)
 
     def matmul(self, lhs, rhs, *, transpose_a=False, transpose_b=False, id=None):
         return self.primitive('matmul', (lhs, rhs), {'transpose_a': transpose_a, 'transpose_b': transpose_b}, id=id)

@@ -168,3 +168,17 @@ CPU 临时区接入矩阵交叉 4 种可归约 dtype、3 种行数、2 种列数
 ```bash
 .venv/bin/python -m pytest tests/test_tensor_storage.py tests/test_weights.py --cuda -q
 ```
+
+<a id="stage2-tests"></a>
+
+## 扩展原语、切片索引与神经网络函数式算子
+
+- [`tests/test_ir_stage2.py`](../../tests/test_ir_stage2.py)：校验 Fuga IR 类型推导、非法输入拒绝、ASK 降级、覆盖切片/填充/拼接/聚集/散布/连乘/最小归约的多阶 `vjp`/`jvp` 闭合，以及常量位运算与比较特化。
+- [`tests/test_stage2_ops.py`](../../tests/test_stage2_ops.py)：覆盖 CPU 与 CUDA 执行（`fp32`/`fp16`/`bf16`/`int32`/`int64`/`bool`）、整数整除/取余/移位边界（`tests/support/stage2.py`）、CUDA warp 及多 warp 归约宽度（`1..300`）、零输入张量工厂、反向步长切片、内插填充、重复与越界 `scatter_add` 及 CUDA Graph 复用、中心差分梯度校验、零安全 `prod` 二阶导以及 `ft.nn.functional` 前反向计算。
+- [`tests/backend/test_stage2_backend.py`](../../tests/backend/test_stage2_backend.py)：校验 ASK 桥接层 Host 执行、`scatter_add` 分区隔离，以及物理 CUDA 单步（`CUDAKernel`）与多步重定位（`CUDAProgram`）在普通流与 Graph replay 下的 `pre_copy` 行为。
+
+```bash
+.venv/bin/python -m pytest tests/test_ir_stage2.py tests/test_stage2_ops.py --cuda -q
+ASK_SOURCE_ROOT=/path/to/ask ASK_OPT=/path/to/ask-opt ASK_LLVM_TOOLS_DIR=/path/to/llvm/bin ASK_PTXAS=/path/to/ptxas \
+  .venv/bin/python -m pytest tests/backend/test_stage2_backend.py --cuda -q
+```

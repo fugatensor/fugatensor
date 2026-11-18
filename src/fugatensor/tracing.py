@@ -106,6 +106,82 @@ class TraceTensor(_native.TraceHandle):
         from .ops import divide
         return divide(other, self)
 
+    def __floordiv__(self, other):
+        from .ops import floordiv
+        return floordiv(self, other)
+
+    def __rfloordiv__(self, other):
+        from .ops import floordiv
+        return floordiv(other, self)
+
+    def __mod__(self, other):
+        from .ops import mod
+        return mod(self, other)
+
+    def __rmod__(self, other):
+        from .ops import mod
+        return mod(other, self)
+
+    def __pow__(self, other):
+        from .ops import pow
+        return pow(self, other)
+
+    def __rpow__(self, other):
+        from .ops import pow
+        return pow(other, self)
+
+    def __abs__(self):
+        from .ops import abs
+        return abs(self)
+
+    def __and__(self, other):
+        from .ops import bitwise_and
+        return bitwise_and(self, other)
+
+    def __rand__(self, other):
+        from .ops import bitwise_and
+        return bitwise_and(other, self)
+
+    def __or__(self, other):
+        from .ops import bitwise_or
+        return bitwise_or(self, other)
+
+    def __ror__(self, other):
+        from .ops import bitwise_or
+        return bitwise_or(other, self)
+
+    def __xor__(self, other):
+        from .ops import bitwise_xor
+        return bitwise_xor(self, other)
+
+    def __rxor__(self, other):
+        from .ops import bitwise_xor
+        return bitwise_xor(other, self)
+
+    def __invert__(self):
+        from .ops import bitwise_not
+        return bitwise_not(self)
+
+    def __lshift__(self, other):
+        from .ops import shift_left
+        return shift_left(self, other)
+
+    def __rlshift__(self, other):
+        from .ops import shift_left
+        return shift_left(other, self)
+
+    def __rshift__(self, other):
+        from .ops import shift_right
+        return shift_right(self, other)
+
+    def __rrshift__(self, other):
+        from .ops import shift_right
+        return shift_right(other, self)
+
+    def __getitem__(self, key):
+        from .ops import getitem
+        return getitem(self, key)
+
     def __matmul__(self, other):
         from .ops import matmul
         return matmul(self, other)
@@ -146,13 +222,78 @@ class TraceTensor(_native.TraceHandle):
         from .ops import amax
         return amax(self, axis, keepdims=keepdims)
 
+    def amin(self, axis=None, *, keepdims=False):
+        from .ops import amin
+        return amin(self, axis, keepdims=keepdims)
+
+    def prod(self, axis=None, *, keepdims=False, dtype=None):
+        from .ops import prod
+        return prod(self, axis, keepdims=keepdims, dtype=dtype)
+
+    def any(self, axis=None, *, keepdims=False):
+        from .ops import any
+        return any(self, axis, keepdims=keepdims)
+
+    def all(self, axis=None, *, keepdims=False):
+        from .ops import all
+        return all(self, axis, keepdims=keepdims)
+
+    def argmax(self, axis=None, *, keepdims=False):
+        from .ops import argmax
+        return argmax(self, axis, keepdims=keepdims)
+
+    def argmin(self, axis=None, *, keepdims=False):
+        from .ops import argmin
+        return argmin(self, axis, keepdims=keepdims)
+
     def mean(self, axis=None, *, keepdims=False, dtype=None):
         from .ops import mean
         return mean(self, axis, keepdims=keepdims, dtype=dtype)
 
+    def abs(self):
+        from .ops import abs
+        return abs(self)
+
+    def clamp(self, min=None, max=None):
+        from .ops import clamp
+        return clamp(self, min=min, max=max)
+
+    def clip(self, min=None, max=None):
+        from .ops import clamp
+        return clamp(self, min=min, max=max)
+
+    def squeeze(self, axis=None):
+        from .ops import squeeze
+        return squeeze(self, axis)
+
+    def unsqueeze(self, axis):
+        from .ops import unsqueeze
+        return unsqueeze(self, axis)
+
+    def flatten(self, start_dim=0, end_dim=-1):
+        from .ops import flatten
+        return flatten(self, start_dim, end_dim)
+
+    def split(self, split_size_or_sections, axis=0):
+        from .ops import split
+        return split(self, split_size_or_sections, axis=axis)
+
+    def chunk(self, chunks, axis=0):
+        from .ops import chunk
+        return chunk(self, chunks, axis=axis)
+
     def transpose(self, permutation=None):
         from .ops import transpose
         return transpose(self, permutation)
+
+    @property
+    def ndim(self) -> int:
+        return len(self.shape)
+
+    @property
+    def numel(self) -> int:
+        import math
+        return math.prod(self.shape)
 
     @property
     def T(self):

@@ -34,9 +34,13 @@
    - `reshape(x, shape)` → 将 `dout` 恢复为 `x.shape`。
    - `stop_gradient(x)` → 不向输入传播余切。
 
-`ir/tensor_rules.py` 提供逐元素浮点函数、广播、转置、归约和矩阵乘法的类型与导数规则，统一加入 `PRIMITIVE_RULES`。广播的 VJP 对复制轴求和，sum 的 VJP 广播种子，转置的 VJP 使用逆排列。max 在并列最大值处平均梯度。matmul 的 JVP/VJP 使用带转置标志的 matmul；比较切断微分边，select 只连接两个数值输入。
+`ir/tensor_rules.py` 提供逐元素数学函数（`sin`/`cos`/`tanh`/`erf`/`abs`/`pow`/`floordiv`/`mod`/`maximum`/`minimum`/`floor`/`ceil`/`round`）、位与移位运算（`bitwise_*`、`shift_*`）、几何索引（`slice`、`pad`、`concatenate`、`gather`、`scatter_add`、`iota`）、广播、转置、归约（`reduce_sum`/`max`/`min`/`prod`/`any`/`all`、`argmax`/`argmin`）和矩阵乘法的类型与导数规则，统一加入 `PRIMITIVE_RULES`：
 
-全归约产生 ScalarType；公开 Tensor API 用已有 splat 将结果转为 0-D Tensor。splat 的 VJP 通过全归约恢复标量，保持两种类型之间的微分闭合。
+- **混合类型与不可微端口**：同时接受整数与浮点的算子或混有索引端口的算子（如 `gather`、`scatter_add`）在 `PrimitiveRule` 中设置 `floating_values=False`，仅在活跃浮点端口传播导数，并在索引或整数/布尔端口（以及 `argmax`/`argmin`/`floor`/`ceil`/`round`/`bitwise_*`/`shift_*`/`reduce_any/all`/`iota`）切断微分边。
+- **极值与连乘微分**：`reduce_max`、`reduce_min`、`maximum`、`minimum` 在并列极值处均分梯度并传播 `NaN`；`reduce_prod` 使用基于 0 计数分段（`0/1/>=2` 个零）的零安全独占乘积规则，确保零值处的一阶与高阶导数无 NaN。
+- **几何与索引伴随规则**：`slice` 的反向通过反向步长调整（含 `-1` 停界映射）生成 `pad`；`pad` 同时对 `value`（切片取回）和 `pad_value`（掩码求和 `reduce_sum`）求导；`concatenate` 按段切片分发余切；`gather` 的 VJP 使用零底板 `scatter_add`、JVP 使用 `gather`；`scatter_add` 的 VJP 直接将余切回传至 `base` 并沿 `indices` `gather` 给 `updates`（对应匹配 JVP）。
+
+全归约产生 ScalarType；公开 Tensor API 用已有 splat 将结果转为 0-D Tensor。splat 与 0-D `pad` 填充值的 VJP 经 `_restore` 恢复与原值完全匹配的类型，保持 `ScalarType` 与 `TensorType(())` 之间的微分闭合。`specialize` 内的 `_known_scalar` 在编译期折叠常量整数、位运算、移位、`abs`、`maximum`/`minimum` 及 `compare` 标量链以支持静态 `fuga.if` 选择。
 
 这些规则生成的指令仍属于同一套基础原语，导数 `Module` 可以继续交给 `jvp`、`vjp`、`prune` 或 `lower_to_ask`。`stop_gradient` 的数值依赖与微分依赖分开处理：值仍按普通依赖计算，活跃微分路径在此断开，因此仅通过该节点连接到导数结果的外部算子无需 JVP/VJP 规则。
 

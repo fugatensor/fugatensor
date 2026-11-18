@@ -172,16 +172,24 @@ class _PrimitiveFunction(JITFunction):
             raise TypeError('primitive keyword-only arguments require defaults')
         self._binder = _native.PrimitiveBinder(Tensor, TraceTensor, DType, Device)
 
-    def __call__(self, *args, **kwargs):
+    def _normalize_args(self, args, kwargs):
         if not kwargs and len(args) == self._positional_count:
-            values = args + self._keyword_defaults
-        else:
-            bound = self._signature.bind(*args, **kwargs)
-            bound.apply_defaults()
-            values = tuple(bound.arguments.values())
+            return args + self._keyword_defaults
+        bound = self._signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        return tuple(bound.arguments.values())
+
+    def __call__(self, *args, **kwargs):
+        values = self._normalize_args(args, kwargs)
         if active_trace.get() is not None:
             return self._call(values)
         return self._binder.bind(values, self)
+
+    def _bind_on_engine(self, engine, *args, **kwargs):
+        values = self._normalize_args(args, kwargs)
+        if active_trace.get() is not None:
+            return self._call(values)
+        return self._binder.bind_with_engine(values, self, engine)
 
     def _trace_primitive(self, values, inputs, engine):
         context = TraceContext([(value.shape, value.dtype) for value in inputs], engine=engine)
@@ -204,5 +212,49 @@ class _PrimitiveFunction(JITFunction):
         self._revision += 1
 
 
+class _VariadicPrimitiveFunction:
+    """Primitive template accepting variable-length positional arguments (e.g. concatenate)."""
+
+    def __init__(self, function):
+        self.function = function
+        self._revision = 0
+        self._binder = _native.PrimitiveBinder(Tensor, TraceTensor, DType, Device)
+        update_wrapper(self, function, updated=())
+
+    def _definition_key(self):
+        function = getattr(self.function, '__func__', self.function)
+        code = getattr(function, '__code__', None)
+        return (id(self), self._revision, None if code is None else (code.co_code, code.co_consts))
+
+    def __call__(self, *args):
+        if active_trace.get() is not None:
+            return self.function(*args)
+        return self._binder.bind(args, self)
+
+    def _trace_primitive(self, values, inputs, engine):
+        context = TraceContext([(value.shape, value.dtype) for value in inputs], engine=engine)
+        context.depend_on(self)
+        replacements = iter(context.inputs)
+        traced = tuple(next(replacements) if isinstance(value, Tensor) else value for value in values)
+        token = active_trace.set(context)
+        try:
+            context.finish(self.function(*traced))
+        finally:
+            active_trace.reset(token)
+        from ._lazy import _template
+        return _Traced(_template(context.module), context.output_is_tuple, tuple(context.dependencies.items()))
+
+    def _drop_engine(self, engine):
+        self._binder.drop_engine(engine)
+
+    def clear_cache(self):
+        self._binder.clear()
+        self._revision += 1
+
+
 def primitive(function):
     return _PrimitiveFunction(function)
+
+
+def variadic_primitive(function):
+    return _VariadicPrimitiveFunction(function)

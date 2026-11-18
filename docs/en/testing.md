@@ -167,3 +167,17 @@ State cases verify storage boundaries when downstream constructs graphs first an
 ```bash
 .venv/bin/python -m pytest tests/test_tensor_storage.py tests/test_weights.py --cuda -q
 ```
+
+<a id="stage2-tests"></a>
+
+## Extended Primitives, Indexing, and Neural Net Functional Ops
+
+- [`tests/test_ir_stage2.py`](../../tests/test_ir_stage2.py): Verifies Fuga IR type inference, validation rejections, ASK lowering, multi-order `vjp`/`jvp` closure across slicing/padding/concatenation/gather/scatter/prod/min, and constant bitwise/comparison specialization.
+- [`tests/test_stage2_ops.py`](../../tests/test_stage2_ops.py): Covers CPU and CUDA execution (`fp32`/`fp16`/`bf16`/`int32`/`int64`/`bool`), integer division/modulo/shift boundaries (`tests/support/stage2.py`), warp and multi-warp CUDA reduction widths (`1..300`), zero-input tensor factories, reverse slicing, interior-dilated padding, duplicate/OOB `scatter_add` with CUDA Graph reuse, central-difference autograd checks, zero-safe `prod` second derivatives, and `ft.nn.functional` forward/backward passes.
+- [`tests/backend/test_stage2_backend.py`](../../tests/backend/test_stage2_backend.py): Validates ASK bridge Host lowering, `scatter_add` partition isolation, and physical CUDA single-step (`CUDAKernel`) and multi-step relocated (`CUDAProgram`) `pre_copy` behavior under both stream and Graph replay.
+
+```bash
+.venv/bin/python -m pytest tests/test_ir_stage2.py tests/test_stage2_ops.py --cuda -q
+ASK_SOURCE_ROOT=/path/to/ask ASK_OPT=/path/to/ask-opt ASK_LLVM_TOOLS_DIR=/path/to/llvm/bin ASK_PTXAS=/path/to/ptxas \
+  .venv/bin/python -m pytest tests/backend/test_stage2_backend.py --cuda -q
+```

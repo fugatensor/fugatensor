@@ -1,4 +1,4 @@
-返回 API 目录：[分类目录](README.md#categories) · 关联模块：[基础运算](ops.md) · [自动微分](autograd.md)
+返回 API 目录：[分类目录](README.md#categories) · 关联模块：[神经网络算子](nn.md) · [基础运算](ops.md) · [自动微分](autograd.md)
 
 # 注意力算子
 

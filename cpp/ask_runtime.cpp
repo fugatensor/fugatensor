@@ -808,7 +808,11 @@ void bindAskRuntime(nanobind::module_ &module) {
             if (description.contains("workspace_limit"))
               matmul.workspaceLimit = nb::cast<std::size_t>(description["workspace_limit"]);
             step.matmul = std::move(matmul);
-            steps.push_back(std::move(step));
+            if (item.contains("pre_copy")) {
+            auto pair = nb::cast<std::pair<std::size_t, std::size_t>>(item["pre_copy"]);
+            step.preCopy = CopyDescription{pair.first, pair.second};
+          }
+          steps.push_back(std::move(step));
             continue;
           }
           step.kernel = nb::cast<std::shared_ptr<Kernel>>(item["kernel"]);
@@ -825,6 +829,10 @@ void bindAskRuntime(nanobind::module_ &module) {
               argument.buffer = nb::cast<std::int64_t>(binding);
             }
             step.arguments.push_back(std::move(argument));
+          }
+          if (item.contains("pre_copy")) {
+            auto pair = nb::cast<std::pair<std::size_t, std::size_t>>(item["pre_copy"]);
+            step.preCopy = CopyDescription{pair.first, pair.second};
           }
           steps.push_back(std::move(step));
         }

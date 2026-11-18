@@ -37,6 +37,20 @@ def _nbytes(port):
     return math.prod(port["shape"]) * ctypes.sizeof(_STORAGE_TYPES[port["element_type"]])
 
 
+def _step_pre_copy(report, inputs, outputs):
+    """Extract the optional (src_buffer_idx, dst_buffer_idx) pre-copy binding for a CUDA step."""
+    if not isinstance(report, dict):
+        return None
+    pc = report.get("pre_copy")
+    if pc is None:
+        lowering = report.get("cuda_lowering")
+        if isinstance(lowering, dict):
+            pc = lowering.get("pre_copy")
+    if not isinstance(pc, dict):
+        return None
+    return (inputs[pc["input"]], outputs[pc["output"]])
+
+
 class _Prepared:
     def _prepare_ports(self):
         from .. import _native
@@ -94,6 +108,9 @@ class PreparedCUDAKernel(_Prepared):
         ninputs = len(self._inputs)
         indices = list(range(ninputs + len(self._outputs)))
         step = _load_step(package, session, indices[:ninputs], indices[ninputs:])
+        pre_copy = _step_pre_copy(getattr(kernel, "report", None), indices[:ninputs], indices[ninputs:])
+        if pre_copy is not None:
+            step["pre_copy"] = pre_copy
         self._native = session._native.prepare_program(
             [_nbytes(port) for port in (*self._inputs, *self._outputs)],
             indices[:ninputs], indices[ninputs:], [step], graph)
@@ -121,7 +138,14 @@ class PreparedCUDAProgram(_Prepared):
             if step['kind'] == 'library':
                 steps.append({'matmul': dict(step['matmul']), 'inputs': inputs, 'outputs': outputs})
             else:
-                steps.append(_load_step(validate_kernel_package(program.kernels[step['id']]), session, inputs, outputs))
+                loaded = _load_step(validate_kernel_package(program.kernels[step['id']]), session, inputs, outputs)
+                step_report = (program.report or {}).get('steps', {}).get(step['id'])
+                if not isinstance(step_report, dict):
+                    step_report = getattr(program.kernels[step['id']], 'report', None)
+                pre_copy = _step_pre_copy(step_report, inputs, outputs)
+                if pre_copy is not None:
+                    loaded['pre_copy'] = pre_copy
+                steps.append(loaded)
         self._native = session._native.prepare_program(
             [_nbytes(buffer) for buffer in buffers.values()],
             [indices[name] for name in self._plan["inputs"]],

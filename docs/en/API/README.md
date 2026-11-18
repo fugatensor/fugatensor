@@ -29,10 +29,11 @@ print("Result:", y.tolist())  # [4.0, 6.0, 8.0]
 
 | Module | Description | Core APIs |
 | --- | --- | --- |
-| [Tensor Creation & Data Exchange](tensor.md) | Tensor construction, size factories, type system, and memory interoperability | `tensor`, `zeros`, `ones`, `empty`, `full`, `from_buffer`, `reshape`, `astype` |
-| [Basic Arithmetic & Algebraic Ops](ops.md) | Element-wise arithmetic, comparisons, geometric layout, reductions, and matrix multiplication | `add`, `multiply`, `where`, `transpose`, `sum`, `mean`, `amax`, `matmul` |
+| [Tensor Creation & Data Exchange](tensor.md) | Tensor construction, coordinate/identity factories, type system, and memory interoperability | `tensor`, `zeros`, `ones`, `empty`, `full`, `full_like`, `arange`, `linspace`, `eye`, `iota`, `from_buffer`, `reshape`, `astype` |
+| [Basic Arithmetic & Algebraic Ops](ops.md) | Element-wise math, logic/bitwise, slicing/padding/concat, indexing/scatter, reductions, and matmul | `add`, `sin`, `where`, `slice`, `pad`, `cat`, `gather`, `scatter_add`, `sum`, `amax`, `amin`, `prod`, `argmax`, `matmul` |
 | [Autograd & Custom Operators](autograd.md) | Functional differentiation, gradient cut-off, and explicit VJP operators | `grad`, `stop_gradient`, `detach`, `fun` |
 | [Device Management & Execution](engine.md) | Device switching, default device settings, stream synchronization, and engine lifecycle | `device`, `set_default_device`, `evaluate`, `synchronize`, `Engine` |
+| [Neural Network Operators](nn.md) | Common activation, normalization, embedding lookup, and cross-entropy loss functions | `nn.functional.relu`, `gelu`, `softmax`, `layer_norm`, `rms_norm`, `embedding`, `cross_entropy` |
 | [Attention Operators](attention.md) | High-performance built-in attention operators, causal masking, and variable-length SDPA | `nn.functional.scaled_dot_product_attention`, `nn.functional.scaled_dot_product_attention_varlen` |
 | [Triton Kernel Integration](triton.md) | External Triton custom kernel binding and configuration callbacks | `triton.kernel`, `triton.from_source`, `triton.from_jit` |
 | [Weight Persistence](weights.md) | Model parameter PyTree serialization and content-addressed verification | `save_weights`, `load_weights`, `weights.manifest` |

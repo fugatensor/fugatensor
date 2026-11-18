@@ -118,10 +118,10 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 | 项目 | 当前行为 |
 | --- | --- |
 | **数据类型** | 默认 `ft.fp32`；支持 `ft.bool`、`ft.int32`、`ft.int64`、`ft.fp32`、`ft.fp16`、`ft.bf16`，用 `.astype(...)` 显式转换；bf16 Tensor 使用 CUDA |
-| **张量创建与基础运算** | `tensor`、`zeros`、`ones`、`empty`、`full`；加减乘除、指数/对数/平方根、比较选择、显式广播与转置、归约、矩阵乘法（静态形状，含 0-D 与空张量） |
+| **张量创建与算子** | `tensor`、`zeros`、`ones`、`empty`、`full`、`full_like`、`arange`、`linspace`、`eye`、`iota`；算术与数学（`sin`/`cos`/`tanh`/`erf`/`pow`/`abs`/`floor`/`ceil`/`round`/`clamp`）、逻辑/位运算与移位、归约（`sum`/`mean`/`amax`/`amin`/`prod`/`any`/`all`/`argmax`/`argmin`）、切片与索引（`x[...]`、`slice`、`pad`、`cat`、`stack`、`split`、`chunk`、`squeeze`、`unsqueeze`、`flatten`、`gather`、`scatter_add`、`tril`、`triu`、`one_hot`）、矩阵乘法 |
 | **控制流** | Fuga IR 静态 `if` 选择与有界 `for` 展开；普通 Python 支持 0-D Tensor 的 `if`/`while`，条件读取触发按需执行 |
 | **自动微分** | `ft.grad(outputs, inputs, seed=...)` 延迟求导、`detach()` / `stop_gradient()`、`ft.fun` 纯 VJP、导数图组合与高阶求导 |
-| **注意力** | `nn.functional.scaled_dot_product_attention`，CUDA fp16/bf16、可选因果掩码、FlashAttention 前向及一阶反向 |
+| **神经网络与注意力** | `ft.nn.functional`：`relu`、`leaky_relu`、`sigmoid`、`silu`、`gelu`、`softmax`、`log_softmax`、`layer_norm`、`rms_norm`、`embedding`、`cross_entropy`；CUDA fp16/bf16 FlashAttention（`scaled_dot_product_attention`、`scaled_dot_product_attention_varlen`） |
 | **权重导出** | 版本化 PyTree 权重目录，支持嵌套 dict/list/tuple、六种基础 dtype、内容寻址去重、原子导出与完整性校验 |
 | **执行后端** | CPU（`.o` → `.so` → `ctypes`）、自有 CUDA、Triton cubin 与多 kernel 调度，支持多端口和按值标量 |
 
@@ -146,7 +146,7 @@ print(engine.last_artifact_dir)  # fuga.ir、frontend.mlir 与 fuga-to-ask.json
 
 - [安装与独立构建](docs/zh/install.md)
 - [文档目录](docs/zh/README.md)
-- [API](docs/zh/API/README.md)：张量与数据交换、基础运算、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、attention。
+- [API](docs/zh/API/README.md)：张量与数据交换、算子/索引/归约、设备与执行、自动微分与自定义函数、Triton 接入、权重读写、IR 与降级、神经网络算子（[`nn.md`](docs/zh/API/nn.md)）、attention。
 - **系统架构（`docs/zh/architecture/`）**：[架构总览](docs/zh/architecture/README.md) · [张量模型与追踪机制](docs/zh/architecture/tensor_model.md) · [原生图分析与 C++ 边界](docs/zh/architecture/native.md) · [自动微分与自定义算子](docs/zh/architecture/autograd.md) · [ASK 桥接与多后端执行](docs/zh/architecture/backend.md) · [权重格式与导出](docs/zh/architecture/weights.md)
 - **中间表示（`docs/zh/ir/`）**：[Fuga IR 总览](docs/zh/ir/README.md) · [对象模型与验证](docs/zh/ir/model.md) · [控制流与可组合变换](docs/zh/ir/transforms.md) · [降级到 ASK](docs/zh/ir/lowering.md)
 

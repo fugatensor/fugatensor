@@ -118,10 +118,10 @@ The engine queries caches by graph template and connectivity; cache hits reuse c
 | Category | Current Behavior |
 | --- | --- |
 | **Data Types** | Defaults to `ft.fp32`; supports `ft.bool`, `ft.int32`, `ft.int64`, `ft.fp32`, `ft.fp16`, `ft.bf16` via `.astype(...)`; BF16 tensors require CUDA |
-| **Tensor Creation & Ops** | `tensor`, `zeros`, `ones`, `empty`, `full`; basic arithmetic, exp/log/sqrt, comparisons, explicit broadcasting, transposition, reductions, matmul (static shapes, including 0-D and empty tensors) |
+| **Tensor Creation & Ops** | `tensor`, `zeros`, `ones`, `empty`, `full`, `full_like`, `arange`, `linspace`, `eye`, `iota`; arithmetic, math (`sin`/`cos`/`tanh`/`erf`/`pow`/`abs`/`floor`/`ceil`/`round`/`clamp`), logic & bitwise/shift, reductions (`sum`/`mean`/`amax`/`amin`/`prod`/`any`/`all`/`argmax`/`argmin`), slicing/indexing (`x[...]`, `slice`, `pad`, `cat`, `stack`, `split`, `chunk`, `squeeze`, `unsqueeze`, `flatten`, `gather`, `scatter_add`, `tril`, `triu`, `one_hot`), matmul |
 | **Control Flow** | Fuga IR static `if` selection and bounded `for` unrolling; Python `if`/`while` on 0-D tensors evaluates on demand |
 | **Autograd** | `ft.grad(outputs, inputs, seed=...)` lazy differentiation, `detach()` / `stop_gradient()`, `ft.fun` pure VJP rules, gradient graph composition, and higher-order derivatives |
-| **Attention** | `nn.functional.scaled_dot_product_attention`, CUDA FP16/BF16, optional causal masking, FlashAttention forward and first-order backward |
+| **Neural Net & Attention** | `ft.nn.functional`: `relu`, `leaky_relu`, `sigmoid`, `silu`, `gelu`, `softmax`, `log_softmax`, `layer_norm`, `rms_norm`, `embedding`, `cross_entropy`; CUDA FP16/BF16 FlashAttention (`scaled_dot_product_attention`, `scaled_dot_product_attention_varlen`) |
 | **Weight Export** | Versioned PyTree weight directories, nested dict/list/tuple, 6 base dtypes, content-addressed deduplication, atomic serialization, integrity validation |
 | **Backends** | CPU (`.o` → `.so` → `ctypes`), native CUDA, Triton cubin, multi-kernel scheduling, multi-port buffers, and by-value scalar arguments |
 
@@ -146,7 +146,7 @@ Numerical tests generate representative combinations covering operators, precisi
 
 - [Installation and Standalone Build](docs/en/install.md)
 - [Documentation Index](docs/en/README.md)
-- [API](docs/en/API/README.md): Tensors, data exchange, arithmetic ops, devices, autograd, custom functions, Triton integration, weights, IR lowering, and attention.
+- [API](docs/en/API/README.md): Tensors, data exchange, operations/indexing/reductions, devices, autograd, custom functions, Triton integration, weights, IR lowering, neural network ops ([`nn.md`](docs/en/API/nn.md)), and attention.
 - **System Architecture (`docs/en/architecture/`)**: [Architecture Overview](docs/en/architecture/README.md) · [Tensor Model & Tracing](docs/en/architecture/tensor_model.md) · [Native Graph Analysis & C++ Boundary](docs/en/architecture/native.md) · [Autograd & Custom Operators](docs/en/architecture/autograd.md) · [ASK Bridge & Multi-Backend Execution](docs/en/architecture/backend.md) · [Weight Format & Export](docs/en/architecture/weights.md)
 - **Intermediate Representation (`docs/en/ir/`)**: [Fuga IR Overview](docs/en/ir/README.md) · [Object Model & Verification](docs/en/ir/model.md) · [Control Flow & Composable Transforms](docs/en/ir/transforms.md) · [Lowering to ASK](docs/en/ir/lowering.md)
 

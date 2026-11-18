@@ -11,7 +11,7 @@
 - [张量与数据交换](API/tensor.md) · [基础运算](API/ops.md)
 - [设备与执行](API/engine.md) · [自动微分与自定义函数](API/autograd.md)
 - [Triton 算子接入](API/triton.md) · [权重读写](API/weights.md)
-- [IR 与降级](API/ir.md) · [attention](API/attention.md)
+- [IR 与降级](API/ir.md) · [神经网络算子](API/nn.md) · [注意力算子](API/attention.md)
 
 测试运行和用例扩展见[测试组织与覆盖矩阵](testing.md)。
 

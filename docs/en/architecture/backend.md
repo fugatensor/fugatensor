@@ -75,7 +75,9 @@ Cache probing records the Triton compiler fingerprint, `ptxas`, `libdevice`, run
 
 `required_element_types` records port storage types. Triton and `ptxas` verify architectural requirements for internal instructions, while ASK checks compatibility between artifacts and physical devices.
 
-Tensor ports and scalars are converted into native `PlanStep`s during `PreparedCUDAProgram` construction. When cubin/PTX is loaded, complete `parameter_types` are submitted, and ASK checks type widths against the parameter layout reported by the driver. After preparation, Python passes only input/output buffers on each call, with the native plan responsible for address binding and launching. Parameter schemas, artifact digests, and file contents are validated during preparation.
+Tensor ports, scalars, and optional step `pre_copy` metadata (extracted from `cuda_lowering.pre_copy` emitted for `ask.scatter_add`) are converted into native `PlanStep`s during `PreparedCUDAKernel` and `PreparedCUDAProgram` construction. When cubin/PTX is loaded, complete `parameter_types` are submitted, and ASK checks type widths against the parameter layout reported by the driver. After preparation, Python passes only input/output buffers on each call, with the native plan responsible for pre-copying base buffers, address binding, and launching. Parameter schemas, artifact digests, and file contents are validated during preparation.
+
+When compiling zero-input Fuga graphs (`ft.arange`, `ft.iota`, `ft.eye`, `ft.linspace`), `cpp/lazy.cpp` retains a zero-carrier binding (`carrier == 0`) while execution runs purely on the device.
 
 For syntax regarding multiple inputs, multiple outputs, configuration callbacks, by-value scalars, and constexprs, see [Triton Integration](../API/triton.md#registration-arguments). Each external node retains an independent launch step; physical outputs are determined by kernel contracts, and all physical outputs are allocated even if the frontend consumes only a subset of results.
 

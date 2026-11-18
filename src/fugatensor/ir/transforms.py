@@ -53,8 +53,43 @@ def _known_scalar(op, operands, constants):
             value = int(values[0])
         else:
             return None
-    elif op.opcode in ("add", "mul") and destination in ("i32", "i64"):
-        value = values[0] + values[1] if op.opcode == "add" else values[0] * values[1]
+    elif op.opcode == "bitwise_not" and destination == "bool":
+        return not bool(values[0])
+    elif op.opcode == "bitwise_not" and destination in ("i32", "i64"):
+        value = ~int(values[0])
+    elif op.opcode in ("bitwise_and", "bitwise_or", "bitwise_xor") and destination == "bool":
+        a, b = bool(values[0]), bool(values[1])
+        return (a and b) if op.opcode == "bitwise_and" else (a or b) if op.opcode == "bitwise_or" else (a != b)
+    elif op.opcode == "compare" and destination == "bool" and operands[0].type.dtype in ("bool", "i32", "i64"):
+        a, b = values[0], values[1]
+        pred = op.attrs["predicate"]
+        return (a == b if pred == "eq" else a != b if pred == "ne"
+                else a < b if pred == "lt" else a <= b if pred == "le"
+                else a > b if pred == "gt" else a >= b)
+    elif op.opcode == "abs" and destination in ("i32", "i64"):
+        value = abs(int(values[0]))
+    elif op.opcode in ("add", "mul", "maximum", "minimum", "bitwise_and", "bitwise_or",
+                       "bitwise_xor", "shift_left", "shift_right") and destination in ("i32", "i64"):
+        a, b = int(values[0]), int(values[1])
+        width = int(destination[1:])
+        if op.opcode == "add":
+            value = a + b
+        elif op.opcode == "mul":
+            value = a * b
+        elif op.opcode == "maximum":
+            value = max(a, b)
+        elif op.opcode == "minimum":
+            value = min(a, b)
+        elif op.opcode == "bitwise_and":
+            value = a & b
+        elif op.opcode == "bitwise_or":
+            value = a | b
+        elif op.opcode == "bitwise_xor":
+            value = a ^ b
+        elif op.opcode == "shift_left":
+            value = (a << b) if 0 <= b < width else 0
+        else:
+            value = (a >> b) if 0 <= b < width else (0 if b < 0 else (-1 if a < 0 else 0))
     else:
         return None
     width = int(destination[1:])

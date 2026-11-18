@@ -78,13 +78,36 @@ f = ft.full((2, 2), 3.14)
 print(f.tolist())  # [[3.14, 3.14], [3.14, 3.14]]
 ```
 
-### `ft.zeros_like(x)` / `ft.ones_like(x)`
-Creates an all-zeros or all-ones tensor matching the shape, dtype, and device of input tensor `x`.
+### `ft.zeros_like(x)` / `ft.ones_like(x)` / `ft.full_like(x, fill_value, *, dtype=None, device=None)`
+Creates an all-zeros, all-ones, or constant-filled tensor matching `x`'s shape (and by default `dtype` and `device`). `full_like` also works inside traced `ft.fun` bodies.
 
 ```python
 x = ft.tensor([1, 2, 3], dtype=ft.int32)
 z = ft.zeros_like(x)
-print(z.tolist(), z.dtype)  # [0, 0, 0] int32
+f = ft.full_like(x, 7)
+print(z.tolist(), f.tolist())  # [0, 0, 0] [7, 7, 7]
+```
+
+<a id="range-factories"></a>
+
+## Coordinate, Sequence, and Diagonal Factories
+
+Zero-input creation routines execute purely on the target device via ASK `iota` graphs (and also compose inside traced functions without host materialization):
+
+| Function | Description |
+| --- | --- |
+| `ft.arange(start, stop=None, step=1, *, dtype=None, device=None)` | 1-D half-open arithmetic sequence; defaults to `ft.int64` when all inputs are integers, else `ft.fp32`. |
+| `ft.linspace(start, stop, steps, *, dtype=ft.fp32, device=None)` | `steps` evenly spaced floating or integer samples over `[start, stop]`, pinning the endpoint when `steps > 1`. |
+| `ft.eye(n, m=None, *, dtype=ft.fp32, device=None)` | 2-D `(n, m)` matrix with `1`s on the main diagonal and `0`s elsewhere. |
+| `ft.iota(shape, *, dimension=0, dtype=ft.fp32, device=None)` | Tensor of `shape` filled with element coordinates `0, 1, ...` along `dimension` (numeric dtypes). |
+
+```python
+import fugatensor as ft
+
+print(ft.arange(0, 8, 2).tolist())              # [0, 2, 4, 6]
+print(ft.linspace(-1.0, 1.0, 3).tolist())       # [-1.0, 0.0, 1.0]
+print(ft.eye(2, 3, dtype=ft.int32).tolist())    # [[1, 0, 0], [0, 1, 0]]
+print(ft.iota((2, 3), dimension=1).tolist())    # [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]
 ```
 
 <a id="interop"></a>

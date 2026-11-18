@@ -34,7 +34,8 @@ The internal module `fugatensor._ask` generates ASK MLIR according to the follow
 | `fuga.constant` | `graph.constant(value, dtype=...)` | Encodes floating-point constants according to single-step RNE rules. |
 | `fuga.splat` | `graph.splat(scalar, shape)` | Splats a scalar into a tensor of specified shape, including 0-D tensors. |
 | `fuga.add` / `fuga.mul` | `graph.add(lhs, rhs)` / `graph.mul(lhs, rhs)` | Requires identical shapes and types. |
-| `div`, `exp/log/sqrt`, `compare/select`, `broadcast_in_dim/transpose`, `reduce_sum/reduce_max`, `matmul` | Identically named `ask` operations | Obtains result types from unified primitive type rules, with bridge layer preserving static attributes. |
+| `div`, `exp/log/sqrt`, `sin/cos/tanh/erf`, `abs/floor/ceil/round`, `pow/floordiv/mod/maximum/minimum`, `bitwise_*/shift_*`, `compare/select`, `broadcast_in_dim/transpose`, `slice/pad/concatenate/gather/scatter_add`, `reduce_sum/max/min/prod/any/all`, `argmax/argmin`, `matmul` | Identically named `ask` operations | Obtains result types from unified primitive type rules, with bridge layer preserving static attributes. |
+| `fuga.iota` | `ask.iota` (keeping `dimension`) | Encodes target shape and dtype directly in the ASK result `TensorType`, omitting `shape`/`dtype` attrs. |
 | `fuga.cast` | `graph.cast(operand, dtype=...)` | Generates `ask.cast`, preserving original scalar or tensor shape. |
 | `fuga.reshape` | `graph.reshape(operand, shape)` | Generates `ask.reshape` and target `shape`; preserves dtype, element count, and contiguous element order. |
 | `fuga.stop_gradient` | Input ASK value | Differentiation boundaries are handled in the Fuga IR phase; numerical lowering directly reuses input mappings, preserving original values. |
